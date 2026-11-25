@@ -53,7 +53,16 @@ docs/manual.html: $(CORE) tools/manual.c core/*.h docs/template.html docs/style.
 	$(CC) $(CFLAGS) -Icore $(CORE) tools/manual.c -o tools/manual_gen -lm
 	./tools/manual_gen docs/manual.html
 
-.PHONY: all test clean brick manual
+# A zip of the Brick pak for a GitHub release: run brick/build.sh first (it needs Docker), then   make brick-zip VERSION=0.1.0
+# The zip holds one folder, FEZ.pak, which the user copies to Tools/tg5040/ on the card.
+VERSION ?= dev
+brick-zip:
+	@test -d dist/FEZ.pak || { echo "dist/FEZ.pak is missing: run brick/build.sh first"; exit 1; }
+	rm -f dist/FEZ-brick-v$(VERSION).zip
+	cd dist && zip -qr FEZ-brick-v$(VERSION).zip FEZ.pak
+	@echo "made dist/FEZ-brick-v$(VERSION).zip"
+
+.PHONY: all test clean brick manual brick-zip
 
 # Draws every handheld screen to a picture file without a window (see tools/padshot.c).
 padshot: $(CORE) $(DESK) tools/padshot.c core/*.h desk/*.h
