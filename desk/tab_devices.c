@@ -368,6 +368,9 @@ void tab_devices_draw(Desk *d, View *v) {
 
 /* ---------------------------------------------------------------- keys */
 
+/* How many pages the DEVICES tab cycles through. The KEYS page is the computer keyboard as a piano, which a handheld has no use for. */
+static int page_count(const Desk *d) { return d->handheld ? DEV_COUNT - 1 : DEV_COUNT; }
+
 static void stop_entry(Desk *d) { d->dev.editing = 0; d->dev.len = 0; d->dev.buf[0] = '\0'; }
 
 /* The page's main action: step the automaton or the Turing machine, switch the quantiser or the freeze, or restart the attractor. */
@@ -384,7 +387,7 @@ void tab_devices_key(Desk *d, int key, int mods) {
   int n; const Setting *st = settings_of(d->dev.sub, &n);
   int *sel = &d->dev.sel[d->dev.sub];
   switch (key) {
-    case KEY_TAB: d->dev.sub = (d->dev.sub + (mods & MOD_SHIFT ? DEV_COUNT - 1 : 1)) % DEV_COUNT; stop_entry(d); break;
+    case KEY_TAB: d->dev.sub = (d->dev.sub + (mods & MOD_SHIFT ? page_count(d) - 1 : 1)) % page_count(d); stop_entry(d); break;
     case KEY_UP:   *sel = (*sel + n - 1) % n; stop_entry(d); break;
     case KEY_DOWN: *sel = (*sel + 1) % n; stop_entry(d); break;
     case KEY_LEFT: case KEY_RIGHT: {
@@ -408,7 +411,7 @@ void tab_devices_key(Desk *d, int key, int mods) {
 }
 
 void tab_devices_text(Desk *d, int ch) {
-  if (ch == '[' || ch == ']') { d->dev.sub = (d->dev.sub + (ch == ']' ? 1 : DEV_COUNT - 1)) % DEV_COUNT; stop_entry(d); return; }
+  if (ch == '[' || ch == ']') { d->dev.sub = (d->dev.sub + (ch == ']' ? 1 : page_count(d) - 1)) % page_count(d); stop_entry(d); return; }
   if (d->dev.sub == DEV_KEYS && ch != ' ') return;      /* on the KEYS page the letters and digits are notes (played from key events), not typing */
   if (ch >= '0' && ch <= '9') {
     if (d->dev.len < 5) { d->dev.buf[d->dev.len++] = (char)ch; d->dev.buf[d->dev.len] = '\0'; d->dev.editing = 1; }

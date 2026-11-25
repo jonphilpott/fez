@@ -42,6 +42,9 @@ typedef struct Pad {
 
 void pad_init(Pad *p, Desk *d);
 void pad_button(Pad *p, Button b, int down);   /* a button went down (1) or up (0) */
+/* An analogue stick moved. axis: 0 left X, 1 left Y, 2 right X, 3 right Y (SDL's numbering); raw: -32768..32767.
+   Each axis is modulation pot MP0..MP3: centre is 16384, a push one way raises it, the other lowers it (up is up). */
+void pad_stick(Pad *p, int axis, int raw);
 void pad_tick(Pad *p);                         /* key repeat for held buttons; call once a frame, after desk_tick */
 void pad_draw(Pad *p);                         /* after desk_draw: the menu, palette, picker and help page, and the status hint */
 

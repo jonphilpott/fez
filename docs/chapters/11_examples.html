@@ -1,0 +1,88 @@
+<p>FEZ comes with thirteen patches, built in and listed under EXAMPLES on the PATCHES tab. Each one is meant to show something. Load one, listen, then open the editor and read its blocks. This chapter lists them and takes three apart.</p>
+
+<h3 id="the-thirteen">The thirteen</h3>
+
+<p>In order:</p>
+
+<table class="regs">
+<tr><th>Patch</th><th>What you hear</th><th>What it teaches</th></tr>
+<tr><td>Glass Bells</td><td>random bells over two octaves, long tails</td><td>COLOUR and RND for notes; ENV routed to FM depth</td></tr>
+<tr><td>Acid Line</td><td>a squelchy bass, accents on steps 1, 4 and 7</td><td>a step pattern kept in scratch registers; accents made by shifting a bit mask, with no branch</td></tr>
+<tr><td>Rule 30 Rain</td><td>irregular drops, brighter when the automaton is crowded</td><td>the cellular automaton firing a pulser</td></tr>
+<tr><td>Dub Stab</td><td>offbeat stabs smeared into echoes</td><td>the tape delay; turn DLYFB up</td></tr>
+<tr><td>Lorenz Walk</td><td>a melody that never repeats but stays in one scale</td><td>Lorenz as a note source, and as modulation</td></tr>
+<tr><td>Four Pulsers</td><td>a slowly shifting polyrhythm</td><td>four pulsers, each on its own rate</td></tr>
+<tr><td>Mod Drone</td><td>a breathing drone with bell-like notes over it</td><td>the mod voice and the ladder filter</td></tr>
+<tr><td>Step Melody</td><td>an eight-step line that loses and regains notes</td><td>the sequencer mask SQEN</td></tr>
+<tr><td>Tape Echo</td><td>plucks followed by two echoes that drift in pitch like tape</td><td>the buffer as a delay line (two read voices at 375 and 562 ms); the LFO moves one through the matrix</td></tr>
+<tr><td>Grain Cloud</td><td>slow notes smeared into a shimmering cloud</td><td>grains from the buffer</td></tr>
+<tr><td>Noise Sweeps</td><td>a wash of filtered noise rising and falling</td><td>the mod voice's noise through the ladder filter</td></tr>
+<tr><td>Ambient Loops</td><td>soft notes returning at odd intervals</td><td>the buffer as a tape loop</td></tr>
+<tr><td>Deep Loop</td><td>phrases that return minutes later, dimmer</td><td>long delay, low DLYIN and four read voices</td></tr>
+</table>
+
+<h3 id="annotated">Three of them, line by line</h3>
+
+<h4>Glass Bells</h4>
+
+<p>One block, run by pulser 0. Each time it runs it chooses a random note and plays it:</p>
+
+<pre class="fez">\ bell: random degree 0..9 of colour 10 (minor pentatonic) over root C3
+10 RND 10 COLOUR C3 + PITCH !
+6000 RND 4000 + FMAMT !
+1 GATE !</pre>
+
+<ul>
+  <li><code>10 RND</code> picks a whole number from 0 to 9. <code>10 COLOUR</code> turns it into a note of the minor pentatonic scale: 0 to 4 are the first octave, 5 to 9 the next. The result is a distance above the root.</li>
+  <li><code>C3 +</code> adds the root. <code>PITCH !</code> stores the pitch.</li>
+  <li><code>6000 RND 4000 +</code> is a random number from 4000 to 9999, stored as the FM depth, so each bell has a slightly different brightness.</li>
+  <li><code>1 GATE !</code> plays it.</li>
+</ul>
+
+<p>The patch also has a matrix route that sends the envelope to <code>FMAMT</code> (see <a href="#matrix">the matrix</a>), so the bell starts bright and mellows, and a second block, run by pulser 1, that changes the amount of delay now and then.</p>
+
+<h4>Rule 30 Rain</h4>
+
+<pre class="fez">\ block 0, run by pulser 0: reseed if the row died, then one generation
+CACOUNT @ 1 JNZ  0x0100 CAROW !  1 L
+1 CASTEP !</pre>
+
+<ul>
+  <li><code>CACOUNT @</code> is the number of living cells. <code>1 JNZ</code> jumps to label 1 if it is not zero, skipping the reseed. If the automaton has died out, <code>0x0100 CAROW !</code> puts a single live cell in the row to start again.</li>
+  <li><code>1 L</code> is label 1, and <code>1 CASTEP !</code> then runs one generation.</li>
+</ul>
+
+<pre class="fez">\ block 1, run by pulser 1 on every birth at the watched cell
+CAROW @ 7 AND 13 COLOUR C3 + PITCH !
+CACOUNT @ 10 SHL FMAMT !
+1 GATE !</pre>
+
+<ul>
+  <li><code>CAROW @ 7 AND</code> keeps the low three bits of the row: a number from 0 to 7. <code>13 COLOUR C3 +</code> turns it into a pentatonic note.</li>
+  <li><code>CACOUNT @ 10 SHL</code> is the number of live cells times 1024: the more crowded the row, the more FM.</li>
+</ul>
+
+<pre class="fez">\ setup, run once: watch cell 3, fire pulser 1 on a birth there, use rule 30
+3 CATAP !  1 CATRIG !  30 CARULE !</pre>
+
+<h4>Deep Loop</h4>
+
+<p>The patch is described in <a href="#loop-patch">a tape-loop patch, step by step</a>. Its three blocks are:</p>
+
+<pre class="fez">\ block 0: a low note, one time in three
+3 RND 0 =  1 JZ
+  5 RND 13 COLOUR  C2 8 ST + +  PITCH !
+  1 GATE !
+1 L</pre>
+
+<ul>
+  <li><code>3 RND 0 =</code> is true one time in three (when the random number is 0). <code>1 JZ</code> jumps to the end, doing nothing, the other two times in three. So this block plays rarely.</li>
+  <li>The note is a pentatonic note over C2, plus <code>8 ST</code>: eight semitones, which lifts the root to A flat.</li>
+</ul>
+
+<pre class="fez">\ block 2: let the loop breathe, one time in four
+4 RND 0 =  1 JZ
+  16000 RND 6000 +  DLYIN !
+1 L</pre>
+
+<p>This one picks a new input level for the delay, from 6000 to 21999, so the loop slowly swells and thins. Block 1 is the same as block 0 but one octave higher and one time in four.</p>

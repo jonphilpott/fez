@@ -31,7 +31,7 @@ test: test_core
 	./test_core
 
 clean:
-	rm -rf fez deskshot padshot test_core render dist *.dSYM
+	rm -rf fez deskshot padshot test_core render tools/manual_gen dist *.dSYM
 
 # Cross-build for the TrimUI Brick: run inside the toolchain container (brick/build.sh does that). The container's environment
 # supplies CC (an aarch64 compiler) and pkg-config pointing at the Brick's own SDL2. Output goes to dist/, so it never overwrites
@@ -46,7 +46,14 @@ dist/probe: brick/probe.c
 	mkdir -p dist
 	$(CC) -std=c99 -O2 -Wall $(shell pkg-config --cflags sdl2) brick/probe.c -o $@ $(shell pkg-config --libs sdl2) -lm
 
-.PHONY: all test clean brick
+# The manual: one HTML page built from docs/ and the tables in core/ (see tools/manual.c). Output: docs/manual.html.
+manual: docs/manual.html
+
+docs/manual.html: $(CORE) tools/manual.c core/*.h docs/template.html docs/style.css $(wildcard docs/chapters/*.html) $(wildcard docs/shots/*.png)
+	$(CC) $(CFLAGS) -Icore $(CORE) tools/manual.c -o tools/manual_gen -lm
+	./tools/manual_gen docs/manual.html
+
+.PHONY: all test clean brick manual
 
 # Draws every handheld screen to a picture file without a window (see tools/padshot.c).
 padshot: $(CORE) $(DESK) tools/padshot.c core/*.h desk/*.h

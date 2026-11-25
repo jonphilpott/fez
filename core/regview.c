@@ -7,6 +7,14 @@
 
 /* ---------------------------------------------------------------- lists */
 
+const RegGroup REG_GROUPS[] = {
+  { "VOICE", REG_PITCH },      { "CV", REG_CV0 },         { "MIXER", REG_MIXCX },
+  { "MOD VOICE", REG_MDWAVE }, { "DELAY", REG_DLYTIME },  { "SLEW", REG_SLT0 },        { "SCRATCH", REG_S0 },
+  { "CELLULAR", REG_CARULE },  { "LORENZ", REG_LZRATE },  { "SEQUENCER", REG_SQSTEP }, { "BUFFER", REG_MIXBF },
+  { "GRAINS", REG_GPOS0 },     { "PULSERS", REG_BP0 },    { "QUANTISER", REG_QON },    { "TURING", REG_TMPUL },
+  { "KEYBOARD", REG_KBNOTE }, { "POTS", REG_MP0 } };
+const int REG_GROUP_COUNT = (int)(sizeof REG_GROUPS / sizeof REG_GROUPS[0]);
+
 int regview_list(RegEntry *out, int max) {
   /* NAME_TABLE is in the JS's definition order. A stable insertion sort by address keeps equal addresses in order. */
   int n = 0;
@@ -15,7 +23,7 @@ int regview_list(RegEntry *out, int max) {
     if (a < REG_PITCH || (a >= REG_P0 && a <= REG_P15)) continue;
     RegEntry e;
     e.name = NAME_TABLE[i].name; e.addr = a;
-    e.ro = a == REG_LEVEL || (a >= REG_MP0 && a <= REG_MP3) || (a >= REG_SLO0 && a <= REG_SLO3) || (a >= REG_CACOUNT && a <= REG_CADENS) || a == REG_CABIT || (a >= REG_LZX && a <= REG_LZZ) || a == REG_SQOUT || a == REG_BWPOS || a == REG_BWSTAT || a == REG_TMOUT || a == REG_KBNOTE || a == REG_KBGATE;
+    e.ro = a == REG_LEVEL || (a >= REG_MP0 && a <= REG_MP15) || (a >= REG_SLO0 && a <= REG_SLO3) || (a >= REG_CACOUNT && a <= REG_CADENS) || a == REG_CABIT || (a >= REG_LZX && a <= REG_LZZ) || a == REG_SQOUT || a == REG_BWPOS || a == REG_BWSTAT || a == REG_TMOUT || a == REG_KBNOTE || a == REG_KBGATE;
     e.is_signed = (a >= REG_CV0 && a <= REG_CV3) || (a >= REG_S0 && a <= REG_S15);
     e.wo = a == REG_CASTEP || a == REG_LZSEED || a == REG_GATE || a == REG_SQCLK || a == REG_BWTRIG || a == REG_GTRIG || a == REG_GSTOP || a == REG_TMSTEP;
     int k = n++;
@@ -146,7 +154,6 @@ static int is_note(const char *t) {
 
 static int is_number(const char *t) {
   int i = 0, digits = 0;
-  if (t[i] == '-') i++;
   for (; t[i]; i++) { if (isdigit((unsigned char)t[i])) digits++; else if (t[i] != '.') return 0; }
   return digits > 0;
 }

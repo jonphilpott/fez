@@ -57,7 +57,7 @@ int fez_read(FezSynth *s, int a, int b, unsigned *fault) {
   if (a == REG_SQSTEP) return fez_clamp(s->sq_cur, 0, 7);
   if (a == REG_SQOUT) return s->mem[REG_SQ0 + fez_clamp(s->sq_cur, 0, 7)];  /* SQOUT: the current step's value */
   if (in(a, REG_SQEN, REG_SQDRV) || in(a, REG_SQ0, REG_SQ7)) return s->mem[a];
-  if (in(a, REG_CV0, REG_CV3) || in(a, REG_MP0, REG_MP3) || in(a, REG_SLT0, REG_SLT3) || in(a, REG_SLO0, REG_SLO3) || in(a, REG_S0, REG_S15)) return s->mem[a];
+  if (in(a, REG_CV0, REG_CV3) || in(a, REG_MP0, REG_MP15) || in(a, REG_SLT0, REG_SLT3) || in(a, REG_SLO0, REG_SLO3) || in(a, REG_S0, REG_S15)) return s->mem[a];
   if (in(a, REG_P0, REG_P15)) return s->priv[b][a - REG_P0];                /* P0..P15 belong to the running block */
   *fault |= FAULT_ADDR;
   return 0;
@@ -125,8 +125,8 @@ void fez_write(FezSynth *s, int a, int v, int b, unsigned *fault) {
 
 void fez_set_route(FezSynth *s, int sr, int d, int w, unsigned *fault) {
   /* Translate a source register address into the matrix's own source number (see SRC_NAMES in core.js). */
-  int src = in(sr, 1, 10) ? sr : in(sr, REG_CV0, REG_CV3) ? 3 + sr - REG_CV0 : in(sr, REG_MP0, REG_MP3) ? 7 + sr - REG_MP0 : sr == REG_CADENS ? 11
-          : in(sr, REG_SLO0, REG_SLO3) ? 12 + sr - REG_SLO0 : in(sr, REG_LZX, REG_LZZ) ? 16 + sr - REG_LZX : sr == REG_SQOUT ? 19 : sr == REG_TMOUT ? 20 : sr == REG_KBNOTE ? 21 : 0;
+  int src = in(sr, 1, 2) ? sr : in(sr, REG_CV0, REG_CV3) ? 3 + sr - REG_CV0 : in(sr, REG_MP0, REG_MP15) ? 7 + sr - REG_MP0 : sr == REG_CADENS ? 23
+          : in(sr, REG_SLO0, REG_SLO3) ? 24 + sr - REG_SLO0 : in(sr, REG_LZX, REG_LZZ) ? 28 + sr - REG_LZX : sr == REG_SQOUT ? 31 : sr == REG_TMOUT ? 32 : sr == REG_KBNOTE ? 33 : 0;
   if (!src || d < 0 || d >= NUM_REGS || s->param_index[d] < 0 || d == REG_GATE) { *fault |= FAULT_ADDR; return; }
   for (int i = 0; i < s->nroutes; i++)
     if (s->routes[i].src == src && s->routes[i].dst == d) { s->routes[i].w = w; return; }   /* same pair: update the weight */
@@ -137,4 +137,8 @@ void fez_set_route(FezSynth *s, int sr, int d, int w, unsigned *fault) {
 /* ---------------------------------------------------------------- public register access (UI, MIDI, tests) */
 
 int fez_reg_read(FezSynth *s, int addr) { unsigned ignore = 0; return fez_read(s, addr, 0, &ignore); }
+void fez_set_pot(FezSynth *s, int pot, int value) {
+  s->mem[REG_MP0 + fez_clamp(pot, 0, 15)] = (int16_t)fez_clamp(value, 0, 32767);
+}
+
 void fez_reg_write(FezSynth *s, int addr, int value) { unsigned ignore = 0; fez_write(s, addr, value, 0, &ignore); }

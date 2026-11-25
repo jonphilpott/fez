@@ -27,6 +27,17 @@ static int addr_of(const char *word) {
   return -1;
 }
 
+/* A matrix source by name (any case), as SRC_NAMES spells it. Returns its number, or -1. Files hold names, never numbers,
+   so adding or moving a source cannot change what a saved route means. */
+static int src_of(const char *word) {
+  for (int i = 1; i < SRC_COUNT; i++) {
+    const char *n = SRC_NAMES[i], *w = word;
+    while (*n && *w && toupper((unsigned char)*n) == toupper((unsigned char)*w)) { n++; w++; }
+    if (!*n && !*w) return i;
+  }
+  return -1;
+}
+
 /* ---------------------------------------------------------------- writing */
 
 /* A growing output buffer that never overruns: once it is full it only records that it overflowed. */
@@ -79,7 +90,7 @@ int patchfile_write(const FezSynth *s, const PatchInfo *info, char *out, size_t 
   }
   for (int i = 0; i < s->nroutes; i++) {
     const char *dst = name_of(s->routes[i].dst);
-    put(&o, "route %d %s %d\n", s->routes[i].src, dst ? dst : "?", s->routes[i].w);
+    put(&o, "route %s %s %d\n", SRC_NAMES[s->routes[i].src], dst ? dst : "?", s->routes[i].w);
   }
   put(&o, "ca %d %d %d %d\n", s->ca.rule, s->ca.row, s->ca.tap, s->ca.trig);
   put(&o, "lz %d %d %d\n", s->lz.rate, s->lz.rho, s->lz.trig);
@@ -144,7 +155,7 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
     char word[32] = "", rest[BLOCK_SRC_MAX] = "";
     sscanf(line, "%31s %[^\n]", word, rest);
     int a, b, c, d, e;
-    char nm[32];
+    char nm[32], sn[32];
 
     if (!strcmp(word, "name")) copy_text(info->name, sizeof info->name, rest);
     else if (!strcmp(word, "desc")) copy_text(info->desc, sizeof info->desc, rest);
@@ -160,9 +171,10 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
       else if (addr == REG_TMBITS) s->tm.bits = a & 0xffff;
       else s->mem[addr] = (int16_t)fez_clamp(a, -32768, 32767);
     }
-    else if (!strcmp(word, "route") && sscanf(rest, "%d %31s %d", &a, nm, &b) == 3) {
+    else if (!strcmp(word, "route") && sscanf(rest, "%31s %31s %d", sn, nm, &b) == 3) {
       int dst = addr_of(nm);
-      if (dst < 0 || a < 1 || a >= SRC_COUNT || s->nroutes >= MAX_ROUTES || s->param_index[dst] < 0) complain(err, errcap, &bad, lineno, "bad route", rest);
+      a = src_of(sn);
+      if (dst < 0 || a < 1 || s->nroutes >= MAX_ROUTES || s->param_index[dst] < 0) complain(err, errcap, &bad, lineno, "bad route", rest);
       else { s->routes[s->nroutes].src = a; s->routes[s->nroutes].dst = dst; s->routes[s->nroutes].w = b; s->nroutes++; }
     }
     else if (!strcmp(word, "ca") && sscanf(rest, "%d %d %d %d", &a, &b, &c, &d) == 4) { s->ca.rule = a & 255; s->ca.row = b & 0xFFFF; s->ca.tap = fez_clamp(c, 0, 15); s->ca.trig = d; }

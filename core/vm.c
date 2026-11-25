@@ -9,8 +9,8 @@
 #include <string.h>
 
 const char *const OP_NAMES[OP_COUNT] = {
-  "DUP", "DROP", "SWAP", "OVER", "ROT", "+", "-", "*", "/", "*/", "NEG", "ABS", "MIN",
-  "MAX", "MOD", "AND", "OR", "XOR", "NOT", "SHL", "SHR", "=", "<", ">", "U<", "@", "!",
+  "DUP", "DROP", "SWAP", "OVER", "ROT", "+", "-", "*", "F*", "/", "*/", "NEG", "ABS", "MIN",
+  "MAX", "MOD", "AND", "OR", "XOR", "NOT", "SHL", "SHR", "ROL", "ROR", "=", "<", ">", "U<", "@", "!",
   "L", "JMP", "JZ", "JNZ", "SKIP", "EXIT", "YIELD", "TRIG", "ROUTE", "W", "RND", "ST", "HZ",
   "COLOUR", "?"
 };
@@ -76,8 +76,9 @@ static long digits(const char *p, int base) {
 static void put_lit(Slot *s, int v) { s->is_op = 0; s->value = (int16_t)v; }
 static void put_op(Slot *s, int op) { s->is_op = 1; s->value = (int16_t)op; }
 
-/* Turn one token into one or two slots. Returns the number of slots, or -1 with a message in err.
-   The checks run in this order, as in the JS: operations, decimal, hex, fraction, note name, register name. */
+/* Turn one token into one slot. Returns 1, or -1 with a message in err.
+   The checks run in this order, as in the JS: operations, a minus sign (an error), decimal, hex, fraction, note name,
+   register name. Each token gives exactly one slot. */
 static int parse_token(const char *t, Slot out[2], char *err, size_t errsz) {
   char u[64];                                         /* upper-case copy for case-insensitive matching */
   size_t len = strlen(t);
@@ -88,19 +89,23 @@ static int parse_token(const char *t, Slot out[2], char *err, size_t errsz) {
   for (int op = 0; op < OP_COUNT; op++)
     if (strcmp(u, OP_NAMES[op]) == 0) { put_op(&out[0], op); return 1; }
 
-  /* 2) decimal integer. A negative literal is compiled as the positive number followed by NEG, because
-     literals are 15 bit. "-0" is just 0. */
+  /* 2) a minus sign is not part of a number. A "-5" that quietly became two slots (5, then NEG) would hide one of them from
+     anyone counting slots or using SKIP, so every token is exactly one number or one operation and the sign is a word of its
+     own: write 5 NEG. (A bare "-" is the subtract word and was matched above.) */
+  if (t[0] == '-' && (digits(t + 1, 10) >= 0 || (t[1] == '.' && digits(t + 2, 10) >= 0))) {
+    snprintf(err, errsz, "no negative numbers: write %.50s NEG", t + 1);
+    return -1;
+  }
+  /* 3) decimal integer. Literals are 15 bit (0 to 32767). */
   {
-    int neg = t[0] == '-';
-    long n = digits(t + neg, 10);
+    long n = digits(t, 10);
     if (n >= 0) {
       if (n > 32767) { snprintf(err, errsz, "literal out of range: %.60s", t); return -1; }
       put_lit(&out[0], (int)n);
-      if (neg && n > 0) { put_op(&out[1], OP_NEG); return 2; }
       return 1;
     }
   }
-  /* 3) hex: 0x followed by hex digits (case-insensitive) */
+  /* 4) hex: 0x followed by hex digits (case-insensitive) */
   if (t[0] == '0' && (t[1] == 'x' || t[1] == 'X')) {
     long n = digits(t + 2, 16);
     if (n >= 0) {
@@ -109,19 +114,13 @@ static int parse_token(const char *t, Slot out[2], char *err, size_t errsz) {
       return 1;
     }
   }
-  /* 4) fraction of full scale: .5 is 16384 (value * 32768, clamped to 0..32767); a leading - adds NEG */
-  {
-    const char *p = t + (t[0] == '-');
-    if (p[0] == '.' && digits(p + 1, 10) >= 0) {
-      double f = strtod(t, NULL);
-      double r = floor(fabs(f) * 32768.0 + 0.5);      /* round half up, as JS Math.round does */
-      int n = r < 0 ? 0 : r > 32767 ? 32767 : (int)r;
-      put_lit(&out[0], n);
-      if (f < 0) { put_op(&out[1], OP_NEG); return 2; }
-      return 1;
-    }
+  /* 5) fraction of full scale: .5 is 16384 (value * 32768, clamped to 0..32767) */
+  if (t[0] == '.' && digits(t + 1, 10) >= 0) {
+    double r = floor(strtod(t, NULL) * 32768.0 + 0.5);          /* round half up, as JS Math.round does */
+    put_lit(&out[0], r < 0 ? 0 : r > 32767 ? 32767 : (int)r);
+    return 1;
   }
-  /* 5) note name: letter A-G, optional # or b, octave digit (C4 = 15360). Octave -1 is written C-1.
+  /* 6) note name: letter A-G, optional # or b, octave digit (C4 = 15360). Octave -1 is written C-1.
      The JS pattern accepts a capital B as the accidental too, but only # and lower-case b change the pitch. */
   {
     static const int base[7] = { 9, 11, 0, 2, 4, 5, 7 };   /* A B C D E F G */
@@ -141,7 +140,7 @@ static int parse_token(const char *t, Slot out[2], char *err, size_t errsz) {
       }
     }
   }
-  /* 6) register or other name from the name table */
+  /* 7) register or other name from the name table */
   for (int k = 0; k < NAME_COUNT; k++)
     if (strcmp(u, NAME_TABLE[k].name) == 0) { put_lit(&out[0], NAME_TABLE[k].addr); return 1; }
 
@@ -215,7 +214,8 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
       case OP_ROT:  POP(a); POP(x); POP(d); PUSH(x); PUSH(a); PUSH(d); break;
       case OP_ADD:  POP(a); POP(x); PUSH(sat(x + a)); break;
       case OP_SUB:  POP(a); POP(x); PUSH(sat(x - a)); break;
-      case OP_MUL:  POP(a); POP(x); PUSH(sat(shr15(x * a))); break;          /* Q15 multiply */
+      case OP_MUL:  POP(a); POP(x); PUSH(sat(x * a)); break;                 /* whole numbers, sticking at the ends like + and - */
+      case OP_FMUL: POP(a); POP(x); PUSH(sat(shr15(x * a))); break;          /* fractions: 32768 is 1.0 (what the sound wants) */
       case OP_DIV:  POP(a); POP(x); if (a == 0) { *vm->fault |= FAULT_DIV0; PUSH(0); } else PUSH(sat(x / a)); break;
       case OP_MULDIV: POP(d); POP(a); POP(x);
         if (d == 0) { *vm->fault |= FAULT_DIV0; PUSH(0); } else PUSH(sat((x * a) / d)); break;
@@ -231,6 +231,10 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
       case OP_NOT:  POP(a); PUSH(i16(~a)); break;
       case OP_SHL:  POP(a); POP(x); PUSH(sat(x * (1 << (a & 15)))); break;
       case OP_SHR:  POP(a); POP(x); PUSH(i16((x & 0xffff) >> (a & 15))); break;   /* logical shift on 16 bits */
+      /* Rotate: the bits that fall off one end come back in at the other. Done on the unsigned 16 bits; n is taken mod 16,
+         and n = 0 is handled apart because shifting a 16-bit value by 16 would be wrong. */
+      case OP_ROL:  { POP(a); POP(x); unsigned u = (unsigned)x & 0xffff, n = (unsigned)a & 15; PUSH(i16(n ? (u << n) | (u >> (16 - n)) : u)); break; }
+      case OP_ROR:  { POP(a); POP(x); unsigned u = (unsigned)x & 0xffff, n = (unsigned)a & 15; PUSH(i16(n ? (u >> n) | (u << (16 - n)) : u)); break; }
       case OP_EQ:   POP(a); POP(x); PUSH(x == a); break;
       case OP_LT:   POP(a); POP(x); PUSH(x < a); break;
       case OP_GT:   POP(a); POP(x); PUSH(x > a); break;

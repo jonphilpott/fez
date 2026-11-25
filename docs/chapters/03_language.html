@@ -1,0 +1,162 @@
+<p>The language is small: 46 words, a stack and some registers. It is a cousin of Forth, an old language built on a stack. You do not need to know Forth. Everything here is explained from nothing, and the whole language fits on one page of the word reference at the end of the manual.</p>
+
+<h3 id="stack">The stack</h3>
+
+<p>Think of a pile of cards. A number you write goes on top of the pile. A word that needs numbers takes them from the top, and puts its answer back on the pile. That pile is the <b>stack</b>, and it replaces the brackets and variables you may know from other languages.</p>
+
+<pre class="fez">2 3 +</pre>
+
+<p>Read left to right. <code>2</code> goes on the stack, then <code>3</code> goes on top of it, and <code>+</code> takes both and leaves 5. There are no brackets because the order does the work: to compute (2 + 3) minus 1, you write <code>2 3 + 1 -</code>.</p>
+
+<p>The stack holds 16 numbers. Taking from an empty stack, or putting a seventeenth on a full one, is a <b>fault</b> (see below).</p>
+
+<h4>Stack pictures</h4>
+
+<p>Every word in the reference has a picture of what it does to the stack, such as <code>( a b -- c )</code>. Everything left of the two dashes is what the word takes, and everything on the right is what it leaves. The top of the stack is on the right. So <code>-</code> is <code>( a b -- a-b )</code>: it takes b from the top, a from beneath it, and leaves a minus b. <code>10 3 -</code> leaves 7.</p>
+
+<p>Four words move numbers about without changing them. <code>DUP</code> copies the top, <code>DROP</code> throws it away, <code>SWAP</code> trades the top two, and <code>OVER</code> copies the second to the top. <code>ROT</code> brings the third to the top: after <code>1 2 3 ROT</code> the stack holds 2, 3, 1 (top).</p>
+
+<h4>Two kinds of multiply</h4>
+
+<p><code>*</code> multiplies whole numbers, as <code>+</code> and <code>-</code> add and subtract them: <code>6 7 *</code> leaves 42. Sound, however, is mostly proportions: half as loud, a quarter as bright. For that there is <code>F*</code>, the <b>fraction multiply</b>, in which 32768 stands for 1.0. So <code>.5 .5 F*</code> leaves .25 (8192), and <code>20000 .5 F*</code> leaves 10000: half of 20000. Use <code>F*</code> to scale a register by a proportion, and <code>*</code> for counting. Mixing them up is easy to spot: <code>6 7 F*</code> leaves 0, because six thirty-two-thousandths of seven thirty-two-thousandths is too small to count.</p>
+
+<p>To multiply and then divide by a whole number, use <code>*/</code>: <code>100 3 4 */</code> leaves 75. It keeps the full product between its two steps, so a big intermediate number does not stick.</p>
+
+<h3 id="numbers">Numbers</h3>
+
+<p>A number can be written four ways, and each is one token:</p>
+
+<pre class="fez">12000       \ a whole number, 0 to 32767
+0x2A54      \ the same sort of number in hexadecimal (base 16)
+.5          \ a fraction of full scale: .5 is 16384, half of 32768
+A4          \ a note name: C-1 up to G9, with # or b for sharp or flat</pre>
+
+<p>A fraction is a number between 0 and 1 written with a point. It is stored as that fraction of 32768, so <code>.25</code> is 8192 and <code>.99</code> is 32440. Fractions are the natural way to write a register that runs from nothing to full, such as a filter cutoff. A note name is stored as a pitch; see <a href="#pitch">Pitch</a> for what that number means. A note name always includes its octave: <code>C4</code> is middle C.</p>
+
+<h3 id="language-registers">Registers</h3>
+
+<p>A <b>register</b> is a named number that something else reads. The voice reads CUTOFF and PITCH; the delay reads DLYTIME. Each has an address, a small whole number, and the name is only a nickname for it. So when you write <code>CUTOFF</code>, what goes on the stack is the address.</p>
+
+<ul>
+  <li><code>@</code> reads: <code>( address -- value )</code>. <code>CUTOFF @</code> leaves the cutoff on the stack.</li>
+  <li><code>!</code> writes: <code>( value address -- )</code>. <code>12000 CUTOFF !</code> stores 12000 there.</li>
+</ul>
+
+<p>The value goes first because it must already be on the stack when the address arrives. Registers keep their own limits. Most hold 0 to 32767 (see below), and a few are read-only, such as KBGATE; writing to one is a fault.</p>
+
+<p>To add one to a register, read it, add, and write it back:</p>
+
+<pre class="fez">CUTOFF @ 100 + CUTOFF !</pre>
+
+<h4>Scratch registers and private ones</h4>
+
+<p>You will often want somewhere to keep a number between ticks. There are two places. <b>S0 to S15</b> are sixteen scratch registers that every block can see, so blocks can leave each other messages. <b>P0 to P15</b> are private: each block has its own, and no other block can touch them. Use P for a counter that belongs to one block, and S to share. Both hold -32768 to 32767.</p>
+
+<pre class="fez">P0 @ 1 + P0 !     \ count how many times this block has run</pre>
+
+<h3 id="blocks">Blocks, words and ticks</h3>
+
+<p>Code lives in <b>blocks</b>. There are sixteen, each up to 128 slots long. A block does nothing until something <b>runs</b> it: a pulser, the sequencer, a key press, or another block. When it runs it goes once from top to bottom and stops. It does not loop on its own.</p>
+
+<p>A <b>word</b> is a short program kept apart from the blocks, 24 slots at most, that any block can run with <code>W</code>. <code>3 W</code> runs word 3. Words share the stack with whoever calls them, so a word can take its inputs and leave its answer there, like a built-in. There are sixteen.</p>
+
+<p>FEZ works in steps called <b>ticks</b>. One tick is five milliseconds, so there are 200 a second. In each tick the pulsers that are due fire, the blocks they started run, and the registers settle on their new values for the sound to read. A block can therefore change anything it likes, as often as it likes, and what you hear is the state at the end of each tick. Blocks run <em>between</em> stretches of sound, never during one, so a block cannot make the sound glitch by running late.</p>
+
+<p>A block also has a safety limit of 256 steps per run. A loop that never ends stops there and is reported as a fault, instead of freezing the instrument.</p>
+
+<h3 id="faults">When something goes wrong</h3>
+
+<p>A <b>fault</b> is a mistake caught while a block runs: taking from an empty stack, a bad address, a jump to a label that is not there, a loop that reaches the step limit. The block <b>halts</b>, and the editor shows <code>HALTED</code> with the reason in red. The rest of FEZ carries on. Press <b>Ctrl+Enter</b> to apply the block again, which clears the fault and restarts it.</p>
+
+<p>Division by zero is the one gentle fault. <code>1 0 /</code> leaves 0, notes the fault, and the block carries on.</p>
+
+<h3 id="flow">Making decisions and loops</h3>
+
+<p>A <b>label</b> is a name for a place in a block. <code>3 L</code> marks the place as label 3 (there are 16, numbered 0 to 15). <code>3 JMP</code> jumps to it. <code>JZ</code> jumps if a number is zero, and <code>JNZ</code> jumps if it is not:</p>
+
+<pre class="fez">0 S0 !                 \ start the count at 0
+1 L                    \ label 1: the top of the loop
+S0 @ 1 + S0 !          \ add one
+S0 @ 4 < 1 JNZ         \ if S0 is below 4, go back to label 1</pre>
+
+<p>The comparison <code>4 &lt;</code> leaves 1 for true or 0 for false, which is the flag that <code>JNZ</code> tests. After this runs, S0 holds 4.</p>
+
+<p>For the commonest small decision there is <code>?</code>, which picks one of two numbers: <code>( a b flag -- a or b )</code> leaves b if the flag is not zero and a if it is. And <code>SKIP</code> takes a flag and, if it is 0, skips the very next token.</p>
+
+<p>Two words stop a block early or in pieces. <code>EXIT</code> stops it for now. <code>YIELD</code> stops it and, the next time the block runs, carries on from that point, not from the top. That makes a step-by-step block simple to write:</p>
+
+<pre class="fez">S0 @ 1 + S0 !          \ first run: add one, then pause
+YIELD
+S0 @ 10 + S0 !         \ second run: add ten, then start again</pre>
+
+<h3 id="tokens">Tokens and slots</h3>
+
+<p>A program is a row of <b>tokens</b> separated by spaces: a number, a note name, a register name or a word. Each token takes exactly one <b>slot</b>, which is one place in the block's memory. A block has 128 slots and a word has 24, and the editor shows how many you have used. There is no trick in the counting: five tokens are five slots.</p>
+
+<p>That has a consequence for numbers. <b>A number has no sign.</b> To write -5 you write <code>5 NEG</code>: the number, then the word that changes its sign. That is two tokens and two slots, and you can see both. If you type <code>-5</code> the editor says <code>no negative numbers: write 5 NEG</code> and refuses to run the block.</p>
+
+<pre class="fez">5 NEG        \ -5
+.5 NEG       \ minus a half
+12 ST NEG    \ twelve semitones down: an octave below</pre>
+
+<p>The rule is kept this strict on purpose, so that <code>SKIP</code>, which jumps over the next slot, always jumps over exactly the next token you can see.</p>
+
+<h3 id="rotate">Rotating a pattern</h3>
+
+<p>A number is also a row of 16 on-or-off bits, and a row of bits is a pattern: which steps of a rhythm sound, which cells of the automaton are alive. <code>ROL</code> and <code>ROR</code> slide such a pattern round like a ring. The bits that fall off one end come back in at the other, so none are lost. <code>SHL</code> and <code>SHR</code> cannot do this: <code>SHL</code> is a multiplication that sticks at the top (see below), and both fill with zeros.</p>
+
+<p>Here is a complete rhythm. The pattern is 16 steps, one bit each: a 1 plays a note and a 0 is a rest. Run this once to set it:</p>
+
+<pre class="fez">0x1249 S0 !          \ the pattern: 0001 0010 0100 1001, a note every third step</pre>
+
+<p>Then give a block to a pulser. Each time it runs it looks at the bottom bit, plays if it is set, and turns the pattern one place so the next bit comes round:</p>
+
+<pre class="fez">S0 @ 1 AND 1 JZ      \ bottom bit 0? jump to label 1 and stay silent
+1 GATE !             \ bottom bit 1: play a note
+1 L
+S0 @ 1 ROR S0 !      \ turn the pattern one place right</pre>
+
+<p>After 16 runs the pattern is back where it began. Change a bit of <code>S0</code> while it plays and the rhythm changes at once. <code>ROL</code> turns the pattern the other way. The same trick works on the automaton's row: <code>CAROW @ 3 ROR CAROW !</code> turns it three cells round.</p>
+
+<h3 id="saturation">Numbers stop at the ends</h3>
+
+<p>Every number in FEZ is a whole number from -32768 to 32767, the range that fits in 16 binary digits (the "16 bit" you will see in the source). Most programming languages let a number that runs past one end wrap round to the other: add 1 to 32767 and you get -32768. FEZ does not. A result that goes past either end <b>sticks</b> there. The usual word for this is <b>saturating</b>: the number is full and takes no more.</p>
+
+<pre class="fez">30000 5000 +        \ 32767, not 35000
+30000 NEG 5000 -    \ -32768, not -35000
+32767 NEG 1 -       \ -32768
+32767 NEG 1 - NEG   \ 32767: -32768 has no positive twin, so NEG and ABS stop at the top</pre>
+
+<p>Sticking is the right behaviour for sound. A cutoff pushed past fully open should stay open. If it wrapped, it would jump to fully shut, and you would hear a crack.</p>
+
+<div class="warn">The check happens at every step, not at the end, so the order of a sum matters. <code>30000 5000 + 5000 -</code> leaves 27767, because the first sum was cut to 32767 before 5000 was taken off. Take away first and add after, <code>30000 5000 - 5000 +</code>, and you get 30000. The word <code>*/</code>, which multiplies and then divides, keeps the full product between its two steps, so <code>20000 20000 20000 */</code> correctly leaves 20000.</div>
+
+<p>The words that stop at the ends are <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>*/</code>, <code>NEG</code>, <code>ABS</code> and <code>SHL</code>. The bit words (<code>AND</code>, <code>OR</code>, <code>XOR</code>, <code>NOT</code>, <code>SHR</code>, <code>ROL</code> and <code>ROR</code>) work on the 16 binary digits as they are and never stick: <code>1 NEG 4 SHR</code> leaves 4095, because the digits move right and zeros come in at the top. Words that only compare or choose (<code>MIN</code>, <code>MAX</code>, <code>=</code>, <code>&lt;</code>, <code>&gt;</code>) cannot overflow.</p>
+
+<p>Registers stop at their own ends too. Most hold 0 to 32767, so <code>5 NEG CUTOFF !</code> leaves the cutoff at 0 and <code>30000 5000 + CUTOFF !</code> leaves it at 32767. The registers meant for signed numbers (CV0 to CV3 and the scratch slots S0 to S15) hold -32768 to 32767.</p>
+
+<p>A number you type is limited as well. The largest is 32767, and a larger one is an error when you apply the block (<code>literal out of range</code>), not a silent cut. The most negative number, -32768, cannot be typed at all: write <code>32767 NEG 1 -</code>.</p>
+
+<h3 id="pitch">Pitch</h3>
+
+<p>In FEZ a pitch is an ordinary whole number. One semitone, the step between two neighbouring piano keys, is 256. An octave is twelve semitones, so it is 3072.</p>
+
+<p>The rule for turning a note into a number is to take its MIDI note number and multiply by 256. Middle C is MIDI note 60, so it is 60 × 256 = 15360. The A above it, the note orchestras tune to, is note 69, so it is 17664. The register <code>PITCH</code> holds this number.</p>
+
+<p>Numbers that fall between the whole semitones are the notes between the keys. 128 more than a note is a quarter-tone sharp of it. One unit is about four-tenths of a cent, and a cent is a hundredth of a semitone, finer than anyone can hear.</p>
+
+<div class="note-box">Programmers call this <b>8.8 fixed point</b>, and you will see the phrase in the source code. It means that the 16-bit number is split in two: the top eight bits count whole semitones and the bottom eight count 256ths of one. You never need to think in bits. "Multiply by 256" is the whole rule. The reason for doing it this way is that whole numbers give the same answer on every computer, including the small one inside the TrimUI Brick, with no rounding surprises. The same trick, with a different split, is behind the fractions such as <code>.5</code>.</div>
+
+<p>There are three ways to write a pitch. They give the same kind of number, so you can mix them:</p>
+
+<pre class="fez">C4          \ a note name: 15360
+60 ST       \ 60 semitones: 15360 again
+4400 HZ     \ 440 Hz in tenths of a hertz: 17664, the A</pre>
+
+<p>To transpose, add. <code>ST</code> turns a number of semitones into the right amount to add, so a fifth up is seven semitones:</p>
+
+<pre class="fez">PITCH @ 7 ST + PITCH !      \ read the pitch, add a fifth, write it back</pre>
+
+<p>To go down, make the amount negative: <code>12 ST NEG</code> is an octave below. Registers hold 0 to 32767, so the top of the range is note 127 (G9).</p>
+
+<p>The word <code>COLOUR</code> works on the same scale: it gives the distance above a root note, and you add the root yourself.</p>

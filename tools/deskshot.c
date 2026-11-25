@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
   fez_init(&synth, 1);
   fez_load_patch(&synth, patch - 1);
   desk_init(&desk, &synth);
-  desk_patches_loaded_example(&desk, patch - 1); desk.pat.sub = SUB_EXAMPLES; desk.pat.sel[SUB_EXAMPLES] = patch - 1;
+  desk_patches_loaded_example(&desk, patch - 1); desk_reload_editor(&desk); desk.pat.sub = SUB_EXAMPLES; desk.pat.sel[SUB_EXAMPLES] = patch - 1;
   desk.scope = ring; desk.scope_head = &head;
   uint32_t *px = malloc((size_t)w * h * sizeof *px);
   desk_set_canvas(&desk, px, w, h);
@@ -39,7 +39,8 @@ int main(int argc, char **argv) {
     desk.peak = 0.3f;
   }
   desk.now_ms = 1000;
-  if (desk.layouts[0].tab[0] == TAB_EDITOR) { desk.ed.cursor = (int)strlen(desk.ed.text[0]); desk_text(&desk, '\n'); desk_text(&desk, 'C'); desk_text(&desk, 'U'); }   /* a half-typed word, so the completion popup shows */
+  /* FEZ_SHOT_CLEAN=1 leaves the editor as the patch has it (for the manual); otherwise a half-typed word shows the completion popup */
+  if (desk.layouts[0].tab[0] == TAB_EDITOR && !getenv("FEZ_SHOT_CLEAN")) { desk.ed.cursor = (int)strlen(desk.ed.text[0]); desk_text(&desk, '\n'); desk_text(&desk, 'C'); desk_text(&desk, 'U'); }   /* a half-typed word, so the completion popup shows */
   desk.ed.last_key_ms = 999;
   printf("scale %d, layout tiles: ", desk.scale);
   for (int l = 0; l < 3; l++) {

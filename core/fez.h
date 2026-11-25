@@ -22,7 +22,7 @@
 #define MAX_ROUTES   16         /* modulation matrix size */
 #define BUF_Q_SIZE   64         /* events waiting for the audio side; extra events are dropped */
 #define GATE_Q_SIZE  16
-#define NUM_SOURCES  22         /* matrix sources, 0 (none) to 21 (KB); test_core checks it against SRC_NAMES */
+#define NUM_SOURCES  34         /* matrix sources, 0 (none) to 33 (KB); test_core checks it against SRC_NAMES */
 #define KB_MAX_HELD  16         /* keys the keyboard device tracks at once */
 
 /* Events the control side hands to the audio side. */
@@ -88,6 +88,9 @@ void fez_load_patch(FezSynth *s, int index);            /* replace the whole mac
 /* ---- registers: what a UI, MIDI input or test uses. Bad addresses read as 0 and writes are ignored. ---- */
 int  fez_reg_read(FezSynth *s, int addr);
 void fez_reg_write(FezSynth *s, int addr, int value);
+/* Set modulation pot n (0..15) to value (0..32767). The pots are read only to code, so this is how a knob or a MIDI controller
+   moves one: the host calls it, the matrix reads it (sources MP0..MP15). Out-of-range arguments are clamped. */
+void fez_set_pot(FezSynth *s, int pot, int value);
 
 /* ---- time ---- */
 void fez_tick(FezSynth *s, double dt_ms);               /* advance the control side by dt_ms milliseconds */

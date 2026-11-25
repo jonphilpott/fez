@@ -10,3 +10,4 @@
 *.ppm
 /dist/
 /brick/.toolchain/
+/tools/manual_gen

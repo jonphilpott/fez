@@ -7,6 +7,22 @@
 
 static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
 static int cur_tab(const Pad *p) { return p->d->layouts[p->d->layout].tab[p->d->focus]; }
+/* ---------------------------------------------------------------- the analogue sticks */
+
+#define STICK_DEADZONE 4096           /* a stick at rest wanders a little: inside this the pot sits exactly at its centre */
+
+void pad_stick(Pad *p, int axis, int raw) {
+  if (axis < 0 || axis > 3) return;
+  int v = raw < -32767 ? -32767 : raw;               /* keep -v in range */
+  if (axis & 1) v = -v;                              /* SDL's Y is negative upwards; the pot should rise when you push up */
+  /* 1) take off the dead zone and stretch what is left to the full range, so the pot leaves its centre smoothly */
+  int mag = v < 0 ? -v : v;
+  mag = mag <= STICK_DEADZONE ? 0 : (int)((long)(mag - STICK_DEADZONE) * 32767 / (32767 - STICK_DEADZONE));
+  v = v < 0 ? -mag : mag;
+  /* 2) -32767..32767 becomes the pot's 0..32767, centre 16384 */
+  fez_set_pot(p->d->synth, axis, 16384 + v / 2);
+}
+
 static int held(const Pad *p, Button b) { return (p->held >> b) & 1; }
 
 /* ---------------------------------------------------------------- the editor's palette of words */
@@ -16,11 +32,11 @@ static int held(const Pad *p, Button b) { return (p->held >> b) & 1; }
 typedef struct { const char *name; const char *const *items; int n; } PalTab;
 #define LIST(a) a, (int)(sizeof a / sizeof *a)
 static const char *const P_STK[] = { "DUP", "DROP", "SWAP", "OVER", "ROT", "?" };
-static const char *const P_MTH[] = { "+", "-", "*", "/", "*/", "NEG", "ABS", "MIN", "MAX", "MOD", "ST", "HZ", "COLOUR" };
-static const char *const P_LOG[] = { "AND", "OR", "XOR", "NOT", "SHL", "SHR", "=", "<", ">", "U<" };
+static const char *const P_MTH[] = { "+", "-", "*", "F*", "/", "*/", "NEG", "ABS", "MIN", "MAX", "MOD", "ST", "HZ", "COLOUR" };
+static const char *const P_LOG[] = { "AND", "OR", "XOR", "NOT", "SHL", "SHR", "ROL", "ROR", "=", "<", ">", "U<" };
 static const char *const P_MEM[] = { "@", "!", "TRIG", "ROUTE", "W", "RND" };
 static const char *const P_FLW[] = { "L", "JMP", "JZ", "JNZ", "SKIP", "EXIT", "YIELD" };
-static const char *const P_NUM[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "-", "ENT", "100", "1000", "4096", "16384", "32767" };
+static const char *const P_NUM[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "ENT", "100", "1000", "4096", "16384", "32767" };
 static const char *const P_PLS[] = { "P0", "P1", "P2", "P3" };
 static char note_text[60][5];                  /* C1 to B5, built once */
 static const char *note_items[60];
@@ -50,7 +66,7 @@ static void type_string(Desk *d, const char *s) { for (; *s; s++) desk_text(d, *
    must keep the words apart wherever the cursor is: a space before the new word unless one is already there, and a
    separator after it (a line break after the words that end a statement). Without this, a 1 put in front of CASTEP
    would give 1CASTEP.
-   `glue` is for digits of a number being built from the NUMS tab: a digit joins the digit (or minus sign) before it
+   `glue` is for digits of a number being built from the NUMS tab: a digit joins the digit before it
    instead of starting a new word, and the cursor stays in front of the separator so the next digit can join too. */
 static int blank(char c) { return c == ' ' || c == '\n' || c == '\0'; }
 
@@ -58,7 +74,7 @@ static void insert_token(Pad *p, const char *w, int glue, int newline_after) {
   Desk *d = p->d;
   const char *t = d->ed.text[d->ed.blk];
   char before = d->ed.cursor > 0 ? t[d->ed.cursor - 1] : '\0';
-  int joins = glue && ((before >= '0' && before <= '9') || before == '-');
+  int joins = glue && before >= '0' && before <= '9';
   if (!blank(before) && !joins) desk_text(d, ' ');                      /* 1) keep it apart from the word before */
   type_string(d, w);                                                   /* 2) the word itself */
   t = d->ed.text[d->ed.blk];
@@ -77,7 +93,7 @@ static void insert_word(Pad *p, const char *w) {
     else if (!blank(before)) desk_text(d, ' ');
     return;
   }
-  int digit = p->ptab == PT_NUMS && strlen(w) == 1;                     /* a digit or the minus sign builds a number; 100, 1000 ... are whole words */
+  int digit = p->ptab == PT_NUMS && strlen(w) == 1;                     /* a digit builds a number; 100, 1000 ... are whole words */
   insert_token(p, w, digit, p->ptab != PT_NUMS && ends_statement(w));
 }
 
@@ -237,13 +253,14 @@ static const char *const HELP_LINES[] = {
   "Menu       the menu: actions, go to",
   "           screen, record, help, quit",
   "Vol + / -  master volume",
+  "Sticks     modulation pots MP0 to MP3",
   "",
   "SCREENS",
   "Editor     build programs from words",
   "Patches    load, save (X), delete (B)",
   "Control    every register, in units",
   "Devices    cellular, Lorenz, quantiser,",
-  "           Turing, delay and keys",
+  "           Turing and delay",
   "Buffer     the tape and its voices",
   "Pulsers    four timers that run blocks",
   "Sequencer  eight steps",
@@ -344,6 +361,7 @@ static const char *tab_hint(const Pad *p);
 /* ---------------------------------------------------------------- set-up, repeat, input */
 
 void pad_init(Pad *p, Desk *d) {
+  for (int i = 0; i < 4; i++) fez_set_pot(d->synth, i, 16384);      /* the sticks start at rest, which sends no event until they move */
   memset(p, 0, sizeof *p);
   p->d = d; p->menu = MENU_CLOSED;
   static const char *const NN[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
@@ -403,7 +421,6 @@ static const char *tab_hint(const Pad *p) {
         case DEV_CELLULAR: case DEV_TURING: return "A act  X step  L2/R2 page";
         case DEV_QUANTISER:                 return "A act  X on/off  L2/R2 page";
         case DEV_DELAY:                     return "A act  X freeze  L2/R2 page";
-        case DEV_KEYS:                      return "A act  X silence  L2/R2 page";
         default:                            return "A act  X restart  L2/R2 page";   /* Lorenz */
       }
     case TAB_BUFFER:  return "A adjust  X trigger  L2/R2 page";

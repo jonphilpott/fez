@@ -1,0 +1,75 @@
+<p>FEZ has two sound sources, and they are not alike. The <b>voice</b> plays notes: it is gated, so it is silent until a note starts, and it fades after. The <b>mod voice</b> is always running, and does the slow, steady work of drones, noise and sweeps. Both feed the effects described in <a href="#space">Space</a>. Both are set by registers, so the editor, the CTRL list, a block and the matrix can all reach every knob below.</p>
+
+<h3 id="scales">How the knobs are scaled</h3>
+
+<p>Every register holds 0 to 32767, but the things it controls are not that. A cutoff is a frequency, an attack is a time. FEZ spreads the 32768 steps <b>exponentially</b>, which is how ears hear: each equal step multiplies the frequency or the time by the same factor, instead of adding the same amount. So the bottom half of a cutoff knob is spent between 40 Hz and about 750 Hz, and the top half between 750 Hz and 14 kHz. Here is where five settings land:</p>
+
+<table class="regs"><tr><th>register value</th><td>0</td><td>8192</td><td>16384</td><td>24576</td><td>32767</td></tr><tr><th>CUTOFF, MDCUT</th><td>40 Hz</td><td>173 Hz</td><td>748 Hz</td><td>3.2 kHz</td><td>14.0 kHz</td></tr><tr><th>ATK</th><td>1 ms</td><td>5 ms</td><td>22 ms</td><td>106 ms</td><td>500 ms</td></tr><tr><th>REL</th><td>10 ms</td><td>45 ms</td><td>200 ms</td><td>895 ms</td><td>4.0 s</td></tr><tr><th>FMRATE</th><td>0 Hz</td><td>4 Hz</td><td>32 Hz</td><td>252 Hz</td><td>2.0 kHz</td></tr><tr><th>LFORATE</th><td>0.05 Hz</td><td>0.22 Hz</td><td>1.00 Hz</td><td>4.47 Hz</td><td>20 Hz</td></tr><tr><th>NZTONE</th><td>100 Hz</td><td>376 Hz</td><td>1.4 kHz</td><td>5.3 kHz</td><td>20.0 kHz</td></tr><tr><th>FMAMT (depth)</th><td>0 Hz</td><td>125 Hz</td><td>500 Hz</td><td>1125 Hz</td><td>2000 Hz</td></tr></table>
+
+<p>The CTRL tab shows the real value next to the number, so you rarely need this table. It explains one thing, though: patches with slow notes need values above 25000. A release of 12000 lasts only about 0.1 seconds, and one of 28000 about 1.7 seconds.</p>
+
+<h3 id="voice-path">The voice</h3>
+
+<p>The voice has four stages in a row: an oscillator, a wavefolder, a mixer and a lowpass gate.</p>
+
+<h4>The complex oscillator</h4>
+
+<p>An oscillator makes a repeating wave. The pitch of the note is how fast it repeats. FEZ's <b>complex oscillator</b> makes two waves at once, on the same pitch, and blends them:</p>
+
+<ul>
+  <li>a pure <b>sine</b> wave, which has no harmonics (no overtones above the note), and</li>
+  <li>a <b>shaped</b> wave, which is rich in harmonics. <code>CXWAVE</code> chooses it: the bottom third of the register is a triangle, the middle third a square, and the top third a saw.</li>
+</ul>
+
+<p><code>CXBLEND</code> mixes them. At 0 you hear only the sine; at full only the shaped wave. The blend keeps the loudness steady as you turn it, so nothing jumps.</p>
+
+<p>The pitch is <code>PITCH</code>, in the units explained in <a href="#pitch">Pitch</a>: 256 to a semitone, with C4 at 15360.</p>
+
+<h4>Frequency modulation</h4>
+
+<p>The second oscillator, the <b>mod oscillator</b>, can push the pitch of the first up and down very fast. This is <b>frequency modulation</b> (FM). At low depth it adds a shimmer or vibrato. At high depth and audio speed it makes the clanging, bell-like tones FM is known for. Three registers set it: <code>FMRATE</code> is the speed (0.5 Hz to 2 kHz), <code>MDWAVE</code> is its wave shape (the quarters of the register give sine, triangle, square and saw), and <code>FMAMT</code> is the depth. The depth is squared, so the bottom of the register is subtle and the top is up to 2000 Hz of swing.</p>
+
+<h4>The wavefolder</h4>
+
+<p>A wavefolder takes a wave and, when it gets louder than a limit, bends it back on itself instead of cutting it off. That adds harmonics, and the louder the input the more the wave folds. <code>FOLD</code> sets how hard the oscillator is driven into the folder. Low values leave the sound close to the oscillator; high values make it bright and busy.</p>
+
+<h4>The mixer</h4>
+
+<p>Three things go into the mixer: the folded complex oscillator (<code>MIXCX</code>, full by default), the mod oscillator itself (<code>MIXMD</code>) and white noise (<code>MIXNZ</code>). White noise is a hiss with equal energy at every frequency. <code>NZTONE</code> is a lowpass on the noise: at the top it is open, and turning it down gives a softer rumble. The buffer's output can come back in here too, through <code>MIXBP</code>: see <a href="#devices">Devices</a>.</p>
+
+<h4>The lowpass gate</h4>
+
+<p>Next comes the part that gives the voice its character. A <b>lowpass gate</b> is a filter and a volume control in one, and the same signal drives both. When it is open, the sound passes at full level and bright. As it closes, the sound grows quieter <em>and</em> duller at once, as a plucked string or a struck bell does. It is modelled on the vactrol, a small lamp and light-sensitive resistor used in Buchla synthesisers. The lamp lights quickly and fades slowly, and the fade slows down the closer to dark it gets. That long tail is the sound.</p>
+
+<p>You control it with four registers:</p>
+
+<ul>
+  <li><code>GATE</code>: write any non-zero number and the lamp lights. <code>1 GATE !</code> plays a note.</li>
+  <li><code>ATK</code>: how fast the gate opens, from 1 ms to 500 ms.</li>
+  <li><code>REL</code>: how long the tail lasts, from 10 ms to 4 s.</li>
+  <li><code>CUTOFF</code>: how bright the sound is when the gate is fully open, from 40 Hz to 14 kHz. As the gate closes, the cutoff falls from here down to 40 Hz.</li>
+</ul>
+
+<pre class="fez">C3 PITCH !
+2000 ATK !          \ a quick attack
+28000 REL !         \ a long tail: about 1.7 seconds
+26000 CUTOFF !      \ bright when open
+1 GATE !            \ play the note</pre>
+
+<p>The envelope also exists as a number the matrix can use: <code>ENV</code> rises when the gate fires and falls as the sound fades. Route it to <code>FMAMT</code> and each note starts bright and mellows, which is how Glass Bells works. See <a href="#matrix">the matrix</a>.</p>
+
+<p>A key held on the keyboard holds the gate open, and letting go lets the tail run. Blocks, pulsers and the sequencer fire the gate once and let it fall.</p>
+
+<h3 id="mod-voice">The mod voice</h3>
+
+<p>The mod voice has its own filter and its own volume, and is never gated. It reuses the mod oscillator (so <code>FMRATE</code> sets its pitch) and the noise, blended by <code>MDNZ</code> (0 is all oscillator, full is all noise). The blend goes through a <b>ladder filter</b>: a lowpass of the kind Moog made, whose steep slope gives a thick, warm roll-off. <code>MDCUT</code> sets where it starts to cut (40 Hz to 14 kHz, scaled like <code>CUTOFF</code>), and <code>MDRES</code> adds <b>resonance</b>, a boost at the cutoff that turns a noise sweep from a hush into a whistle. <code>MDLVL</code> is its volume: 0 is silent, which is why the mod voice does nothing until you raise it.</p>
+
+<p>Low-passed white noise is quiet, so FEZ lifts the noise as the cutoff falls, up to six times, so a slow sweep keeps a steady loudness.</p>
+
+<pre class="fez">8000 FMRATE !       \ the mod oscillator is a slow drone
+12000 MDCUT !
+20000 MDLVL !       \ bring the mod voice up</pre>
+
+<h3 id="level">The master level</h3>
+
+<p><code>LEVEL</code> is the master volume, the first row of the CTRL tab. It comes last in the chain, after the effects and the compressor, so it scales the finished sound. If the output reaches full scale, the CLIP light in the status bar shows for a second.</p>

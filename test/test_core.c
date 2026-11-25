@@ -4,6 +4,8 @@
 #include "tables.h"
 #include "reg_names.h"
 #include "fez.h"
+#include "vm.h"
+#include "words.h"
 #include "test.h"
 
 int test_fails = 0;
@@ -24,12 +26,20 @@ void test_tables(void) {
     for (int j = i + 1; j < PARAM_COUNT; j++)
       CHECK(PARAM_TABLE[i].addr != PARAM_TABLE[j].addr, "two parameters share an address");
   CHECK(REG_CXWAVE > REG_PITCH && REG_CXBLEND < REG_GATE && REG_GATE < REG_CV0, "CXWAVE and CXBLEND belong to the voice run");
-  CHECK(REG_CV3 == REG_CV0 + 3 && REG_MP3 == REG_MP0 + 3, "numbered families are contiguous");
+  CHECK(REG_CV3 == REG_CV0 + 3 && REG_MP15 == REG_MP0 + 15, "numbered families are contiguous");
+  CHECK(!strcmp(SRC_NAMES[7], "MP0") && !strcmp(SRC_NAMES[22], "MP15") && !strcmp(SRC_NAMES[23], "CADENS") && !strcmp(SRC_NAMES[33], "KB"), "the sixteen pots are matrix sources 7..22, in one run");
   CHECK(HZ_TAB[0] == 0 && HZ_TAB[256] == 65536, "hz table runs from log2(1) to log2(2) in Q16");
+  /* the word table describes every operation, in the same order as the compiler's list, with every field filled in */
+  CHECK(WORD_COUNT == OP_COUNT, "the word table has one entry per operation");
+  for (int i = 0; i < WORD_COUNT && i < OP_COUNT; i++) {
+    CHECK(strcmp(WORD_TABLE[i].name, OP_NAMES[i]) == 0, "the word table runs in the same order as OP_NAMES");
+    CHECK(WORD_TABLE[i].stack[0] == '(' && WORD_TABLE[i].text[0] != '\0', "every word has a stack picture and a description");
+  }
 }
 
 int main(void) {
   test_tables();
+  test_vm();
   test_patchfile();
   test_audio();
   test_pad();

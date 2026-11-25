@@ -21,7 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LIST_MAX 40                     /* the longest pick list: 19 sources, 31 parameters */
+#define LIST_MAX 40                     /* the longest pick list: 33 sources, 31 parameters */
 #define WEIGHT_STEP 256
 #define WEIGHT_COARSE 4096
 
@@ -34,7 +34,7 @@ static const char *dst_name(const Desk *d, int addr) {
   return addr >= 0 && addr < NUM_REGS && d->synth->param_index[addr] >= 0 ? regview_param_name(d->synth, addr) : "?";
 }
 
-/* ---- pick lists. A list is the sources (1..19) or the parameters; each entry is a source number or a register address. */
+/* ---- pick lists. A list is the sources (1..33) or the parameters; each entry is a source number or a register address. */
 
 static int pick_item_count(const Desk *d) { return d->mtx.mode == MTX_PICK_SRC ? SRC_COUNT - 1 : d->npars; }
 static int pick_item(const Desk *d, int i) { return d->mtx.mode == MTX_PICK_SRC ? i + 1 : d->pars[i]; }

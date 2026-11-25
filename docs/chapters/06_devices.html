@@ -1,0 +1,92 @@
+<p>A <b>device</b> is a small machine inside FEZ that produces change by itself. It has no sound of its own. It makes numbers: a row of bits that evolves, a curve that never repeats, a melody that drifts. You use those numbers by routing them through the <a href="#matrix">matrix</a>, reading them in a block, or letting a device fire a pulser when something happens. Each device has a page on the DEVICES tab (move between pages with <b>[</b> and <b>]</b>).</p>
+
+<p>Here is the idea behind all of them. A sound that is perfectly steady is dull, and one that is perfectly random is noise. Music lives in between: patterns that nearly repeat. The devices are different ways of producing that.</p>
+
+<h3 id="cellular">Cellular automaton</h3>
+
+<p>Picture a row of 16 cells, each on or off, joined in a ring. At each <b>generation</b> every cell looks at itself and its two neighbours, which gives three bits, or a number from 0 to 7. A <b>rule</b> says what the cell becomes for each of the eight patterns. The rule is itself a number from 0 to 255, one bit for each pattern, and it is held in <code>CARULE</code>. Rule 30 produces a tangled, unpredictable-looking pattern from almost nothing, and rule 90 draws triangles. The row is <code>CAROW</code>, one bit per cell.</p>
+
+<ul>
+  <li><code>CASTEP</code>: write a number from 1 to 16 to run that many generations. <code>1 CASTEP !</code> runs one. On the DEVICES page, Space does it.</li>
+  <li><code>CATAP</code> picks one cell to watch (0 to 15) and <code>CABIT</code> reads its state.</li>
+  <li><code>CATRIG</code> picks a pulser (0 to 3) to fire when the watched cell is <b>born</b>, which means it was off and is now on. 4 means none.</li>
+  <li><code>CACOUNT</code> is the number of live cells, and <code>CADENS</code> is the same as a proportion, for the matrix. Both are read only.</li>
+</ul>
+
+<p>A worked example: pulser 0 runs one generation every beat, and each birth at the watched cell fires pulser 1, which plays a note picked from the low four bits of the row. The notes come from a pentatonic colour, so they sound right together.</p>
+
+<pre class="fez">\ block 0, run by pulser 0: advance the automaton
+1 CASTEP !</pre>
+
+<pre class="fez">\ block 1, run by pulser 1: play a note from the row
+CAROW @ 15 AND 13 COLOUR C3 + PITCH !
+1 GATE !</pre>
+
+<pre class="fez">\ any block, run once: wire it up
+1 BP0 !         \ pulser 0 runs block 0
+2 BP1 !         \ pulser 1 runs block 1
+1 CATRIG !      \ a birth fires pulser 1</pre>
+
+<p>Turn pulser 0 on at 120 pulses a minute. <code>COLOUR</code> turns a number into a note of a five-note scale: the first number steps up the scale, and the second chooses the flavour, 0 to 15. The word reference explains it in full.</p>
+
+<figure class="shot pad"><img src="shots/pad-cellular.png" alt="The cellular automaton page on the handheld: the recent generations as a grid of squares, the watched cell marked by the grey column, and the settings (rule, tap, trigger) on the right."><figcaption>The cellular automaton page on the handheld. Each row of squares is one generation, with the newest at the bottom. The grey column is the watched cell, and the settings are on the right.</figcaption></figure>
+
+<h3 id="lorenz">Lorenz attractor</h3>
+
+<p>The Lorenz attractor is three numbers that chase each other according to three equations from a weather model of 1963. The path they trace never repeats, but it stays within bounds and loops lazily round two lobes, like a butterfly's wings. That makes it a good slow, smooth, unpredictable modulator.</p>
+
+<ul>
+  <li><code>LZX</code>, <code>LZY</code> and <code>LZZ</code> are the three values, read only. All three are matrix sources.</li>
+  <li><code>LZRATE</code> sets the speed.</li>
+  <li><code>LZRHO</code> sets a parameter of the equations. About 28 gives the classic chaotic path; lower values make the path settle towards a fixed point instead of wandering.</li>
+  <li><code>LZTRIG</code> picks a pulser to fire each time X crosses zero, which is each time the path swaps lobes. 4 means none.</li>
+  <li><code>LZSEED</code>: write any number to restart the path from a new place.</li>
+</ul>
+
+<pre class="fez">LZX CUTOFF 6000 ROUTE        \ the filter wanders with the attractor
+LZZ FOLD 4000 ROUTE</pre>
+
+<figure class="shot pad"><img src="shots/pad-lorenz.png" alt="The Lorenz page"><figcaption>The Lorenz page: the path of the attractor, and its settings.</figcaption></figure>
+
+<h3 id="quantiser">Quantiser</h3>
+
+<p>To <b>quantise</b> is to round to the nearest allowed value. The quantiser rounds the pitch to the nearest note of a scale. That is how a wandering signal, such as an LFO or the Lorenz attractor, can control a pitch and still sound like music.</p>
+
+<ul>
+  <li><code>QON</code>: any non-zero number turns it on.</li>
+  <li><code>QSCALE</code> chooses the scale: 0 chromatic, 1 major, 2 natural minor, 3 dorian, 4 major pentatonic, 5 minor pentatonic, 6 blues, 7 whole tone.</li>
+  <li><code>QROOT</code> is the note the scale is built on, written like a pitch: <code>C3 QROOT !</code>.</li>
+</ul>
+
+<p>It works on the pitch the voice hears, <em>after</em> the matrix adds its modulation. It does not touch the <code>PITCH</code> register. So the register can hold any number and the sound still lands on the scale. A note exactly between two scale notes goes to the lower.</p>
+
+<pre class="fez">1 QON !
+4 QSCALE !                   \ major pentatonic
+C3 QROOT !
+LFO0 PITCH 3000 ROUTE        \ the LFO sweeps about an octave each way, in steps of the scale</pre>
+
+<h3 id="turing">Turing machine</h3>
+
+<p>This is a loop of bits that rewrites itself slowly. It holds up to 16 bits in a ring. At each <b>step</b> the oldest bit is taken, flipped with some chance, and put back in as the newest. If the chance is 0, nothing is ever flipped and the pattern repeats exactly. If it is high, the pattern is random. In between, a melody emerges that nearly repeats and changes a little each time round.</p>
+
+<ul>
+  <li><code>TMLEN</code>: how many bits are in the loop, 2 to 16. The loop length is the length of the repeating phrase.</li>
+  <li><code>TMCHANCE</code>: the chance that a bit flips. 0 never; 16384 is a coin toss (fully random); the default 4096 is about one in eight.</li>
+  <li><code>TMSTEP</code>: write any non-zero number to take a step. <code>TMPUL</code> is a mask of the pulsers that step it.</li>
+  <li><code>TMBITS</code>: the bits themselves. Writing sets them.</li>
+  <li><code>TMOUT</code>: the newest eight bits (or all, if the loop is shorter) read as a number, 0 to 32767. It is a matrix source.</li>
+</ul>
+
+<pre class="fez">1 TMPUL !                    \ pulser 0 steps the machine
+TMOUT PITCH 6000 ROUTE       \ the bits choose the pitch, over about two octaves
+1 QON !  4 QSCALE !          \ keep it in key</pre>
+
+<p>Lock the pattern by setting <code>0 TMCHANCE !</code>, and loosen it a little at a time.</p>
+
+<h3 id="keyboard">Keyboard</h3>
+
+<p>The keyboard device turns key presses into notes. On the desktop, the KEYS page of the DEVICES tab plays the computer keyboard like a piano: the bottom row (Z S X D C V G B H N J M) is one octave, and the row above (Q 2 W 3 E R 5 T 6 Y 7 U) is the next. The layout follows the position of the keys, so it works on any national layout. Only that page plays, and Space lets go of everything. The handheld has no KEYS page.</p>
+
+<p>A key press does four things: it writes the note into <code>PITCH</code> and <code>KBNOTE</code>, fires the gate, fires the pulsers in the mask <code>KBPUL</code>, and holds the gate open until the key is let go, then the release runs. If you press a second key while the first is held, the new one wins, and letting go of it returns to the first without a new attack. <code>KBOCT</code> (0 to 8) is the octave of the bottom key, and <code>KBGATE</code> is 1 while any key is down. <code>KBNOTE</code> and <code>KBGATE</code> are read only; <code>KBNOTE</code> is also a matrix source, which can be used to make a filter follow the notes you play.</p>
+
+<pre class="fez">KBNOTE CUTOFF 2000 ROUTE     \ higher notes sound brighter</pre>

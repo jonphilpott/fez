@@ -1,0 +1,46 @@
+<p>A <b>patch</b> is the whole state of FEZ at one moment: every register, the sixteen blocks and words, the four pulsers, the matrix routes and the devices' settings. Loading a patch replaces all of it, and empties the buffer, the delay, the spring and the compressor, so that nothing from the last patch rings on.</p>
+
+<h3 id="using">Loading, saving and sharing</h3>
+
+<p>On the PATCHES tab there are two lists. <b>MY PATCHES</b> holds the files in <code>~/FEZ/patches/</code>, and <b>EXAMPLES</b> holds the thirteen that come built in. <b>Left</b> and <b>Right</b> (or <b>[</b> and <b>]</b>) switch lists, typing letters narrows the list, <b>Up</b> and <b>Down</b> pick, and <b>Enter</b> loads. <b>Ctrl+S</b> saves the current state under a name, from any tab, and always asks for the name; if the name exists, it asks before overwriting. <b>Ctrl+D</b> or <b>Delete</b> removes a patch, after asking.</p>
+
+<p>FEZ never saves by itself. A patch you have not saved is gone when you quit. This is a choice: it means the example you load is always the one you hear, and your own patches change only when you say so.</p>
+
+<h3 id="file">The patch file</h3>
+
+<p>A patch is a plain text file, named after the patch with the ending <code>.fez</code>. You can read it, edit it in any text editor, keep it in version control or mail it to a friend. This is the shape, with comments added here for explanation:</p>
+
+<pre>FEZ PATCH 1
+name Deep Loop
+desc Frippertronics at ambient speed...
+listen Soft notes that return minutes later
+level 16384                 the master level
+pulser 0 on 1 rate 10       pulser number, on or off, pulses a minute
+reg CUTOFF 12000            a register, by name; only those that differ from the default
+reg DLYFB 29000
+route ENV CUTOFF 6000       a matrix route: source name, destination, weight
+ca 30 10836 0 4             the cellular automaton: rule, row, tap, trigger
+lz 8000 15300 4             the Lorenz attractor: rate, rho, trigger
+block 0                     the source of block 0; each line starts with "> "
+> 3 RND 0 =  1 JZ
+> ...
+word 2                      the same for a word</pre>
+
+<p>Only registers that differ from the defaults are written, so a file stays short, and registers are stored by name, so a patch keeps working if a register ever moves. Blank lines and lines beginning with <code>#</code> are ignored. A line FEZ does not understand is skipped, and the patch loads without it; the status bar says how many were skipped. A file that is not a patch at all is refused.</p>
+
+<p>What is <em>not</em> saved is whatever is only in motion: the audio in the buffer, the position of the sequencer, the phase of the LFO and the envelope. A patch starts from rest, as the built-in ones do.</p>
+
+<h3 id="own">Making your own</h3>
+
+<p>Start from the blank patch, which is what FEZ loads at first, or from one of <a href="#examples">the examples</a>, and change one thing at a time. A good order is:</p>
+
+<ol>
+  <li>Make one note you like with the CTRL tab: pitch, wave, filter, envelope.</li>
+  <li>Write a block that plays it, apply it, and run it with <b>Ctrl+R</b>.</li>
+  <li>Wire the block to a pulser: <b>Ctrl+1</b> in the editor, and switch the pulser on and set its rate on the PULSERS tab.</li>
+  <li>Add one moving thing: a matrix route from the LFO or the envelope.</li>
+  <li>Add space: the delay and the spring.</li>
+  <li>Save it with <b>Ctrl+S</b>.</li>
+</ol>
+
+<p>For a patch that plays itself for an hour, build it as Deep Loop does: few notes, long envelopes, and the delay doing most of the work.</p>

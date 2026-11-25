@@ -10,6 +10,14 @@ typedef struct { const char *name; int addr; int ro, wo, is_signed; } RegEntry;
 
 /* Every register a person can see (address 100 up, no per-block P0..P15), sorted by address. Returns the count. */
 int regview_list(RegEntry *out, int max);
+/* The register map's groups, for headings in lists and in the manual. Each starts at the first register of its run (the map
+   keeps every device's registers in one unbroken run, so a heading is just "from here on"). The starts are register constants,
+   so if a group moves the heading moves with it; only a register added in front of a group's first one needs this table
+   touched. */
+typedef struct { const char *name; int first; } RegGroup;
+extern const RegGroup REG_GROUPS[];
+extern const int REG_GROUP_COUNT;
+
 /* Addresses of the parameter registers in table order, without GATE. Returns the count. */
 int regview_params(int *out, int max);
 const char *regview_param_name(const FezSynth *s, int addr);

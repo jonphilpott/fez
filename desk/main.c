@@ -275,6 +275,10 @@ int main(int argc, char **argv) {
         SDL_LockAudioDevice(dev);
         pad_button(&pad, ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? BTN_L2 : BTN_R2, ev.caxis.value > 16384);
         SDL_UnlockAudioDevice(dev);
+      } else if (brick_mode && ev.type == SDL_CONTROLLERAXISMOTION && ev.caxis.axis <= SDL_CONTROLLER_AXIS_RIGHTY) {   /* the sticks are modulation pots MP0..MP3 (SDL numbers them 0 to 3, as pad_stick does) */
+        SDL_LockAudioDevice(dev);
+        pad_stick(&pad, ev.caxis.axis, ev.caxis.value);
+        SDL_UnlockAudioDevice(dev);
       } else if (brick_mode && ev.type == SDL_CONTROLLERDEVICEADDED) {
         SDL_GameControllerOpen(ev.cdevice.which);
       } else if (brick_mode) {

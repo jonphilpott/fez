@@ -18,7 +18,7 @@
      cutoff 0                     <- the cutoff offset knob
      pulser 0 on 1 rate 120       <- pulser number, on (0 or 1), rate in beats per minute
      reg CUTOFF 12000             <- a register by name (or by address); only those that differ from the default
-     route 3 CUTOFF 4000          <- matrix: source number, destination register, weight
+     route ENV CUTOFF 4000        <- matrix: source name, destination register, weight
      ca 30 5 3 0                  <- rule, row, tap, trig
      lz 50 28 0                   <- rate, rho, trig
      block 3                      <- the source of block 3, each line starting with "> "

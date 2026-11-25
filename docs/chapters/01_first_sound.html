@@ -1,0 +1,64 @@
+<p>FEZ is a synthesiser you program. One voice makes the sound; a few lines of a small language, kept in <b>blocks</b>, decide what the voice does and when. You write a line such as <code>C4 PITCH !</code>, press a key, and the note changes. This chapter takes you from switching on to a sound you made yourself.</p>
+
+<h3 id="start">Start it</h3>
+
+<p>On a computer you need a C compiler and the SDL2 library (which draws the window and plays the sound). From the project folder:</p>
+
+<pre>make fez
+./fez</pre>
+
+<p>On the TrimUI Brick, copy the FEZ folder onto the card and start it from the Tools menu; the <a href="#handheld">handheld chapter</a> has the details. The rest of this chapter uses the desktop keys. The Brick's buttons do the same jobs.</p>
+
+<p>The window is cut into three tiles: the <b>editor</b> on the left, a <b>scope</b> (a picture of the sound wave) at top right, and the <b>CTRL</b> list below it. <b>Ctrl+Tab</b> changes the layout, and <b>F1</b> shows every key on one page. The app starts from a blank patch, which is silent until something plays it.</p>
+<figure class="shot"><img src="shots/desk-code.png" alt="The CODE layout with Glass Bells loaded"><figcaption>The CODE layout with Glass Bells loaded: the editor on the left holds block 0, the scope is at top right and the CTRL list below it. The row of numbered boxes above the code are the sixteen blocks.</figcaption></figure>
+
+
+<h3 id="example">Load something that plays itself</h3>
+
+<ol>
+  <li>Press <b>Ctrl+]</b> to move to the PATCHES tab.</li>
+  <li>Press <b>Right</b> to switch from MY PATCHES to EXAMPLES. The thirteen built-in patches are listed. Typing letters narrows the list.</li>
+  <li>Pick one with <b>Up</b> and <b>Down</b> and press <b>Enter</b>.</li>
+</ol>
+
+<p>Glass Bells is a good first choice: it plays random bells by itself, using the pulsers (small clocks that start blocks of code, explained in <a href="#control">Control</a>). If you hear nothing, press <b>Ctrl+P</b> in case the pulsers are off. The sound is stopped at once with <b>Shift+Esc</b> (mute), which fades the output in 20 milliseconds and leaves everything running.</p>
+
+<h3 id="play">Play one note</h3>
+
+<p>Press <b>Ctrl+G</b>. That fires the <b>gate</b>, which is the on-switch of a note: it opens the envelope (the rise and fall of loudness) once. Press it again and the note repeats. A synthesiser with no keyboard still needs something to say "now", and the gate is that.</p>
+
+<h3 id="change">Change a number</h3>
+
+<ol>
+  <li>Press <b>Ctrl+]</b> until you reach CTRL, the list of every register. A <b>register</b> is a named number that the sound reads. CUTOFF is how open the filter is, PITCH is the note, and so on.</li>
+  <li>Pick CUTOFF with <b>Up</b> and <b>Down</b>.</li>
+  <li>Press <b>Left</b> and <b>Right</b> to change it (hold <b>Shift</b> for bigger steps), or type a number and press <b>Enter</b>.</li>
+  <li>Press <b>Ctrl+G</b> after each change and listen.</li>
+</ol>
+
+<p>Nothing here is special to the screen. A register is the same thing whether a person turns it or a line of code writes it. That is how the whole instrument works.</p>
+
+<h3 id="edit">Write a line</h3>
+
+<p>Go back to the EDITOR tab (<b>Ctrl+[</b>). The editor holds sixteen <b>blocks</b>; <b>[</b> and <b>]</b> move between them. Pick an empty one, and type:</p>
+
+<pre class="fez">C4 PITCH !
+1 GATE !</pre>
+
+<p>Read it aloud as "C4, into PITCH; 1, into GATE". The first line sets the note, and the second opens the gate. The <code>!</code> means "store this number in that register". The next chapter explains why the order is value first, register second.</p>
+
+<p>Typing changes nothing yet. This is deliberate: a half-typed line never alters the sound. Press <b>Ctrl+Enter</b> to <b>apply</b> the block (the editor compiles it and swaps it in), then <b>Ctrl+R</b> to run it once. You should hear a C. Change <code>C4</code> to <code>E4</code>, apply, run again, and the note moves up four semitones.</p>
+
+<p>If the block has a mistake, the editor says what and where, in red, and keeps the old version running. Try typing <code>-5</code>: it refuses with <code>no negative numbers: write 5 NEG</code>. The <a href="#language">language chapter</a> explains why.</p>
+
+<h3 id="save">Keep it</h3>
+
+<p>Press <b>Ctrl+S</b>, type a name, and press Enter. The patch is saved as a plain text file in <code>~/FEZ/patches/</code>, and appears under MY PATCHES. There is no autosave: a patch you do not save is gone when you quit. Press <b>Ctrl+T</b> to record what you hear to a WAV file in <code>~/FEZ/recordings/</code>, and <b>Ctrl+T</b> again to stop.</p>
+
+<h3 id="next">Where to go next</h3>
+
+<ul>
+  <li>For a picture of how the parts fit together, read <a href="#overview">the overview</a>.</li>
+  <li>To understand the lines you have just typed, read <a href="#language">the language</a>.</li>
+  <li>To see what the other registers do, read <a href="#voice">the voice</a>.</li>
+</ul>

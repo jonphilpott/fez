@@ -104,4 +104,23 @@ void test_pad(void) {
 
   /* every screen draws without trouble, with every overlay */
   for (int t = 0; t < TAB_COUNT; t++) { d.layouts[3].tab[0] = t; tap(BTN_MENU); desk_draw(&d); pad_draw(&pad); tap(BTN_B); desk_draw(&d); pad_draw(&pad); }
+
+  /* the Devices screen has five pages on the handheld: R2 walks round them and never reaches the KEYS page */
+  d.layouts[3].tab[0] = TAB_DEVICES; d.dev.sub = DEV_DELAY;
+  int pages_seen = 0;
+  for (int i = 0; i < 12; i++) { tap(BTN_R2); CHECK(d.dev.sub != DEV_KEYS, "R2 never reaches the KEYS page on the handheld"); pages_seen |= 1 << d.dev.sub; }
+  CHECK(pages_seen == (1 << DEV_COUNT) - 1 - (1 << DEV_KEYS), "R2 visits every other page");
+  d.dev.sub = DEV_DELAY; tap(BTN_L2); CHECK(d.dev.sub == DEV_TURING, "L2 from the first page wraps to the last one the handheld has");
+
+  /* the sticks are modulation pots MP0..MP3 */
+  CHECK(fez_reg_read(&s, REG_MP0) == 16384 && fez_reg_read(&s, REG_MP3) == 16384, "the pots start at the sticks' centre");
+  pad_stick(&pad, 0, 0);       CHECK(fez_reg_read(&s, REG_MP0) == 16384, "a stick at rest is at the centre");
+  pad_stick(&pad, 0, 3000);    CHECK(fez_reg_read(&s, REG_MP0) == 16384, "a small push is inside the dead zone");
+  pad_stick(&pad, 0, 32767);   CHECK(fez_reg_read(&s, REG_MP0) == 32767, "full right is the top of the pot");
+  pad_stick(&pad, 0, -32768);  CHECK(fez_reg_read(&s, REG_MP0) == 1, "full left is the bottom of the pot (the dead zone stretch leaves 1)");
+  pad_stick(&pad, 1, -32768);  CHECK(fez_reg_read(&s, REG_MP1) == 32767, "pushing up (SDL's negative Y) raises the pot");
+  pad_stick(&pad, 3, 20000);   CHECK(fez_reg_read(&s, REG_MP3) < 16384, "pushing the right stick down lowers MP3");
+  pad_stick(&pad, 2, 6000);    CHECK(fez_reg_read(&s, REG_MP2) > 16384 && fez_reg_read(&s, REG_MP2) < 18000, "just outside the dead zone the pot moves only a little");
+  pad_stick(&pad, 9, 32767);   CHECK(fez_reg_read(&s, REG_MP2) < 18000, "a bad axis is ignored");
+  fez_load_patch(&s, 2);       CHECK(fez_reg_read(&s, REG_MP0) == 1 && fez_reg_read(&s, REG_MP1) == 32767, "loading a patch leaves the pots where they were");
 }

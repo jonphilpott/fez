@@ -8,6 +8,7 @@ extern int test_fails;
 #define CHECK(cond, msg) do { if (!(cond)) { printf("FAIL: %s\n", msg); test_fails++; } } while (0)
 
 void test_tables(void);
+void test_vm(void);
 void test_patchfile(void);
 void test_audio(void);
 void test_pad(void);

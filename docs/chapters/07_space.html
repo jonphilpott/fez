@@ -1,0 +1,94 @@
+<p>This chapter is about the end of the signal path: the effects that make a sound last, and the buffer that records it. FEZ is built for slow music in the manner of Fripp and Eno, where a few notes are played into a tape loop and come round again, quieter and darker, for minutes. The effects and the buffer are the instruments for that.</p>
+
+<p>The order matters. The voice, the mod voice and whatever the buffer plays back all go into the <b>tape delay</b>. Its output goes into the <b>spring reverb</b>, then a <b>compressor</b>, then the master <code>LEVEL</code>. The figure in <a href="#overview">the overview</a> shows it.</p>
+
+<h3 id="delay">The tape delay</h3>
+
+<p>A delay repeats a sound after a time. A <b>tape delay</b> does it with a loop of tape: each time round, the sound is copied back, a little duller and a little less steady. FEZ's delay keeps these faults on purpose.</p>
+
+<ul>
+  <li><code>DLYTIME</code>: the length of the loop, from 0 to 12 seconds. The scale is a straight line, 0.37 ms for each step of the register, so 19930 is 7.3 seconds. The default, 814, is 0.3 seconds.</li>
+  <li><code>DLYFB</code>: <b>feedback</b>, how much of the loop is fed back into itself. 0 gives one echo, and values near the top give echoes that go on for minutes. There is no cap: at the maximum a sound should neither die nor grow. Inside the loop, loud sounds are gently squashed so that it cannot run away.</li>
+  <li><code>DLYMIX</code>: the balance of dry and wet. At 0 you hear only the dry sound. As you raise it the dry fades as the echoes rise, and at full you hear only the loop.</li>
+  <li><code>DLYIN</code>: how much of the new sound is written onto the loop. Full is the default. Lower values let new notes lie gently over the old ones instead of drowning them, and 0 closes the loop so that nothing new goes in. The scale is squared, so there is plenty of room at the quiet end.</li>
+  <li><code>DLYLP</code>: a lowpass filter in the loop, 300 Hz to 12 kHz. Each trip round takes off more treble, so old sound fades to a murmur.</li>
+  <li><code>DLYWOB</code>: wow and flutter, the slow and fast wavering of a tape's speed. It bends the pitch of the echoes a little.</li>
+  <li><code>DLYNZ</code>: tape hiss, written into the loop. It adds a little more each trip.</li>
+  <li><code>DLYFRZ</code>: <b>freeze</b>. At or above 16384 the loop stops listening and holds an exact copy of itself: no new sound, no hiss, no filtering. A frozen loop does not fade. You can play over it, and let go to return to normal.</li>
+</ul>
+
+<pre class="fez">19930 DLYTIME !     \ 7.3 seconds round
+29000 DLYFB !       \ nearly 89 percent: each phrase returns for minutes
+18000 DLYLP !       \ each trip round is darker
+3000 DLYWOB !       \ a trace of wow
+22000 DLYIN !       \ new notes lie over the old</pre>
+
+<p>The patch <b>Deep Loop</b> is built this way. To freeze it, go to the DELAY page of the DEVICES tab and press Space, or write <code>32767 DLYFRZ !</code>.</p>
+
+<h3 id="spring">The spring reverb</h3>
+
+<p>A reverb adds the sense of a room. A <b>spring</b> reverb was originally a coiled spring in a guitar amplifier, and has a bright, springy, slightly metallic ring. FEZ's is made of two short loops, one for each ear, tuned apart so that the left and right sounds differ.</p>
+
+<ul>
+  <li><code>SPRMIX</code>: how much of the reverb you hear.</li>
+  <li><code>SPRDEC</code>: how long it takes to die away.</li>
+  <li><code>SPRWID</code>: the stereo width. At 0 both ears hear the same, and at full the two sides are as different as they can be, which makes the room seem wide.</li>
+</ul>
+
+<h3 id="compressor">The compressor</h3>
+
+<p>Stacked loops can build up into something loud. A <b>compressor</b> turns down the loud parts, so the quiet parts can stay clear. FEZ's has no controls: it works above -10 dB, reduces the excess to an eighth, and reacts in 3 milliseconds. Its job is to keep a thick patch from overloading the output, not to change the sound. If the CLIP light still comes on, lower <code>LEVEL</code>.</p>
+
+<h3 id="buffer">The buffer</h3>
+
+<p>The delay is a loop of fixed length. The <b>buffer</b> is a store of recent sound that you can reach into at any point. It is a ring of up to 30 seconds (<code>BUFMS</code> sets the length, 50 ms to 30000 ms; the default is 2 seconds). A <b>write head</b> records into the ring, and when it reaches the end it wraps round and overwrites the oldest sound. Eight <b>read voices</b> play from the ring.</p>
+
+<h4>Recording</h4>
+
+<ul>
+  <li><code>BWMODE</code>: 0 means the head is frozen (it holds what it has), 1 means it records all the time, and 2 means a one-shot. The default is 1.</li>
+  <li><code>BWSRC</code>: what the head hears. 0 is the mixer (the voice, the mod oscillator and noise, before the gate), 1 is the voice after the gate, 2 is the mod voice, and 3 is both of those together.</li>
+  <li><code>BIN</code>: the record level.</li>
+  <li><code>BWFB</code>: feedback from the read voices back into the head, so that sounds keep going round. It is soft clipped, so 100 percent is safe.</li>
+  <li>A <b>one-shot</b> clears the buffer and records once, for the length <code>BWLEN</code> (a proportion of the buffer, full by default). Write any non-zero number to <code>BWTRIG</code> to start one.</li>
+</ul>
+
+<p>On the BUFFER tab, <b>R</b> records a one-shot, <b>F</b> freezes the head, <b>S</b> stops the voices, <b>C</b> clears the buffer and <b>Space</b> triggers the voices. The buffer audio is not saved with a patch, and loading a patch empties it.</p>
+
+<figure class="shot pad"><img src="shots/pad-buffer.png" alt="The buffer on the handheld, with Deep Loop playing"><figcaption>The tape page of the buffer on the handheld, with Deep Loop playing. The yellow line is the write head, and the magenta lines are read voices sitting behind it. The settings below are the recording registers.</figcaption></figure>
+
+<h4>Read voices</h4>
+
+<p>Each of the eight voices has five registers, numbered 0 to 7: <code>GPOS</code> (position), <code>GRATE</code> (rate), <code>GLEN</code> (length), <code>GLVL</code> (level) and <code>GFLG</code> (flags). A voice with no level is silent. A voice works in one of two ways, decided by its length.</p>
+
+<p><b>A continuous voice</b> (<code>GLEN</code> of 0) plays all the time. Its position is a proportion of the buffer, 0 to 32767. If the flag <code>REL</code> is set, it is a <b>tap</b> that sits that far <em>behind</em> the write head, which makes it a delay: <code>9830 GPOS0 !</code> with <code>REL</code> reads sound from nine seconds ago in a 30-second buffer. Without it, the voice is a free-running loop that starts at that position and plays round the ring at the speed <code>GRATE</code> sets.</p>
+
+<p><b>A grain</b> (<code>GLEN</code> above 0) plays a short snippet, that many milliseconds long, then stops. <code>GTRIG</code> is a mask of the voices to start, and the pulsers named in <code>GRPUL</code> start the next grain each time they fire, going round the voices in turn. A grain has a <b>window</b>, a fade in and out so there is no click: <code>GWIN</code> goes from a rectangle (with very short edges) to a smooth Hann curve. Many grains close together make a cloud of sound, which is how the Grain Cloud patch works.</p>
+
+<p><code>GRATE</code> is written as a pitch: C4 (15360) plays at the original speed, and each octave (3072) up doubles the speed and raises the pitch of the sound, within four octaves either way. The flags are added together: 1 <code>REL</code> (position is behind the head), 2 <code>REV</code> (play backwards), 4 <code>TRK</code> (follow the pitch of the voice, so the buffer can be played like an instrument) and 8 <code>LOOP</code> (a grain repeats until stopped, and <code>GSTOP</code> stops it).</p>
+
+<p>Only voice 0 can be modulated by the matrix (<code>GPOS0</code>, <code>GRATE0</code> and <code>GLVL0</code>); the other seven use their plain register values.</p>
+
+<h4>Getting the sound back</h4>
+
+<p>The voices' sum is the buffer's output. <code>MIXBF</code> sends it to the effects, never gated. <code>MIXBP</code> sends it into the lowpass gate instead, so it is shaped by the same envelope as the voice.</p>
+
+<h3 id="loop-patch">A tape-loop patch, step by step</h3>
+
+<p>Here is the heart of Deep Loop. The voice plays rarely, softly and slowly. The buffer records the voice, and four read voices play it back from 9, 14, 21 and 27 seconds ago, which means that old phrases are fed back into the delay at distances that never line up.</p>
+
+<pre class="fez">\ the buffer records the voice, 30 seconds of it
+30000 BUFMS !
+1 BWSRC !
+
+\ four taps behind the write head, quieter the further back
+9830 GPOS0 !   1 GFLG0 !   9000 GLVL0 !     \ 9 seconds
+15291 GPOS1 !  1 GFLG1 !   8000 GLVL1 !     \ 14 seconds
+22937 GPOS2 !  1 GFLG2 !   7000 GLVL2 !     \ 21 seconds
+29490 GPOS3 !  1 GFLG3 !   6000 GLVL3 !     \ 27 seconds
+16000 MIXBF !                                \ send them to the delay
+
+\ the tape loop itself
+19930 DLYTIME !  29000 DLYFB !  18000 DLYLP !  22000 DLYIN !</pre>
+
+<p>The voice, set to a long attack and release with a soft sine, is played by two pulsers a few seconds apart, each running a block that acts one time in three or four. Start from the example, and change one number at a time: <code>DLYIN</code> for how thickly the loop layers, <code>DLYFB</code> for how long it lasts, <code>DLYLP</code> for how dark it gets.</p>

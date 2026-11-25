@@ -1,0 +1,95 @@
+<p>This chapter is about the desktop app: what is on the screen, how to move around it, and which key does what. (The handheld has its own chapter.) FEZ has no mouse support. Everything is done from the keyboard, so that it works as well on a laptop in a dark room as on a small screen on a Raspberry Pi.</p>
+
+<h3 id="window">The window</h3>
+
+<p>The window is cut into <b>tiles</b>, and each tile shows one <b>tab</b>. The tile with the amber frame has the focus, which means it receives your keys. A <b>layout</b> is one way of cutting the window up; there are three, and <b>Ctrl+Tab</b> moves to the next:</p>
+
+<ul>
+  <li><b>CODE</b>: the editor on the left, the scope and the CTRL list on the right. For writing.</li>
+  <li><b>MIX</b>: the CTRL list on the left, the scope and the pulsers on the right. For turning knobs.</li>
+  <li><b>WATCH</b>: the scope along the top, the CTRL list and the devices below. For listening to a patch that plays itself.</li>
+</ul>
+
+<figure class="shot"><img src="shots/desk-code.png" alt="CODE"><figcaption>CODE: for writing.</figcaption></figure>
+<figure class="shot"><img src="shots/desk-mix.png" alt="MIX"><figcaption>MIX: for turning knobs. The pulsers tile shows the pulser being adjusted.</figcaption></figure>
+<figure class="shot"><img src="shots/desk-watch.png" alt="WATCH"><figcaption>WATCH: for listening to a patch that plays itself. Here the DEVICES tab shows the tape delay page.</figcaption></figure>
+
+<p>Move the focus between tiles with <b>Ctrl+Arrows</b>. Change the tab in the focused tile with <b>Ctrl+[</b> and <b>Ctrl+]</b>. Inside a tab, plain <b>[</b> and <b>]</b> move to the previous or next <em>page</em>: the next block in the editor, the next list in PATCHES, the next device in DEVICES. (This is why the editor cannot type square brackets: they are never needed, and the keys are worth more as page turners.) <b>Alt</b> works like Ctrl everywhere, for keyboards where Ctrl is awkward. <b>Ctrl+=</b> and <b>Ctrl+-</b> make the text bigger and smaller, <b>Ctrl+F</b> goes full screen, and <b>Ctrl+Q</b> quits. <b>F1</b> shows every key on one page.</p>
+
+<p>The status bar at the bottom shows the layout, the patch name, whether the pulsers are on, a short message about what you just did, and, at the right, the <b>CPU</b> load and the <b>CLIP</b> light. The CPU bar is the time the audio takes as a share of the time it has; green is under 70 percent, amber to 90 and red above. The thin marker on it is the worst moment in the last three seconds. Every example patch uses about 1 percent on an ordinary laptop. CLIP comes on for a second when the output reaches full scale.</p>
+
+<h3 id="tabs">The tabs</h3>
+
+<ul>
+  <li><b>EDITOR</b>: sixteen blocks of code. See below.</li>
+  <li><b>PATCHES</b>: load, save and delete. See <a href="#patches">Patches</a>.</li>
+  <li><b>CTRL</b>: every register in one list, under group headings, starting with the master volume. <b>Up</b> and <b>Down</b> pick a row; <b>Left</b> and <b>Right</b> change it (<b>Shift</b> for big steps); type digits and press <b>Enter</b> to set an exact value. <b>Tab</b> switches between real units (Hz, seconds, percent) and raw register numbers.</li>
+  <li><b>DEVICES</b>: pages for the cellular automaton, Lorenz, quantiser, Turing machine, delay and keys. <b>Space</b> does the page's main action (a step, a reseed, a freeze).</li>
+  <li><b>BUFFER</b>: the tape, and its voices.</li>
+  <li><b>PULSERS</b>: the four clocks. <b>Space</b> toggles one, <b>F</b> fires it, and you can type a new rate.</li>
+  <li><b>SEQ</b>: the eight steps. Type a note name to set a step.</li>
+  <li><b>MATRIX</b>: the routes. <b>Enter</b> picks or adjusts a cell, and <b>Backspace</b> deletes a route.</li>
+  <li><b>PLAY</b>: keys 1 to 4 fire the pulsers, and S clocks the sequencer.</li>
+  <li><b>SCOPE</b>: a picture of the output wave, steadied by starting each sweep on a rising edge.</li>
+</ul>
+
+<h3 id="editor">The editor</h3>
+
+<p>The editor holds sixteen blocks, one at a time. <b>[</b> and <b>]</b> move between them. Each block keeps its own text, and the text you are typing never touches the sound until you apply it. This is deliberate, so that a half-typed program cannot do anything.</p>
+
+<ul>
+  <li><b>Ctrl+Enter</b> <b>applies</b> the block: it compiles the text and swaps it in. A mistake is shown in red with the line, and the old version keeps running. A <b>fault</b> that halted the block is cleared by applying it again.</li>
+  <li><b>Ctrl+R</b> runs the block once, now.</li>
+  <li><b>Ctrl+1</b> to <b>Ctrl+4</b> switch on or off whether pulsers 0 to 3 run this block.</li>
+  <li><b>Tab</b> completes the word you are typing, and cycles through the matches if there are several.</li>
+  <li><b>Ctrl+Z</b> and <b>Ctrl+Y</b> undo and redo. <b>Ctrl+C</b>, <b>Ctrl+X</b> and <b>Ctrl+V</b> copy, cut and paste.</li>
+  <li>There are no Home, End or Page keys: the arrows are enough for blocks of 128 slots at the most.</li>
+</ul>
+
+<h3 id="sound">Making a sound</h3>
+
+<ul>
+  <li><b>Ctrl+G</b> fires the gate, once: one note.</li>
+  <li><b>Ctrl+P</b> switches the four pulsers off and on together, remembering which were on.</li>
+  <li><b>Shift+Esc</b> mutes and unmutes, with a 20 millisecond fade. The synth keeps running underneath. Plain <b>Esc</b> only cancels something you are typing.</li>
+  <li><b>Ctrl+T</b> starts and stops a recording of the final output. See below.</li>
+</ul>
+
+<h3 id="keys-page">The keys page</h3>
+
+<p>To play FEZ as an instrument, go to the DEVICES tab and press <b>]</b> to reach the KEYS page. The computer keyboard now plays notes, laid out like a piano, by the position of each key so that it works on any national layout:</p>
+
+<pre>  2 3   5 6 7          upper octave: black keys
+ Q W E R T Y U         upper octave: white keys
+  S D   G H J          lower octave: black keys
+ Z X C V B N M         lower octave: white keys</pre>
+
+<p>The notes are Z (C), S (C sharp), X (D), D (D sharp), C (E), V (F), G (F sharp), B (G), H (G sharp), N (A), J (A sharp) and M (B), and the upper row is the next octave, starting on Q. <b>Space</b> lets go of every key. Only this page plays; the rest of the time the letters are for typing. If the window loses focus, every held note is released. How a key behaves is explained in <a href="#keyboard">the keyboard device</a>.</p>
+
+<h3 id="recording">Recording a take</h3>
+
+<p>Press <b>Ctrl+T</b>. The status bar shows REC, and FEZ writes what you hear, after the mute, to a 24-bit stereo WAV file in <code>~/FEZ/recordings/</code>, named by date, time and patch, such as <code>2026-11-25_114302_Deep Loop.wav</code> (the seconds keep two quick takes apart). Press <b>Ctrl+T</b> again to stop. The audio is passed to the disk by a separate thread, so recording cannot cause a glitch in the sound.</p>
+
+<h3 id="all-keys">All the keys</h3>
+
+<table class="regs">
+<tr><th>Key</th><th>What it does</th></tr>
+<tr><td>Ctrl+Arrows</td><td>move to the tile that way</td></tr>
+<tr><td>Ctrl+[ and Ctrl+]</td><td>previous and next tab</td></tr>
+<tr><td>[ and ]</td><td>previous and next page inside a tab</td></tr>
+<tr><td>Ctrl+Tab</td><td>next layout</td></tr>
+<tr><td>Up, Down, Left, Right</td><td>pick a row, change a value (Shift: big steps)</td></tr>
+<tr><td>0 to 9, Enter</td><td>type an exact number, store it</td></tr>
+<tr><td>Esc</td><td>cancel what you are typing</td></tr>
+<tr><td>Ctrl+= and Ctrl+-</td><td>bigger and smaller text</td></tr>
+<tr><td>Ctrl+F</td><td>full screen on and off</td></tr>
+<tr><td>Ctrl+Q</td><td>quit</td></tr>
+<tr><td>Ctrl+G</td><td>fire the gate: play one note</td></tr>
+<tr><td>Ctrl+P</td><td>pulsers on and off</td></tr>
+<tr><td>Shift+Esc</td><td>mute and unmute</td></tr>
+<tr><td>Ctrl+S</td><td>save the patch (asks for a name)</td></tr>
+<tr><td>Ctrl+D</td><td>delete the picked patch (asks first)</td></tr>
+<tr><td>Ctrl+T</td><td>start or stop recording</td></tr>
+<tr><td>Ctrl+Enter, Ctrl+R</td><td>in the editor: apply the block, run it once</td></tr>
+<tr><td>F1</td><td>the help page</td></tr>
+</table>

@@ -1,0 +1,86 @@
+<p>A synthesiser that only does what you tell it, when you tell it, is an instrument. One that also acts on its own is closer to a piece of music. This chapter covers the parts that make things happen in time: the pulsers (clocks), the sequencer (a row of notes), the slew generators (smoothing) and the modulation matrix (patch cables that need no cables).</p>
+
+<h3 id="pulsers">Pulsers</h3>
+
+<p>A <b>pulser</b> is a clock that ticks at a steady rate. There are four, numbered 0 to 3. Each has an on/off switch and a rate in <b>pulses per minute</b>, and both are set on the PULSERS tab. At 60 a pulser fires once a second; at 120, twice. <b>Ctrl+P</b> switches all four off and on again without losing their settings.</p>
+
+<p>A pulser does nothing by itself. It <em>fires</em>, and whatever is wired to it responds. Three kinds of thing can be wired:</p>
+
+<ul>
+  <li><b>Blocks.</b> Each block has a register, <code>BP0</code> to <code>BP15</code>, holding a <b>mask</b>: a number whose binary digits say which pulsers run the block. Bit 0 is pulser 0, bit 1 is pulser 1, and so on, so <code>1</code> means pulser 0, <code>2</code> means pulser 1, and <code>3</code> means both. <code>1 BP0 !</code> makes pulser 0 run block 0 every time it fires. A block runs once per tick however many pulsers are wired to it and fire together.</li>
+  <li><b>The sequencer</b>, through <code>SQPUL</code>: each fire moves it one step on (see below).</li>
+  <li><b>Devices</b> such as the grains (<code>GRPUL</code>), the cellular automaton and the Turing machine (<code>TMPUL</code>), described in <a href="#devices">Devices</a>.</li>
+</ul>
+
+<p>You can also fire a pulser from code with <code>TRIG</code>: <code>2 TRIG</code> fires pulser 2 at the next tick. The PLAY tab does the same from the keyboard (keys 1 to 4), and a key on the KEYS page can fire pulsers too, through <code>KBPUL</code>.</p>
+
+<p>To run a block directly, without a pulser, write its number to <code>RUN</code>: <code>4 RUN !</code> runs block 4 at the next tick.</p>
+
+<figure class="shot pad"><img src="shots/pad-pulsers.png" alt="The four pulsers on the handheld"><figcaption>The four pulsers on the handheld. Each has a rate in pulses a minute and an on/off switch, and a row of sixteen boxes for the blocks it runs (pulser 0 runs block 0). The desktop PULSERS tab shows the same.</figcaption></figure>
+
+<h3 id="sequencer">The sequencer</h3>
+
+<p>The step sequencer holds eight pitches, <code>SQ0</code> to <code>SQ7</code>, and plays them in a loop. Each time it is <b>clocked</b> it moves to the next step and does one or two things, which you choose in <code>SQDRV</code>: add 1 to write the step's pitch to <code>PITCH</code>, and add 2 to fire the gate. So 3 does both, which is the usual choice.</p>
+
+<ul>
+  <li><code>SQLEN</code> (1 to 8) is how many steps are in the loop.</li>
+  <li><code>SQEN</code> is a mask of enabled steps, bit n for step n. A disabled step is skipped, which makes rests and shorter patterns easy. If every step is disabled, the sequencer stays where it is.</li>
+  <li><code>SQSTEP</code> is the current step, 0 to 7.</li>
+  <li><code>SQCLK</code>: write any non-zero number to clock the sequencer once. <code>SQPUL</code> is the mask of pulsers that clock it.</li>
+</ul>
+
+<pre class="fez">C4 SQ0 !  E4 SQ1 !  G4 SQ2 !  C5 SQ3 !     \ four notes of a chord
+4 SQLEN !                                   \ a loop of four
+3 SQDRV !                                   \ each step sets the pitch and plays it
+1 SQPUL !                                   \ pulser 0 is the clock</pre>
+
+<p>With pulser 0 turned on and set to 120, that plays two notes a second, round and round. Pitches are in the units of <a href="#pitch">Pitch</a>, so you can add a semitone offset to a step with <code>ST</code>. Since steps are just registers, a block can rewrite them while the sequence plays.</p>
+
+<figure class="shot pad"><img src="shots/pad-seq.png" alt="The sequencer on the handheld"><figcaption>The sequencer on the handheld: eight steps, each with a pitch and an ON or off switch (step 4 is off, so it is a rest). The picked step is highlighted, and the title says which pulser clocks it.</figcaption></figure>
+
+<h3 id="slew">Slew</h3>
+
+<p>Four registers, <code>CV0</code> to <code>CV3</code>, exist for blocks to write numbers into. They hold -32768 to 32767, can be used as matrix sources, and affect nothing until a route sends them somewhere. A jump in a value is audible as a click or a lurch, so each has a <b>slew</b>: a smoother that makes the change glide. <code>SLT0</code> to <code>SLT3</code> set the glide time (1 ms to 5 s; 0 turns the slew off), and the smoothed value appears in <code>SLO0</code> to <code>SLO3</code>, another matrix source.</p>
+
+<p>The glide is exponential: each step it covers a fixed share of the remaining distance, so it starts fast and finishes slowly, as a real analogue circuit does. This is the way to get a filter to swoop towards a new value instead of jumping.</p>
+
+<pre class="fez">26000 SLT0 !          \ a glide time of nearly a second
+16000 RND CV0 !       \ write a random target; SLO0 drifts towards it</pre>
+
+<h3 id="matrix">The modulation matrix</h3>
+
+<p>To <b>modulate</b> is to move a setting automatically. The matrix is the switchboard that does it. A <b>route</b> joins a <b>source</b>, something that changes over time, to a <b>destination</b>, a register, with a <b>weight</b> that says how much. Each tick, FEZ computes for every register an <b>effective value</b>:</p>
+
+<p class="note-box">effective value = the register's own value + (weight &divide; 32768) &times; the source, then limited to 0 to 32767.</p>
+
+<p>The sound reads the effective value. The register itself is not changed: the CTRL tab shows it, <code>CUTOFF @</code> reads it, and the sound moves around it. A weight of 32767 passes the whole source, 16384 passes half, and a negative weight turns the source upside down. You can have 16 routes. They are set in the MATRIX tab, or from code with <code>ROUTE</code>:</p>
+
+<pre class="fez">LFO0 CUTOFF 4000 ROUTE      \ the slow sine moves the cutoff up and down by 4000
+ENV FMAMT 8000 ROUTE        \ each note starts with more FM and mellows
+ENV CUTOFF 6000 NEG ROUTE   \ a negative weight: the cutoff falls as the note opens</pre>
+
+<p>The word takes the source, the destination and the weight, in that order. Routing the same pair again just changes the weight. Any register that shapes the sound can be a destination, except <code>GATE</code>. A full matrix, or an unknown source or destination, is a fault.</p>
+
+<figure class="shot pad"><img src="shots/pad-matrix.png" alt="The matrix on the handheld, one route to a row"><figcaption>The matrix on the handheld, one route to a row: a source, a destination and a weight. These are the routes of Glass Bells.</figcaption></figure>
+
+<h4>The sources</h4>
+
+<p>Most sources are named by the register that holds them. Three have a different name in code, shown in the last column.</p>
+
+<table class="regs">
+<tr><th>Source</th><th>What it is</th><th>Range</th><th>Name in <code>ROUTE</code></th></tr>
+<tr><td>LFO0</td><td>a slow sine wave, 0.05 Hz to 20 Hz (<code>LFORATE</code>)</td><td>-32767 to 32767</td><td><code>LFO0</code></td></tr>
+<tr><td>ENV</td><td>the envelope: rises when the gate fires, falls over REL</td><td>0 to 32767</td><td><code>ENV</code></td></tr>
+<tr><td>CV0 to CV3</td><td>numbers written by blocks</td><td>-32768 to 32767</td><td><code>CV0</code> to <code>CV3</code></td></tr>
+<tr><td>MP0 to MP15</td><td>sixteen read-only registers for knobs and controllers: the program cannot write them, only the outside world can (on the Brick, the two sticks are MP0 to MP3)</td><td>0 to 32767</td><td><code>MP0</code> to <code>MP15</code></td></tr>
+<tr><td>SLO0 to SLO3</td><td>CV0 to CV3, smoothed</td><td>-32768 to 32767</td><td><code>SLO0</code> to <code>SLO3</code></td></tr>
+<tr><td>CADENS</td><td>how full the cellular automaton row is</td><td>0 to 32767</td><td><code>CADENS</code></td></tr>
+<tr><td>LZX, LZY, LZZ</td><td>the three axes of the Lorenz attractor</td><td>signed</td><td><code>LZX</code>, <code>LZY</code>, <code>LZZ</code></td></tr>
+<tr><td>SQ</td><td>the current sequencer step's pitch, relative to C4 (one semitone is 2048)</td><td>signed</td><td><code>SQOUT</code></td></tr>
+<tr><td>TM</td><td>the Turing machine's output</td><td>0 to 32767</td><td><code>TMOUT</code></td></tr>
+<tr><td>KB</td><td>the key held on the keyboard, relative to C4; 0 when none</td><td>signed</td><td><code>KBNOTE</code></td></tr>
+</table>
+
+<p>The devices (CADENS, Lorenz, TM) are explained in <a href="#devices">Devices</a>. The quantiser, which can snap the effective pitch to a scale, acts after the matrix: it sees the pitch with modulation added, never the PITCH register itself.</p>
+
+<p>A good first route is the one that gives a sound life: send the slow LFO to a cutoff with a small weight. Nothing is added to the code and nothing needs to fire. The sound moves on its own.</p>

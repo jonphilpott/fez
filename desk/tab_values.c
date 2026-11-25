@@ -46,17 +46,10 @@ static void entry_text(const ValueList *l, char *out, size_t n) { snprintf(out, 
 
 /* ---------------------------------------------------------------- the rows: registers under group headings */
 
-/* The headings. Each starts at the first register of its run (the register map keeps every device's registers in one unbroken
-   run, so a heading is just "from here on"). The names are register constants, so if a group moves the heading moves with it;
-   only a register added in front of a group's first one would need this table touched. LEVEL is lifted out of the voice group
-   into its own MASTER heading at the top, because the volume is the setting everyone reaches for first. */
-static const struct { const char *name; int first; } GROUPS[] = {
-  { "VOICE", REG_PITCH },      { "CV", REG_CV0 },         { "MIXER", REG_MIXCX },      { "POTS", REG_MP0 },
-  { "MOD VOICE", REG_MDWAVE }, { "DELAY", REG_DLYTIME },  { "SLEW", REG_SLT0 },        { "SCRATCH", REG_S0 },
-  { "CELLULAR", REG_CARULE },  { "LORENZ", REG_LZRATE },  { "SEQUENCER", REG_SQSTEP }, { "BUFFER", REG_MIXBF },
-  { "GRAINS", REG_GPOS0 },     { "PULSERS", REG_BP0 },    { "QUANTISER", REG_QON },    { "TURING", REG_TMPUL },
-  { "KEYBOARD", REG_KBNOTE } };
-#define NGROUPS ((int)(sizeof GROUPS / sizeof GROUPS[0]))
+/* The headings come from REG_GROUPS (core/regview.c), which the manual's generator reads too. LEVEL is lifted out of the voice
+   group into its own MASTER heading at the top, because the volume is the setting everyone reaches for first. */
+#define GROUPS REG_GROUPS
+#define NGROUPS REG_GROUP_COUNT
 #define HEAD_MASTER NGROUPS                     /* heading number of MASTER (it is not in the table) */
 
 /* Row kinds, in d->crow: a value >= 0 is an index into d->regs; a heading is stored as -(heading number + 1). */

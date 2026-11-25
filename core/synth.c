@@ -52,9 +52,12 @@ void fez_load_patch(FezSynth *s, int index) {
   const PatchDef *p = &PATCH_TABLE[fez_clamp(index, 0, PATCH_COUNT - 1)];
 
   /* 1) registers: defaults first, then the patch's presets (raw writes, no range checks, like the JS) */
+  int16_t pots[16];                                              /* the pots are the controls themselves (knobs, sticks, MIDI), not part of a patch: a load leaves them where they are */
+  memcpy(pots, s->mem + REG_MP0, sizeof pots);
   memset(s->mem, 0, sizeof s->mem);
   memset(s->priv, 0, sizeof s->priv);
   fez_default_registers(s->mem);
+  memcpy(s->mem + REG_MP0, pots, sizeof pots);
   for (int i = 0; i < p->npresets; i++) s->mem[p->presets[i].addr] = (int16_t)p->presets[i].value;
 
   /* 2) code */
@@ -107,9 +110,12 @@ void fez_load_patch(FezSynth *s, int index) {
    setting. The starting point for a new patch, and for reading a patch file (a file only lists what differs). */
 void fez_load_blank(FezSynth *s) {
   fez_load_patch(s, 0);                                        /* resets all the machinery; the rest below blanks the content */
+  int16_t pots[16];
+  memcpy(pots, s->mem + REG_MP0, sizeof pots);                   /* pots survive a load (see fez_load_patch) */
   memset(s->mem, 0, sizeof s->mem);
   memset(s->priv, 0, sizeof s->priv);
   fez_default_registers(s->mem);
+  memcpy(s->mem + REG_MP0, pots, sizeof pots);
   for (int i = 0; i < NUM_BLOCKS; i++) { vm_set_block(&s->vm, i, ""); vm_set_word(&s->vm, i, ""); }
   for (int i = 0; i < NUM_PULSERS; i++) { s->pulsers[i].on = 0; s->pulsers[i].rate = 120; s->pulsers[i].acc = 0; s->pulsers[i].last_fire = 0; }
   s->nroutes = 0;
@@ -184,15 +190,15 @@ static void matrix_sources(const FezSynth *s, int sv[NUM_SOURCES]) {
   sv[n++] = s->lfo_val;                                         /* 1: LFO0 */
   sv[n++] = fez_round(s->env.v * 32767);                        /* 2: ENV */
   for (int i = 0; i < 4; i++) sv[n++] = s->mem[REG_CV0 + i];        /* 3-6: CV0..CV3 */
-  for (int i = 0; i < 4; i++) sv[n++] = s->mem[REG_MP0 + i];        /* 7-10: MP0..MP3 (modulation pots) */
-  sv[n++] = fez_ca_read(s, REG_CADENS);                                /* 11: CADENS */
-  for (int i = 0; i < 4; i++) sv[n++] = s->mem[REG_SLO0 + i];        /* 12-15: SLO0..SLO3 */
-  sv[n++] = fez_lz_read(s, REG_LZX);                                /* 16-18: LZX, LZY, LZZ */
+  for (int i = 0; i < 16; i++) sv[n++] = s->mem[REG_MP0 + i];       /* 7-22: MP0..MP15 (modulation pots) */
+  sv[n++] = fez_ca_read(s, REG_CADENS);                                /* 23: CADENS */
+  for (int i = 0; i < 4; i++) sv[n++] = s->mem[REG_SLO0 + i];        /* 24-27: SLO0..SLO3 */
+  sv[n++] = fez_lz_read(s, REG_LZX);                                /* 28-30: LZX, LZY, LZZ */
   sv[n++] = fez_lz_read(s, REG_LZY);
   sv[n++] = fez_lz_read(s, REG_LZZ);
-  sv[n++] = fez_clamp((s->mem[REG_SQ0 + fez_clamp(s->sq_cur, 0, 7)] - 15360) * 8, -32768, 32767);   /* 19: SQ */
-  sv[n++] = fez_tm_out(s);                                      /* 20: TM (Turing machine output) */
-  sv[n++] = s->mem[REG_KBGATE] ? fez_clamp((s->mem[REG_KBNOTE] - 15360) * 8, -32768, 32767) : 0;   /* 21: KB (held note around C4, 0 when no key is down) */
+  sv[n++] = fez_clamp((s->mem[REG_SQ0 + fez_clamp(s->sq_cur, 0, 7)] - 15360) * 8, -32768, 32767);   /* 31: SQ */
+  sv[n++] = fez_tm_out(s);                                      /* 32: TM (Turing machine output) */
+  sv[n++] = s->mem[REG_KBGATE] ? fez_clamp((s->mem[REG_KBNOTE] - 15360) * 8, -32768, 32767) : 0;   /* 33: KB (held note around C4, 0 when no key is down) */
 }
 
 /* One matrix source's value right now (src is a number from SRC_NAMES). For screens that show what a route is doing. */

@@ -78,4 +78,18 @@ void test_patchfile(void) {
   int bad = patchfile_read(&copy, "FEZ PATCH 1\nname X\nreg NOSUCH 5\nreg CUTOFF 123\nbogus line\n", &back, err, sizeof err);
   CHECK(bad == 2 && copy.mem[REG_CUTOFF] == 123 && !strncmp(err, "line 3", 6), "bad lines are skipped and counted, good ones still load");
   CHECK(patchfile_write(&orig, &info, text1, 20) == -1, "a buffer that is too small is reported");
+
+  /* routes are written and read by source NAME, so renumbering the sources can never change a saved patch */
+  fez_init(&orig, 7); fez_load_blank(&orig);
+  fez_set_route(&orig, REG_MP9, REG_CUTOFF, 4000, &(unsigned){0});
+  fez_set_route(&orig, REG_KBNOTE, REG_FOLD, -2000, &(unsigned){0});
+  CHECK(patchfile_write(&orig, &info, text1, sizeof text1) > 0, "a patch with routes writes");
+  CHECK(strstr(text1, "route MP9 CUTOFF 4000") && strstr(text1, "route KB FOLD -2000"), "routes are written with the source's name");
+  fez_init(&copy, 7);
+  CHECK(patchfile_read(&copy, text1, &back, err, sizeof err) == 0 && copy.nroutes == 2 && copy.routes[0].src == orig.routes[0].src && copy.routes[1].src == orig.routes[1].src, "named routes read back to the same sources");
+  fez_init(&copy, 7);
+  CHECK(patchfile_read(&copy, "FEZ PATCH 1\nroute mp9 cutoff 4000\n", &back, err, sizeof err) == 0 && copy.nroutes == 1, "source and register names are not case sensitive");
+  fez_init(&copy, 7);
+  CHECK(patchfile_read(&copy, "FEZ PATCH 1\nroute 2 CUTOFF 4000\n", &back, err, sizeof err) == 1 && copy.nroutes == 0, "an old numbered route is skipped and counted, not misread");
+  CHECK(patchfile_read(&copy, "FEZ PATCH 1\nroute NOSUCH CUTOFF 4000\n", &back, err, sizeof err) == 1, "an unknown source name is skipped");
 }
