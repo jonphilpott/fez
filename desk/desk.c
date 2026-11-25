@@ -1,0 +1,351 @@
+/* The desktop UI's frame: layouts and tiles, focus, tabs, the status bar and the keys that work everywhere.
+   What goes inside a tile is in tab_*.c. */
+#include "desk.h"
+#include <ctype.h>
+#include <stdio.h>
+#include <string.h>
+
+/* ---------------------------------------------------------------- the tabs */
+
+typedef struct {
+  const char *name;
+  void (*draw)(Desk *, View *);
+  void (*key)(Desk *, int, int);
+  void (*text)(Desk *, int);
+  const char *hint;             /* shown in the status bar while the tab is focused */
+} TabDef;
+
+static const TabDef TABS[TAB_COUNT] = {
+  { "EDITOR",  tab_editor_draw,  tab_editor_key,  tab_editor_text,  "Ctrl+Enter apply  Ctrl+R run  [ ] block  Tab complete" },
+  { "PATCHES", tab_patches_draw, tab_patches_key, tab_patches_text, "Up/Down pick  [ ] mine/examples  Enter load  Ctrl+S save  Ctrl+D delete  type to filter" },
+  { "PULSERS", tab_pulsers_draw, tab_pulsers_key, tab_pulsers_text, "Left/Right cell  Space toggle  Enter on BPM: adjust  type BPM, Enter  F fire" },
+  { "SEQ",     tab_seq_draw,     tab_seq_key,     tab_seq_text,     "Up/Down step  Left/Right value (Shift: snap to note)  Space on/off  type a note" },
+  { "MATRIX",  tab_matrix_draw,  tab_matrix_key,  tab_matrix_text,  "Left/Right cell  Enter pick/adjust  type a weight  Backspace delete route" },
+  { "DEVICES", tab_devices_draw, tab_devices_key, tab_devices_text, "[ ] device  Up/Down setting  Left/Right change  Space step/reseed/freeze" },
+  { "BUFFER",  tab_buffer_draw,  tab_buffer_key,  tab_buffer_text,  "[ ] tape/voices  Space trigger  S stop  R record  F freeze  C clear" },
+  { "CTRL",    tab_ctrl_draw,    tab_ctrl_key,    tab_ctrl_text,    "Up/Down pick  Left/Right change (Shift: coarse)  type a number, Enter  Tab units/raw" },
+  { "SCOPE",   tab_scope_draw,   tab_scope_key,   tab_scope_text,   "the output waveform, triggered on a rising edge" },
+};
+
+/* ---------------------------------------------------------------- layouts */
+
+/* Three ways to cut the window up. Rectangles are in thousandths of the window (see Frac). One key cycles through them. */
+static void init_layouts(Desk *d) {
+  Layout code  = { "CODE", 3, { { 0, 0, 580, 1000 }, { 580, 0, 1000, 400 }, { 580, 400, 1000, 1000 } }, { TAB_EDITOR, TAB_SCOPE, TAB_CTRL } };
+  Layout mix   = { "MIX",  3, { { 0, 0, 560, 1000 }, { 560, 0, 1000, 420 }, { 560, 420, 1000, 1000 } }, { TAB_CTRL, TAB_SCOPE, TAB_PULSERS } };
+  Layout watch = { "WATCH", 3, { { 0, 0, 1000, 340 }, { 0, 340, 500, 1000 }, { 500, 340, 1000, 1000 } }, { TAB_SCOPE, TAB_CTRL, TAB_DEVICES } };
+  d->layouts[0] = code; d->layouts[1] = mix; d->layouts[2] = watch;
+}
+
+static int status_height(const Desk *d) { return GFX_CELL_H * d->scale + 4; }
+
+/* Turn the layout's fractions into pixel rectangles. Neighbouring tiles share an edge value, so there are no gaps. */
+static void compute_rects(Desk *d) {
+  const Layout *l = &d->layouts[d->layout];
+  int area_h = d->cv.h - status_height(d);
+  for (int i = 0; i < l->ntiles; i++) {
+    d->rect[i].x = d->cv.w * l->rect[i].x0 / 1000;
+    d->rect[i].y = area_h * l->rect[i].y0 / 1000;
+    d->rect[i].w = d->cv.w * l->rect[i].x1 / 1000 - d->rect[i].x;
+    d->rect[i].h = area_h * l->rect[i].y1 / 1000 - d->rect[i].y;
+  }
+}
+
+/* ---------------------------------------------------------------- set-up */
+
+void desk_init(Desk *d, FezSynth *synth) {
+  memset(d, 0, sizeof *d);
+  d->synth = synth;
+  d->scale = 1; d->pulsers_on = 1;
+  init_layouts(d);
+  d->nregs = regview_list(d->regs, MAX_LIST);
+  d->npars = regview_params(d->pars, MAX_LIST);
+  ctrl_build_rows(d);
+  desk_patches_loaded_blank(d);
+  desk_reload_editor(d);
+}
+
+void desk_set_scale(Desk *d, int scale) {
+  d->scale_user = scale < 0 ? 0 : scale > 4 ? 4 : scale;
+  d->scale = d->scale_user ? d->scale_user : (d->cv.w / 480 < 1 ? 1 : d->cv.w / 480 > 4 ? 4 : d->cv.w / 480);
+  compute_rects(d);
+}
+
+void desk_set_canvas(Desk *d, uint32_t *pixels, int w, int h) {
+  d->cv.px = pixels; d->cv.w = w; d->cv.h = h;
+  gfx_unclip(&d->cv);
+  desk_set_scale(d, d->scale_user);      /* 1024 wide gives scale 2: about 102 columns, as the Pi screen wants */
+}
+
+int desk_contains_nocase(const char *hay, const char *needle) {
+  size_t n = strlen(needle);
+  for (; *hay; hay++) {
+    size_t i = 0;
+    while (i < n && hay[i] && tolower((unsigned char)hay[i]) == tolower((unsigned char)needle[i])) i++;
+    if (i == n) return 1;
+  }
+  return n == 0;
+}
+
+void desk_say(Desk *d, const char *msg) { snprintf(d->msg, sizeof d->msg, "%s", msg); d->msg_until = d->now_ms + 1600; }
+void desk_tick(Desk *d, double dt_ms) { d->now_ms += dt_ms; editor_watch_blocks(d); devices_watch(d); }
+void desk_fire_gate(Desk *d) { fez_reg_write(d->synth, REG_GATE, 1); }
+
+void desk_toggle_pulsers(Desk *d) {
+  d->pulsers_on = !d->pulsers_on;
+  for (int i = 0; i < NUM_PULSERS; i++) {                     /* going off, remember each pulser's own state; coming back, restore it */
+    if (!d->pulsers_on) d->pul_was[i] = (unsigned char)d->synth->pulsers[i].on;
+    d->synth->pulsers[i].on = d->pulsers_on && d->pul_was[i];
+  }
+  desk_say(d, d->pulsers_on ? "PULSERS ON" : "PULSERS OFF");
+}
+
+/* ---------------------------------------------------------------- drawing helpers (character cells) */
+
+void view_text(View *v, int col, int row, const char *s, int colour) {
+  gfx_text(&v->d->cv, v->x + col * v->cw, v->y + row * v->rh, s, v->d->scale, gfx_colour(colour));
+}
+
+void view_text_right(View *v, int col, int width, int row, const char *s, int colour) {
+  int len = (int)strlen(s);
+  if (len > width) { s += len - width; len = width; }
+  view_text(v, col + width - len, row, s, colour);
+}
+
+/* A small box with a centred label, in the cell grid: col, row and width in cells. The outline is amber under the cursor. */
+void view_cell(View *v, int col, int row, int cols, const char *label, int text_colour, int fill_colour, int cursor) {
+  int s = v->d->scale, x = v->x + col * v->cw, y = v->y + row * v->rh, w = cols * v->cw - 2 * s, h = v->rh - 2 * s;
+  gfx_fill(&v->d->cv, x, y + s, w, h, gfx_colour(fill_colour));
+  gfx_frame(&v->d->cv, x, y + s, w, h, gfx_colour(cursor ? COL_AMB : COL_LINE));
+  int len = (int)strlen(label);
+  gfx_text(&v->d->cv, x + (w - len * GFX_CELL_W * s) / 2, y + s + (h - 8 * s) / 2, label, s, gfx_colour(text_colour));
+}
+
+void view_fill(View *v, int col, int row, int cols, int rows, int colour) {
+  gfx_fill(&v->d->cv, v->x + col * v->cw, v->y + row * v->rh, cols * v->cw, rows * v->rh, gfx_colour(colour));
+}
+
+/* A horizontal bar one text row high (with a little air above and below). value is 0..1. */
+void view_bar(View *v, int col, int row, int cols, double value, int fg, int bg) {
+  int s = v->d->scale, x = v->x + col * v->cw, y = v->y + row * v->rh + 2 * s, w = cols * v->cw, h = v->rh - 4 * s;
+  value = value < 0 ? 0 : value > 1 ? 1 : value;
+  gfx_fill(&v->d->cv, x, y, w, h, gfx_colour(bg));
+  gfx_fill(&v->d->cv, x, y, (int)(value * w + 0.5), h, gfx_colour(fg));
+}
+
+/* A thin scrollbar on the right edge of the view, next to `rows` rows that show `visible` of `total` items. */
+void view_scrollbar(View *v, int top, int visible, int total, int row, int rows) {
+  int x = v->x + v->w - 4, y = v->y + row * v->rh, h = rows * v->rh;
+  gfx_fill(&v->d->cv, x, y, 4, h, gfx_colour(COL_SEL));
+  if (total <= visible) return;
+  int th = h * visible / total; if (th < 8) th = 8;
+  int ty = y + (h - th) * top / (total - visible);
+  gfx_fill(&v->d->cv, x, ty, 4, th, gfx_colour(COL_AMB));
+}
+
+/* Break text into lines of at most `width` characters at spaces. Returns the number of lines (at most max_lines). */
+int wrap_text(const char *s, int width, char lines[][64], int max_lines) {
+  int n = 0, len = 0;
+  if (width > 63) width = 63;
+  if (max_lines > 0) lines[0][0] = '\0';
+  while (*s && max_lines > 0) {
+    while (*s == ' ') s++;
+    char word[64]; int k = 0;
+    while (*s && *s != ' ' && k < 63) word[k++] = *s++;
+    word[k] = '\0';
+    if (!k) break;
+    if (len > 0 && len + 1 + k > width) { if (n + 1 >= max_lines) return n + 1; n++; lines[n][0] = '\0'; len = 0; }
+    if (len > 0) lines[n][len++] = ' ';
+    if (len + k > 63) k = 63 - len;
+    memcpy(lines[n] + len, word, (size_t)k); len += k; lines[n][len] = '\0';
+  }
+  return len > 0 || n > 0 ? n + 1 : 0;
+}
+
+/* ---------------------------------------------------------------- drawing */
+
+static void draw_tile(Desk *d, int i) {
+  Canvas *cv = &d->cv;
+  int tab = d->layouts[d->layout].tab[i], focused = i == d->focus;
+  int x = d->rect[i].x, y = d->rect[i].y, w = d->rect[i].w, h = d->rect[i].h;
+  int s = d->scale, th = GFX_CELL_H * s + 3;                       /* title bar height */
+
+  gfx_clip(cv, x, y, w, h);
+  gfx_fill(cv, x, y, w, h, gfx_colour(COL_BG));
+
+  /* 1. the title bar: the tabs that fit, always including the showing one. When some are hidden, "<" and ">" mark which side.
+     Each tab is its name plus one cell of padding. We start with the showing tab and add its neighbours (right first, then
+     left) for as long as the bar has room. */
+  gfx_fill(cv, x, y, w, th, gfx_colour(COL_PNL));
+  int cw = GFX_CELL_W * s, room = (w - 8) / cw;                    /* the bar's width in cells */
+  int first = tab, last = tab, used = (int)strlen(TABS[tab].name) + 1;
+  for (int grew = 1; grew;) {
+    grew = 0;
+    if (last + 1 < TAB_COUNT && used + (int)strlen(TABS[last + 1].name) + 1 <= room - (first > 0 ? 1 : 0)) { last++; used += (int)strlen(TABS[last].name) + 1; grew = 1; }
+    if (first > 0 && used + (int)strlen(TABS[first - 1].name) + 1 <= room - (last + 1 < TAB_COUNT ? 1 : 0)) { first--; used += (int)strlen(TABS[first].name) + 1; grew = 1; }
+  }
+  int px = x + 4;
+  if (first > 0) { gfx_text(cv, px, y + 2, "<", s, gfx_colour(COL_DIM)); px += cw; }
+  for (int t = first; t <= last; t++) {
+    int len = (int)strlen(TABS[t].name), tw = (len + 1) * cw;
+    if (t == tab) gfx_fill(cv, px, y + 1, tw, th - 1, gfx_colour(focused ? COL_AMBD : COL_SEL));
+    gfx_text(cv, px + cw / 2, y + 2, TABS[t].name, s, gfx_colour(t == tab ? (focused ? COL_AMB : COL_FG) : COL_DIM));
+    px += tw;
+  }
+  if (last + 1 < TAB_COUNT) gfx_text(cv, px, y + 2, ">", s, gfx_colour(COL_DIM));
+  gfx_fill(cv, x, y + th - 1, w, 1, gfx_colour(COL_LINE));
+
+  /* 2. the tab's own content, in a view inside the tile */
+  View v;
+  v.d = d; v.focused = focused;
+  v.cw = GFX_CELL_W * s; v.rh = GFX_CELL_H * s;
+  v.x = x + 5; v.y = y + th + 3; v.w = w - 10; v.h = h - th - 6;
+  v.cols = v.w / v.cw; v.rows = v.h / v.rh;
+  gfx_clip(cv, v.x - 1, v.y - 1, v.w + 2, v.h + 2);
+  TABS[tab].draw(d, &v);
+
+  /* 3. the border: amber around the focused tile */
+  gfx_clip(cv, x, y, w, h);
+  gfx_frame(cv, x, y, w, h, gfx_colour(focused ? COL_AMB : COL_LINE));
+}
+
+static void draw_status(Desk *d) {
+  Canvas *cv = &d->cv;
+  int s = d->scale, sh = status_height(d), y = cv->h - sh;
+  gfx_unclip(cv);
+  gfx_fill(cv, 0, y, cv->w, sh, gfx_colour(COL_PNL));
+  gfx_fill(cv, 0, y, cv->w, 1, gfx_colour(COL_LINE));
+
+  char head[96];
+  snprintf(head, sizeof head, " %s  %s  pulsers %s ", d->layouts[d->layout].name, d->loaded_name, d->pulsers_on ? "on" : "off");
+  int hx = (int)strlen(head) * GFX_CELL_W * s;
+  gfx_text(cv, 0, y + 3, head, s, gfx_colour(COL_FG));
+  if (d->muted) {                                        /* a solid red MUTED marker right after the name, so it cannot be missed */
+    int mw = 7 * GFX_CELL_W * s;
+    gfx_fill(cv, hx, y + 1, mw, sh - 2, gfx_colour(COL_RED));
+    gfx_text(cv, hx + GFX_CELL_W * s / 2, y + 3, "MUTED", s, gfx_colour(COL_BG));
+    hx += mw + GFX_CELL_W * s;
+  }
+
+  if (d->recording) {                                    /* a red REC marker with the elapsed time */
+    char rec[16]; int secs = (int)d->rec_secs;
+    snprintf(rec, sizeof rec, "REC %d:%02d", secs / 60, secs % 60);
+    int rw = ((int)strlen(rec) + 1) * GFX_CELL_W * s;
+    gfx_fill(cv, hx, y + 1, rw, sh - 2, gfx_colour(COL_RED));
+    gfx_text(cv, hx + GFX_CELL_W * s / 2, y + 3, rec, s, gfx_colour(COL_BG));
+    hx += rw + GFX_CELL_W * s;
+  }
+
+  int meter_w = 14 * GFX_CELL_W * s;                     /* the level meter sits at the right edge */
+  gfx_clip(cv, hx, y, cv->w - hx - meter_w - 8, sh);
+  if (d->msg_until > d->now_ms) gfx_text(cv, hx, y + 3, d->msg, s, gfx_colour(COL_AMB));
+  else gfx_text(cv, hx, y + 3, TABS[d->layouts[d->layout].tab[d->focus]].hint, s, gfx_colour(COL_DIM));
+  gfx_unclip(cv);
+  double lvl = d->peak * 1.6; lvl = lvl > 1 ? 1 : lvl;
+  int mx = cv->w - meter_w - 4;
+  gfx_fill(cv, mx, y + 5, meter_w, sh - 10, gfx_colour(COL_SEL));
+  gfx_fill(cv, mx, y + 5, (int)(lvl * meter_w), sh - 10, gfx_colour(d->peak > 0.9 ? COL_RED : COL_GRN));
+}
+
+void desk_draw(Desk *d) {
+  gfx_unclip(&d->cv);
+  gfx_fill(&d->cv, 0, 0, d->cv.w, d->cv.h, gfx_colour(COL_BG));
+  const Layout *l = &d->layouts[d->layout];
+  if (d->focus >= l->ntiles) d->focus = 0;
+  for (int i = 0; i < l->ntiles; i++) draw_tile(d, i);
+  draw_status(d);
+}
+
+/* ---------------------------------------------------------------- keys */
+
+/* Move focus to the nearest tile in a direction. "Nearest" is measured between tile centres, counting sideways
+   distance double so that Ctrl+Right prefers the tile straight across over one far above or below. */
+static void move_focus(Desk *d, int dx, int dy) {
+  int n = d->layouts[d->layout].ntiles, best = -1, best_cost = 0;
+  int fx = d->rect[d->focus].x + d->rect[d->focus].w / 2, fy = d->rect[d->focus].y + d->rect[d->focus].h / 2;
+  for (int i = 0; i < n; i++) {
+    if (i == d->focus) continue;
+    int cx = d->rect[i].x + d->rect[i].w / 2 - fx, cy = d->rect[i].y + d->rect[i].h / 2 - fy;
+    int along = dx ? cx * dx : cy * dy, across = dx ? cy : cx;
+    if (along <= 0) continue;                                  /* not in that direction */
+    if (across < 0) across = -across;
+    int cost = along + 2 * across;
+    if (best < 0 || cost < best_cost) { best = i; best_cost = cost; }
+  }
+  if (best >= 0) d->focus = best;
+}
+
+/* ---------------------------------------------------------------- the keyboard device's keys */
+
+/* The tracker layout, the one trackers and many DAWs use for "musical typing": two rows of piano. The bottom row's white
+   keys are Z X C V B N M with the black keys S D G H J above; the next row up repeats it an octave higher (Q W E R T Y U
+   with 2 3 5 6 7). A key's position in these strings is its distance in semitones above the bottom C. The characters are
+   physical positions (the app converts scancodes), so it works on any keyboard layout. */
+const char KB_KEYS_LOW[13]  = "zsxdcvgbhnjm";
+const char KB_KEYS_HIGH[13] = "q2w3er5t6y7u";
+
+static int kb_semitones(int ch) {
+  for (int i = 0; i < 12; i++) { if (KB_KEYS_LOW[i] == ch) return i; if (KB_KEYS_HIGH[i] == ch) return 12 + i; }
+  return -1;
+}
+
+int desk_note_key(Desk *d, int ch, int down) {
+  if (ch < 0 || ch >= 128) return 0;
+  if (!down) {                                                  /* a key up is always honoured, even if the page was left meanwhile, or the note would hang */
+    if (!d->kb_key_note[ch]) return 0;
+    fez_note_off(d->synth, d->kb_key_note[ch] - 1);
+    d->kb_key_note[ch] = 0;
+    return 1;
+  }
+  int semi = kb_semitones(ch);
+  const Layout *l = &d->layouts[d->layout];
+  if (semi < 0 || l->tab[d->focus] != TAB_DEVICES || d->dev.sub != DEV_KEYS) return 0;   /* only the KEYS page plays */
+  if (d->kb_key_note[ch]) return 1;                             /* key repeat: the key is already down */
+  int note = (fez_reg_read(d->synth, REG_KBOCT) + 1) * 12 + semi;      /* KBOCT 3: the bottom key is MIDI 48, C3 */
+  if (note > 127) note = 127;
+  fez_note_on(d->synth, note);
+  d->kb_key_note[ch] = note + 1;                                /* remembered, so the key up lets go of this note even if KBOCT changes meanwhile */
+  return 1;
+}
+
+void desk_all_notes_off(Desk *d) {
+  fez_all_notes_off(d->synth);
+  memset(d->kb_key_note, 0, sizeof d->kb_key_note);
+}
+
+void desk_key(Desk *d, int key, int mods) {
+  Layout *l = &d->layouts[d->layout];
+  int *tab = &l->tab[d->focus];
+  /* PANIC: Shift+Esc toggles the global mute from any tab, even in the middle of typing a number. Plain Esc is left alone,
+     because most tabs use it to cancel an entry. */
+  if (key == KEY_ESC && (mods & MOD_SHIFT)) { d->muted = !d->muted; return; }
+  if (mods & (MOD_CTRL | MOD_ALT)) {
+    switch (key) {
+      case KEY_LEFT:  move_focus(d, -1, 0); return;
+      case KEY_RIGHT: move_focus(d, 1, 0); return;
+      case KEY_UP:    move_focus(d, 0, -1); return;
+      case KEY_DOWN:  move_focus(d, 0, 1); return;
+      case '[': *tab = (*tab + TAB_COUNT - 1) % TAB_COUNT; return;
+      case ']': *tab = (*tab + 1) % TAB_COUNT; return;
+      case KEY_TAB:
+        d->layout = (d->layout + 1) % 3;
+        d->focus = d->focus < d->layouts[d->layout].ntiles ? d->focus : 0;
+        compute_rects(d);
+        desk_say(d, d->layouts[d->layout].name);
+        return;
+      case '=': case '+': desk_set_scale(d, d->scale + 1); return;
+      case '-': desk_set_scale(d, d->scale - 1); return;
+      case 't': d->rec_toggle = 1; return;                      /* record a take of the output: main.c does the work (Ctrl+R is the editor's run) */
+      case 'g': desk_fire_gate(d); return;
+      case 'p': desk_toggle_pulsers(d); return;
+      case 's': *tab = TAB_PATCHES; desk_patches_begin_save(d); return;     /* save: shows the name prompt in the Patches tab */
+      case 'q': d->quit = 1; return;
+      default: break;                                            /* other chords go to the tab (the editor has several) */
+    }
+  }
+  TABS[*tab].key(d, key, mods);
+}
+
+void desk_text(Desk *d, int ch) {
+  TABS[d->layouts[d->layout].tab[d->focus]].text(d, ch);
+}

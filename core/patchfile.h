@@ -1,0 +1,52 @@
+/* Patch files: a whole synth setup as plain text, and back.
+
+   Pure functions on memory: no files, no malloc, so the same code runs on a desktop, a Pi or a microcontroller.
+   The app decides where the text lives (a folder of .fez files on a computer, flash on hardware).
+
+   What is saved: the registers that differ from the defaults, the knob positions, the pulsers, the matrix routes,
+   the cellular automaton and Lorenz settings, and the source of every block and word. What is not saved: the
+   recorded buffer audio, and anything that is only in motion (the sequencer position, the LFO phase, the
+   envelope). Loading a file therefore starts those from rest, like loading a built-in patch does.
+
+   File shape (every line is "keyword values"; blank lines and lines starting with # are ignored):
+
+     FEZ PATCH 1
+     name Glass Bells
+     desc A few words about the patch
+     listen What to listen for
+     level 20000                  <- the master level knob
+     cutoff 0                     <- the cutoff offset knob
+     pulser 0 on 1 rate 120       <- pulser number, on (0 or 1), rate in beats per minute
+     reg CUTOFF 12000             <- a register by name (or by address); only those that differ from the default
+     route 3 CUTOFF 4000          <- matrix: source number, destination register, weight
+     ca 30 5 3 0                  <- rule, row, tap, trig
+     lz 50 28 0                   <- rate, rho, trig
+     block 3                      <- the source of block 3, each line starting with "> "
+     > 1 DROP
+     word 2                       <- the same for a word
+     > DUP + */
+
+#ifndef FEZ_PATCHFILE_H
+#define FEZ_PATCHFILE_H
+
+#include <stddef.h>
+#include "fez.h"
+
+#define PATCH_FILE_VERSION 1
+#define PATCH_NAME_MAX 48
+#define PATCH_TEXT_MAX 256
+
+typedef struct { char name[PATCH_NAME_MAX]; char desc[PATCH_TEXT_MAX]; char listen[PATCH_TEXT_MAX]; } PatchInfo;
+
+/* Write the synth's setup into out (NUL-terminated). Returns the length, or -1 if cap is too small. */
+int patchfile_write(const FezSynth *s, const PatchInfo *info, char *out, size_t cap);
+
+/* Replace the whole machine state with the file's. Lines it cannot understand are skipped and counted.
+   Returns the number of skipped lines (0 = clean), or -1 if the text is not a patch file at all.
+   If err is not NULL, it receives a message about the first skipped line. The caller must hold the audio lock. */
+int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, size_t errcap);
+
+/* Only the name, description and listen text of a file (to show in a list), without touching any synth. */
+void patchfile_info(const char *text, PatchInfo *info);
+
+#endif
