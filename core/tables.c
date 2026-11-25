@@ -36,6 +36,7 @@ const ParamDef PARAM_TABLE[] = {
   { "DLYFRZ", REG_DLYFRZ, 0, 0 },
   { "SPRMIX", REG_SPRMIX, 8000, 0.02 },
   { "SPRDEC", REG_SPRDEC, 16000, 0.02 },
+  { "SPRWID", REG_SPRWID, 0, 0.01 },
   { "DLYIN", REG_DLYIN, 32767, 0.02 },
   { "MIXBF", REG_MIXBF, 0, 0.02 },
   { "MIXBP", REG_MIXBP, 0, 0.02 },
@@ -44,7 +45,7 @@ const ParamDef PARAM_TABLE[] = {
   { "GRATE0", REG_GRATE0, 15360, 0.02 },
   { "GLVL0", REG_GLVL0, 0, 0.02 },
 };
-const int PARAM_COUNT = 37;
+const int PARAM_COUNT = (int)(sizeof PARAM_TABLE / sizeof PARAM_TABLE[0]);   /* counted by the compiler, so adding a row cannot leave the count stale */
 
 const NameDef NAME_TABLE[] = {
   { "LFO0", REG_LFO0 },
@@ -79,6 +80,7 @@ const NameDef NAME_TABLE[] = {
   { "DLYFRZ", REG_DLYFRZ },
   { "SPRMIX", REG_SPRMIX },
   { "SPRDEC", REG_SPRDEC },
+  { "SPRWID", REG_SPRWID },
   { "DLYIN", REG_DLYIN },
   { "MIXBF", REG_MIXBF },
   { "MIXBP", REG_MIXBP },
@@ -244,7 +246,7 @@ const NameDef NAME_TABLE[] = {
   { "P15", REG_P15 },
   { "S15", REG_S15 },
 };
-const int NAME_COUNT = 196;
+const int NAME_COUNT = (int)(sizeof NAME_TABLE / sizeof NAME_TABLE[0]);
 
 const HelpDef HELP_TABLE[] = {
   { "PITCH", "Voice pitch, 8.8 semitones (C4 is 15360)" },
@@ -282,6 +284,7 @@ const HelpDef HELP_TABLE[] = {
   { "DLYIN", "Delay loop input level (C build only)" },
   { "SPRMIX", "Spring reverb wet level" },
   { "SPRDEC", "Spring reverb decay" },
+  { "SPRWID", "Spring stereo width: 0 mono, full wide" },
   { "SLT#", "Slew time for CV#, 1 ms to 5 s, 0 is off" },
   { "SLO#", "CV# smoothed by its slew, matrix source" },
   { "S#", "Scratch slot shared by every block" },
@@ -342,7 +345,7 @@ const HelpDef HELP_TABLE[] = {
   { "GRPUL", "Pulsers that start the next grain (mask)" },
   { "RUN", "Write a block number to run it next tick" },
 };
-const int HELP_COUNT = 94;
+const int HELP_COUNT = (int)(sizeof HELP_TABLE / sizeof HELP_TABLE[0]);
 
 const char *const SRC_NAMES[] = {
   "",

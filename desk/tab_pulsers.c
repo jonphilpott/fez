@@ -38,7 +38,7 @@ void tab_pulsers_draw(Desk *d, View *v) {
   int first = clampi(d->pul.row - visible / 2, 0, NUM_PULSERS - visible);
 
   view_text(v, 0, 0, "PULSERS", COL_AMB);
-  view_text_right(v, 10, v->cols - 10, 0, d->pulsers_on ? "all on (Ctrl+P)" : "all OFF (Ctrl+P)", d->pulsers_on ? COL_DIM : COL_RED);
+  view_text_right(v, 10, v->cols - 10, 0, d->handheld ? (d->pulsers_on ? "all on" : "all OFF") : d->pulsers_on ? "all on (Ctrl+P)" : "all OFF (Ctrl+P)", d->pulsers_on ? COL_DIM : COL_RED);
 
   for (int k = 0; k < visible; k++) {
     int p = first + k, r0 = 1 + k * 3, sel = p == d->pul.row;

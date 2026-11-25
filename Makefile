@@ -12,37 +12,33 @@ SDL_LIBS   := $(shell sdl2-config --libs 2>/dev/null)
 
 all: fez
 
-HANDHELD := $(wildcard handheld/*.c)
-
-# The desktop app (keyboard driven, tiled window) and the small-screen app (Brick-style buttons, 256x192 picture).
+# The app: a tiled desktop window, or with --brick the handheld version (256x192, Brick-style buttons) of the same screens.
 DESK := $(wildcard desk/*.c)
 
 fez: $(CORE) $(DESK) core/*.h desk/*.h
 	$(CC) $(CFLAGS) -Icore -Idesk $(SDL_CFLAGS) $(CORE) $(DESK) -o $@ $(SDL_LIBS) -lm
-
-fez_brick: $(CORE) $(HANDHELD) sdl/brick_main.c core/*.h handheld/*.h
-	$(CC) $(CFLAGS) -Icore -Ihandheld $(SDL_CFLAGS) $(CORE) $(HANDHELD) sdl/brick_main.c -o $@ $(SDL_LIBS) -lm
 
 TESTS := $(wildcard test/*.c)
 
 render: $(CORE) tools/render.c core/*.h
 	$(CC) $(CFLAGS) -Icore $(CORE) tools/render.c -o $@ -lm
 
-test_core: $(CORE) $(TESTS) core/*.h test/test.h
-	$(CC) $(CFLAGS) -Icore -Itest $(CORE) $(TESTS) -o $@ -lm
+# the tests also build the UI code (everything in desk/ except the SDL shell), to test the handheld controls
+test_core: $(CORE) $(TESTS) core/*.h desk/*.h test/test.h
+	$(CC) $(CFLAGS) -Icore -Idesk -Itest $(CORE) $(filter-out desk/main.c,$(DESK)) $(TESTS) -o $@ -lm
 
 test: test_core
 	./test_core
 
 clean:
-	rm -rf fez fez_brick deskshot uishot test_core render *.dSYM
+	rm -rf fez deskshot padshot test_core render *.dSYM
 
 
 .PHONY: all test clean
 
-# Draws every screen to a picture file without a window (see tools/uishot.c).
-uishot: $(CORE) $(HANDHELD) tools/uishot.c core/*.h handheld/*.h
-	$(CC) $(CFLAGS) -Icore -Ihandheld $(CORE) $(HANDHELD) tools/uishot.c -o $@ -lm
+# Draws every handheld screen to a picture file without a window (see tools/padshot.c).
+padshot: $(CORE) $(DESK) tools/padshot.c core/*.h desk/*.h
+	$(CC) $(CFLAGS) -Icore -Idesk $(CORE) $(filter-out desk/main.c,$(DESK)) tools/padshot.c -o $@ -lm
 
 # Draws the desktop layouts to picture files without a window (see tools/deskshot.c).
 deskshot: $(CORE) $(DESK) tools/deskshot.c core/*.h desk/*.h

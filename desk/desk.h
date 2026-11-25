@@ -26,11 +26,12 @@
 enum { KEY_NONE = 0, KEY_UP = 256, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_ESC, KEY_BACKSPACE, KEY_TAB, KEY_DELETE, KEY_F1 };
 enum { MOD_SHIFT = 1, MOD_CTRL = 2, MOD_ALT = 4 };
 
-enum { TAB_EDITOR, TAB_PATCHES, TAB_PULSERS, TAB_SEQ, TAB_MATRIX, TAB_DEVICES, TAB_BUFFER, TAB_CTRL, TAB_SCOPE, TAB_COUNT };
+/* The order of the tabs, which is also the order Ctrl+[ ] and the handheld's L1/R1 walk through them. */
+enum { TAB_EDITOR, TAB_PATCHES, TAB_CTRL, TAB_DEVICES, TAB_BUFFER, TAB_PULSERS, TAB_SEQ, TAB_MATRIX, TAB_PLAY, TAB_SCOPE, TAB_COUNT };
 
 #define MAX_TILES  4
 #define MAX_LIST   256
-#define SCOPE_RING 16384         /* samples kept for the scope; a power of two so indexes can wrap with a mask */
+#define SCOPE_RING 16384         /* frames kept for the scope (each a left and a right sample); a power of two so indexes can wrap with a mask */
 
 /* A rectangle in thousandths of the window, so a layout works at any window size. */
 typedef struct { int x0, y0, x1, y1; } Frac;
@@ -67,7 +68,7 @@ typedef struct { int sel, top; int editing; char buf[12]; int len; } ValueList;
 
 enum { BFP_TAPE, BFP_VOICES, BFP_COUNT };                      /* the BUFFER tab's pages */
 enum { BFM_NORMAL, BFM_ADJUST, BFM_TYPE };                      /* what the keys do on a voice cell */
-enum { DEV_CELLULAR, DEV_LORENZ, DEV_QUANTISER, DEV_TURING, DEV_DELAY, DEV_KEYS, DEV_COUNT };                  /* the DEVICES tab's pages */
+enum { DEV_DELAY, DEV_CELLULAR, DEV_LORENZ, DEV_QUANTISER, DEV_TURING, DEV_KEYS, DEV_COUNT };                  /* the DEVICES tab's pages */
 #define CA_HIST 64                                        /* generations of the automaton kept for the picture */
 #define KB_HIST 480                                       /* frames of the keyboard's note trace (about 8 s) */
 #define LZ_HIST 400                                       /* points of the Lorenz trace */
@@ -81,7 +82,7 @@ typedef struct Desk {
   Canvas cv;
   int scale, scale_user;         /* text scale now; and the user's own choice (0 = pick from the window size) */
 
-  Layout layouts[3];
+  Layout layouts[4];             /* three for the desktop window, and the handheld's single full-screen tile (see desk_set_handheld) */
   int layout, focus;             /* current layout, and the focused tile within it */
   struct { int x, y, w, h; } rect[MAX_TILES];   /* the tiles in pixels, from the layout and the window size */
 
@@ -99,10 +100,12 @@ typedef struct Desk {
   char loaded_name[PATCH_NAME_MAX]; int loaded_user;   /* the patch last loaded or saved, and whether it is a user patch (not an example) */
   int kb_key_note[128];           /* the keyboard device: the note each computer key started, plus one (0 means the key is up) */
   int quit;                      /* set when the user asks to quit */
+  int handheld;                  /* 1 on the small screen (256x192): one tile, a shorter status bar, hints supplied by pad.c */
+  const char *hint_override;     /* if set, the status bar shows this instead of the tab's own key hint (the handheld's button hints) */
 
   /* the audio thread's copy of the output, for the scope */
-  const float *scope;
-  const volatile unsigned *scope_head;      /* total samples written so far */
+  const float *scope;                       /* 2 * SCOPE_RING floats, interleaved: frame n is scope[2 * (n & (SCOPE_RING - 1))] (left) and the next float (right) */
+  const volatile unsigned *scope_head;      /* total frames written so far */
 
   /* tab state */
   struct {                                   /* PATCHES */
@@ -162,6 +165,7 @@ typedef struct {
 
 void desk_init(Desk *d, FezSynth *synth);
 void desk_set_canvas(Desk *d, uint32_t *pixels, int w, int h);   /* (re)size: call at start and whenever the window changes */
+void desk_set_handheld(Desk *d);                                   /* one full-screen tile, for the handheld; call after desk_init */
 void desk_set_scale(Desk *d, int scale);                          /* 0 = automatic */
 void desk_key(Desk *d, int key, int mods);
 void desk_text(Desk *d, int ch);                                  /* a typed printable character */
@@ -202,6 +206,8 @@ void tab_seq_draw(Desk *d, View *v);      void tab_seq_key(Desk *d, int key, int
 void tab_ctrl_draw(Desk *d, View *v);     void tab_ctrl_key(Desk *d, int key, int mods);     void tab_ctrl_text(Desk *d, int ch);
 void desk_help_draw(Desk *d);   int desk_help_key(Desk *d, int key);    /* help.c: the F1 page */
 void ctrl_build_rows(Desk *d);            /* once, after d->regs is filled: the CTRL list with its headings */
+const char *ctrl_heading_name(int h);     /* the name of group heading h, where a heading row in d->crow is stored as -(h + 1) */
 void tab_scope_draw(Desk *d, View *v);    void tab_scope_key(Desk *d, int key, int mods);    void tab_scope_text(Desk *d, int ch);
+void tab_play_draw(Desk *d, View *v);     void tab_play_key(Desk *d, int key, int mods);     void tab_play_text(Desk *d, int ch);
 
 #endif

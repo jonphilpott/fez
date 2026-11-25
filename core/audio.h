@@ -11,8 +11,9 @@
 #define TICK_CHUNKS  15                 /* chunks per control tick: 15 x 16 = 240 samples = 5 ms */
 #define PARAM_MAX    48                 /* room for every parameter register */
 #define DLY_SAMPLES  (FEZ_SAMPLE_RATE * 12 + 8)      /* longest delay time is 12 s (2.3 MB as floats) */
-#define SPR_SAMPLES  2048               /* the spring's loop is 34 ms, about 1632 samples */
+#define SPR_SAMPLES  2048               /* each spring tank's loop is 34 or 41 ms (1632 and 1968 samples) */
 #define SPR_ALLPASS  7
+#define SPR_TANKS    2                  /* the spring is a stereo pair: tank 0 feeds the left ear, tank 1 the right */
 
 /* A gain that moves linearly from where it is to a new target over one chunk, so a parameter change never
    makes a step (a step in gain is a click). */
@@ -32,7 +33,7 @@ typedef struct {
   int cx_shape, md_shape;
 
   /* ---- gains (ramped) ---- */
-  Ramp g_sine, g_shape, pre, mix_cx, mix_md, mix_nz, md_osc_g, md_nz_g, md_vca, master, out_bf, out_bp, dly_wet, spr_wet, dly_in;
+  Ramp g_sine, g_shape, pre, mix_cx, mix_md, mix_nz, md_osc_g, md_nz_g, md_vca, master, out_bf, out_bp, dly_wet, spr_wet, spr_wid, dly_in;
   double dly_fb_g, spr_fb_g;            /* feedback gains (per chunk) */
 
   /* ---- noise tone, mod-voice ladder, lowpass gate ---- */
@@ -53,10 +54,10 @@ typedef struct {
   double dly_frz;                                            /* freeze, glided to its target so engaging it does not click */
   double dly_rp;                                             /* where the tape was read last (in samples; wobble included), for the display */
   double ph_wow, ph_flt, drift;                              /* the tape's wobble: slow wow, fast flutter, random drift */
-  float spr[SPR_SAMPLES]; int spr_w;
-  Svf spr_ap[SPR_ALLPASS]; SvfCoef spr_ap_c[SPR_ALLPASS];
-  Svf spr_svf; SvfCoef spr_c;
-  double comp_env, comp_ka, comp_kr;    /* compressor level follower and its attack/release coefficients */
+  float spr[SPR_TANKS][SPR_SAMPLES]; int spr_w;               /* the two spring tanks' rings, and the one write index they share */
+  Svf spr_ap[SPR_TANKS][SPR_ALLPASS]; SvfCoef spr_ap_c[SPR_TANKS][SPR_ALLPASS];
+  Svf spr_svf[SPR_TANKS]; SvfCoef spr_c[SPR_TANKS];
+  double comp_env, comp_ka, comp_kr;    /* compressor level follower and its attack/release coefficients (one detector for both ears) */
 
   /* ---- buffer device ---- */
   BufEngine buf;

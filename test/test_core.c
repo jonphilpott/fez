@@ -31,6 +31,8 @@ void test_tables(void) {
 int main(void) {
   test_tables();
   test_patchfile();
+  test_audio();
+  test_pad();
   if (test_fails) { printf("%d test(s) failed\n", test_fails); return 1; }
   printf("all tests ok\n");
   return 0;

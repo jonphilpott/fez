@@ -121,7 +121,7 @@ void tab_patches_draw(Desk *d, View *v) {
   view_text(v, 0, 0, hdr, sub == SUB_MINE ? COL_AMB : COL_DIM);
   view_text(v, 15, 0, "EXAMPLES", sub == SUB_EXAMPLES ? COL_AMB : COL_DIM);
   if (d->pat.flen) { snprintf(hdr, sizeof hdr, "filter: %s_", d->pat.filter); view_text(v, 0, 1, hdr, COL_CYN); }
-  else view_text(v, 0, 1, "type to filter", COL_DIM);
+  else if (!d->handheld) view_text(v, 0, 1, "type to filter", COL_DIM);          /* (no keyboard on the handheld) */
 
   for (int r = 0; r < vis; r++) {
     int i = rows[top + r], is_sel = top + r == *sel;
@@ -132,7 +132,7 @@ void tab_patches_draw(Desk *d, View *v) {
     view_text(v, 0, top_rows + r, line, is_sel ? COL_AMB : COL_FG);
   }
   if (n > vis) view_scrollbar(v, top, vis, n, top_rows, vis);
-  if (n == 0) view_text(v, 0, top_rows, sub == SUB_MINE && !d->pat.nuser ? "none yet: Ctrl+S saves one" : "no match", COL_DIM);
+  if (n == 0) view_text(v, 0, top_rows, sub == SUB_MINE && !d->pat.nuser ? d->handheld ? "none yet: X saves one" : "none yet: Ctrl+S saves one" : "no match", COL_DIM);
 
   /* the selected patch's text */
   const char *name = ""; const char *desc = ""; const char *listen = "";

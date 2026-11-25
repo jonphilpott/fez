@@ -466,7 +466,7 @@ void tab_editor_draw(Desk *d, View *v) {
   if (v->focused && current_word(d, prefix, &wstart, &wlen)) {
     int n = build_candidates(prefix, cand);
     if (n > 0 && !(e->cycle && n == 1)) {         /* with one choice, accepting it closes the popup */
-      int shown = imin(n, POPUP_ROWS), next = e->cycle ? (e->cycle_idx + 1) % n : 0;
+      int shown = imin(n, POPUP_ROWS), next = e->cycle ? e->cycle_idx : 0;   /* highlight the word now in the editor (before the first Tab, the one Tab will insert) */
       int first = next >= shown ? next - shown + 1 : 0, width = 0;
       for (int i = 0; i < n; i++) width = imax(width, (int)strlen(cand[i]));
       width += 2;
@@ -502,5 +502,5 @@ void tab_editor_draw(Desk *d, View *v) {
   }
   if (blk->halted) { snprintf(line, sizeof line, "HALTED: %s (apply to restart)", vm_fault_name(blk->fault)); view_text(v, 0, v->rows - 1, line, COL_RED); }
   else if (!tmp.ok) { snprintf(line, sizeof line, "ERR %.100s", tmp.err); view_text(v, 0, v->rows - 1, line, COL_RED); }
-  else view_text(v, 0, v->rows - 1, dirty ? "Ctrl+Enter applies this block" : "Ctrl+R runs it once", COL_DIM);
+  else view_text(v, 0, v->rows - 1, d->handheld ? (dirty ? "X applies this block" : "Menu: run it once") : dirty ? "Ctrl+Enter applies this block" : "Ctrl+R runs it once", COL_DIM);
 }

@@ -5,13 +5,17 @@
    main thread (keys, drawing) holds SDL_LockAudioDevice, which pauses the callback for the moment it takes.
 
    The window is drawn pixel by pixel into `pixels` and uploaded as one texture per frame. On a high-density
-   display the window is measured in points, so SDL stretches the picture by a whole number and it stays sharp. */
+   display the window is measured in points, so SDL stretches the picture by a whole number and it stays sharp.
+
+   `fez --brick` runs the handheld version: a fixed 256x192 picture scaled up, the same screens, and the controls of the
+   TrimUI Brick (see pad.c). A game controller works; so does the keyboard, standing in for the buttons (see key_to_button). */
 #include <SDL.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "desk.h"
+#include "pad.h"
 #include "userpatch.h"
 #include "wavrec.h"
 #include <sys/stat.h>
@@ -19,9 +23,11 @@
 
 static FezSynth synth;                    /* ~2 MB (the buffer device alone is 1.5 MB), so static rather than on the stack */
 static Desk desk;
+static Pad pad;
+static int brick_mode;                    /* --brick: the handheld UI at 256x192, driven by buttons */
 static SDL_AudioDeviceID dev;
-static float scope_ring[SCOPE_RING];      /* the last SCOPE_RING output samples, for the scope tab */
-static volatile unsigned scope_head;      /* total samples written; the newest is at (scope_head - 1) % SCOPE_RING */
+static float scope_ring[2 * SCOPE_RING];  /* the last SCOPE_RING output frames, interleaved left and right, for the scope tab */
+static volatile unsigned scope_head;      /* total frames written; the newest is at (scope_head - 1) % SCOPE_RING */
 static volatile float out_peak;           /* recent output level, for the scope's header */
 /* The load meter. The audio thread times itself: how long one callback takes, divided by how long the buffer it filled lasts.
    At 1.0 the synth only just meets its deadline; above that the audio crackles. Published to the main thread as plain
@@ -30,11 +36,11 @@ static volatile float cpu_avg, cpu_peak;
 static volatile int clip_left;            /* samples left to show the CLIP flag; reset to one second at every full-scale sample */
 #define CPU_SMOOTH 0.05                   /* weight of each new reading in the average: about a fifth of a second */
 #define CPU_PEAK_HOLD 3.0                 /* seconds the worst reading is kept */
-/* Recording the output. The audio thread must never touch the disk, so it drops each finished sample into a ring buffer and the
-   main thread (which runs every 16 ms or so) empties the ring into the WAV file. The ring holds about 2.7 s, far more than the
+/* Recording the output (stereo). The audio thread must never touch the disk, so it drops each finished sample into a ring buffer and the
+   main thread (which runs every 16 ms or so) empties the ring into the WAV file. The ring holds about 1.4 s of stereo, far more than the
    main loop ever lags. head is written only by the audio thread, tail only by the main thread, so no lock is needed. */
 #define REC_RING (1 << 17)
-static float rec_ring[REC_RING];
+static float rec_ring[REC_RING];                            /* interleaved left, right: a frame is two entries, so head and tail always move by 2 */
 static SDL_atomic_t rec_head, rec_tail, rec_drops;
 static volatile int rec_on;
 static WavRec wav;
@@ -46,32 +52,33 @@ static void audio_cb(void *user, Uint8 *stream, int len) {
   (void)user;
   Uint64 t0 = SDL_GetPerformanceCounter();                   /* for the load meter: see the end of this function */
   float *out = (float *)stream;
-  int frames = len / (int)(2 * sizeof(float));               /* interleaved stereo */
-  static float mono[8192];
+  int frames = len / (int)(2 * sizeof(float));               /* interleaved stereo: left, right, left, right ... */
   if (frames > 8192) frames = 8192;
-  fez_render(&synth, mono, frames);
+  fez_render_stereo(&synth, out, frames);
   /* Global mute (Shift+Esc). The synth keeps running underneath, so the delay tail and the loop carry on; only the output
-     is faded. The gain moves one small step per sample towards its target, which is a 20 ms fade rather than a click. */
+     is faded. The gain moves one small step per sample towards its target, which is a 20 ms fade rather than a click.
+     The same gain applies to both ears. */
   float mute_target = desk.muted ? 0.0f : 1.0f;
-  for (int i = 0; i < frames; i++) {
-    if (mute_gain < mute_target) mute_gain = fminf(mute_gain + MUTE_STEP, mute_target);
-    else if (mute_gain > mute_target) mute_gain = fmaxf(mute_gain - MUTE_STEP, mute_target);
-    mono[i] *= mute_gain;
-  }
   float pk = out_peak * 0.9f;                                /* the meter falls away between buffers */
   unsigned head = scope_head;
   for (int i = 0; i < frames; i++) {
-    out[2 * i] = out[2 * i + 1] = mono[i];                   /* same signal in both ears */
-    scope_ring[(head + (unsigned)i) & (SCOPE_RING - 1)] = mono[i];
-    if (fabsf(mono[i]) > pk) pk = fabsf(mono[i]);
-    if (fabsf(mono[i]) >= 0.99f) clip_left = FEZ_SAMPLE_RATE;
+    if (mute_gain < mute_target) mute_gain = fminf(mute_gain + MUTE_STEP, mute_target);
+    else if (mute_gain > mute_target) mute_gain = fmaxf(mute_gain - MUTE_STEP, mute_target);
+    float l = out[2 * i] * mute_gain, r = out[2 * i + 1] * mute_gain;
+    out[2 * i] = l; out[2 * i + 1] = r;
+    unsigned slot = (head + (unsigned)i) & (SCOPE_RING - 1);
+    scope_ring[2 * slot] = l; scope_ring[2 * slot + 1] = r;
+    float loud = fmaxf(fabsf(l), fabsf(r));                  /* the meters follow the louder ear */
+    if (loud > pk) pk = loud;
+    if (loud >= 0.99f) clip_left = FEZ_SAMPLE_RATE;
   }
   scope_head = head + (unsigned)frames;
   if (rec_on) {                                              /* what goes to the speakers is what goes to the file (mute fade included) */
     int h = SDL_AtomicGet(&rec_head), t = SDL_AtomicGet(&rec_tail);
     for (int i = 0; i < frames; i++) {
-      if (h - t >= REC_RING) { SDL_AtomicAdd(&rec_drops, 1); continue; }   /* the main thread fell behind: lose the sample, count it */
-      rec_ring[h & (REC_RING - 1)] = mono[i]; h++;
+      if (h - t >= REC_RING) { SDL_AtomicAdd(&rec_drops, 1); continue; }   /* the main thread fell behind: lose the frame, count it */
+      rec_ring[h & (REC_RING - 1)] = out[2 * i]; rec_ring[(h + 1) & (REC_RING - 1)] = out[2 * i + 1];
+      h += 2;
     }
     SDL_AtomicSet(&rec_head, h);
   }
@@ -94,7 +101,7 @@ static int rec_drain(void) {
   while (t != h) {
     int n = h - t, start = t & (REC_RING - 1);
     if (n > REC_RING - start) n = REC_RING - start;          /* stop at the end of the ring; the next pass takes the wrapped part */
-    if (wavrec_write(&wav, rec_ring + start, n) != 0) ok = -1;
+    if (wavrec_write(&wav, rec_ring + start, n / 2) != 0) ok = -1;                 /* n counts floats; a frame is two */
     t += n;
   }
   SDL_AtomicSet(&rec_tail, t);
@@ -168,16 +175,57 @@ static int translate_mods(Uint16 m) {
   return ((m & KMOD_SHIFT) ? MOD_SHIFT : 0) | ((m & KMOD_CTRL) ? MOD_CTRL : 0) | ((m & KMOD_ALT) ? MOD_ALT : 0);
 }
 
-int main(void) {
-  if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO) != 0) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
+/* The Brick's buttons on a computer keyboard, for working on the handheld UI at a desk. BTN_COUNT means "not a button".
+   Layout: arrows = D-pad; X Z = A B (X is the right-hand one, as on the device); S A = X Y; Q W = L1 R1; E R = L2 R2;
+   Return = Start; Shift = Select; Esc = Menu; - and = volume. */
+static Button key_to_button(SDL_Keycode k) {
+  switch (k) {
+    case SDLK_UP: return BTN_UP;       case SDLK_DOWN: return BTN_DOWN;
+    case SDLK_LEFT: return BTN_LEFT;   case SDLK_RIGHT: return BTN_RIGHT;
+    case SDLK_x: return BTN_A;         case SDLK_z: return BTN_B;
+    case SDLK_s: return BTN_X;         case SDLK_a: return BTN_Y;
+    case SDLK_q: return BTN_L1;        case SDLK_w: return BTN_R1;
+    case SDLK_e: return BTN_L2;        case SDLK_r: return BTN_R2;
+    case SDLK_RETURN: return BTN_START;
+    case SDLK_LSHIFT: case SDLK_RSHIFT: return BTN_SELECT;
+    case SDLK_ESCAPE: return BTN_MENU;
+    case SDLK_EQUALS: case SDLK_VOLUMEUP: return BTN_VOLU;
+    case SDLK_MINUS: case SDLK_VOLUMEDOWN: return BTN_VOLD;
+    default: return BTN_COUNT;
+  }
+}
+
+/* A game controller's buttons (the Brick shows up as one). SDL names buttons by position on an Xbox pad: A is the bottom
+   one. Handhelds laid out like a Nintendo pad put A on the right, so FEZ_PAD_SWAP=1 swaps A with B and X with Y. */
+static Button controller_to_button(Uint8 b) {
+  static int swap = -1;
+  if (swap < 0) { const char *e = getenv("FEZ_PAD_SWAP"); swap = e && e[0] == '1'; }
+  switch (b) {
+    case SDL_CONTROLLER_BUTTON_DPAD_UP: return BTN_UP;       case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return BTN_DOWN;
+    case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return BTN_LEFT;   case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return BTN_RIGHT;
+    case SDL_CONTROLLER_BUTTON_A: return swap ? BTN_B : BTN_A;  case SDL_CONTROLLER_BUTTON_B: return swap ? BTN_A : BTN_B;
+    case SDL_CONTROLLER_BUTTON_X: return swap ? BTN_Y : BTN_X;  case SDL_CONTROLLER_BUTTON_Y: return swap ? BTN_X : BTN_Y;
+    case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return BTN_L1;  case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return BTN_R1;
+    case SDL_CONTROLLER_BUTTON_START: return BTN_START;      case SDL_CONTROLLER_BUTTON_BACK: return BTN_SELECT;
+    case SDL_CONTROLLER_BUTTON_GUIDE: return BTN_MENU;
+    default: return BTN_COUNT;
+  }
+}
+
+int main(int argc, char **argv) {
+  brick_mode = argc > 1 && !strcmp(argv[1], "--brick");
+  if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
   SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
   /* 1024x600 is the Raspberry Pi LCD; the window can be resized, or taken full screen with Ctrl+F */
-  SDL_Window *win = SDL_CreateWindow("FEZ", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 600, SDL_WINDOW_RESIZABLE);
+  SDL_Window *win = brick_mode ? SDL_CreateWindow("FEZ", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 768, SDL_WINDOW_RESIZABLE)    /* 4 x 256x192 */
+                               : SDL_CreateWindow("FEZ", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 600, SDL_WINDOW_RESIZABLE);
   SDL_Renderer *ren = win ? SDL_CreateRenderer(win, -1, 0) : NULL;
   if (!win || !ren) { fprintf(stderr, "window: %s\n", SDL_GetError()); SDL_Quit(); return 1; }
+  if (brick_mode) SDL_RenderSetLogicalSize(ren, 256, 192);   /* whatever the window size, the picture is 256x192 scaled by a whole number where it fits */
 
   fez_init(&synth, (uint32_t)SDL_GetTicks() | 1);            /* seed the random generator from the clock */
   desk_init(&desk, &synth);
+  if (brick_mode) { desk_set_handheld(&desk); pad_init(&pad, &desk); }
   desk.scope = scope_ring; desk.scope_head = &scope_head;
   desk.clip_set = clip_set; desk.clip_get = clip_get;
   {                                                           /* one visible folder: ~/FEZ/patches/ and ~/FEZ/recordings/ (easy to find, back up and share) */
@@ -204,7 +252,8 @@ int main(void) {
   if (!dev) { fprintf(stderr, "audio: %s\n", SDL_GetError()); SDL_Quit(); return 1; }
 
   uint32_t *pixels = NULL; SDL_Texture *tex = NULL; int pw = 0, ph = 0;
-  SDL_StartTextInput();                                      /* printable characters arrive as SDL_TEXTINPUT */
+  if (!brick_mode) SDL_StartTextInput();                     /* printable characters arrive as SDL_TEXTINPUT (the handheld has no typing) */
+  for (int i = 0; i < SDL_NumJoysticks(); i++) if (SDL_IsGameController(i)) SDL_GameControllerOpen(i);
   SDL_PauseAudioDevice(dev, 0);                              /* start playing */
 
   Uint32 last_frame = SDL_GetTicks();
@@ -213,7 +262,22 @@ int main(void) {
     int got = SDL_WaitEventTimeout(&ev, 16);
     while (got) {
       if (ev.type == SDL_QUIT) desk.quit = 1;
-      else if (ev.type == SDL_KEYDOWN) {                     /* (key repeats are wanted: held arrows keep stepping) */
+      else if (brick_mode && (ev.type == SDL_KEYDOWN || ev.type == SDL_KEYUP)) {          /* the keyboard standing in for the buttons */
+        Button b = key_to_button(ev.key.keysym.sym);
+        if (b != BTN_COUNT) { SDL_LockAudioDevice(dev); pad_button(&pad, b, ev.type == SDL_KEYDOWN); SDL_UnlockAudioDevice(dev); }
+      } else if (brick_mode && (ev.type == SDL_CONTROLLERBUTTONDOWN || ev.type == SDL_CONTROLLERBUTTONUP)) {
+        Button b = controller_to_button(ev.cbutton.button);
+        if (b != BTN_COUNT) { SDL_LockAudioDevice(dev); pad_button(&pad, b, ev.type == SDL_CONTROLLERBUTTONDOWN); SDL_UnlockAudioDevice(dev); }
+      } else if (brick_mode && ev.type == SDL_CONTROLLERAXISMOTION &&
+                 (ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT || ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)) {   /* the lower shoulder buttons are analogue triggers: past halfway is a press */
+        SDL_LockAudioDevice(dev);
+        pad_button(&pad, ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? BTN_L2 : BTN_R2, ev.caxis.value > 16384);
+        SDL_UnlockAudioDevice(dev);
+      } else if (brick_mode && ev.type == SDL_CONTROLLERDEVICEADDED) {
+        SDL_GameControllerOpen(ev.cdevice.which);
+      } else if (brick_mode) {
+        /* the other events (mouse, text) mean nothing on the handheld */
+      } else if (ev.type == SDL_KEYDOWN) {                     /* (key repeats are wanted: held arrows keep stepping) */
         int mods = translate_mods(ev.key.keysym.mod), key = translate_key(ev.key.keysym.sym);
         int nk = note_key_char(ev.key.keysym.scancode), played = 0;
         if (nk && !(mods & (MOD_CTRL | MOD_ALT))) {            /* on the KEYS page a letter or digit plays a note (key repeats are swallowed there) */
@@ -258,6 +322,7 @@ int main(void) {
 
     int w, h;
     SDL_GetWindowSize(win, &w, &h);
+    if (brick_mode) { w = 256; h = 192; }                    /* the picture never changes size; SDL scales it */
     if (w != pw || h != ph) {                                /* new window size: new picture, new texture */
       free(pixels); if (tex) SDL_DestroyTexture(tex);
       pw = w; ph = h;
@@ -269,7 +334,9 @@ int main(void) {
     SDL_LockAudioDevice(dev);
     desk.peak = out_peak; desk.cpu = cpu_avg; desk.cpu_peak = cpu_peak; desk.clip = clip_left > 0;
     desk_tick(&desk, (double)(now - last_frame));
+    if (brick_mode) pad_tick(&pad);
     desk_draw(&desk);
+    if (brick_mode) pad_draw(&pad);
     SDL_UnlockAudioDevice(dev);
     last_frame = now;
     SDL_UpdateTexture(tex, NULL, pixels, pw * (int)sizeof *pixels);

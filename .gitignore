@@ -1,11 +1,10 @@
 # build products
 /fez
-/fez_brick
 /deskshot
-/uishot
+/padshot
 /render
 /test_core
 *.dSYM/
 *.o
-# picture files from deskshot / uishot
+# picture files from deskshot / padshot
 *.ppm

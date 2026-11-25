@@ -62,6 +62,7 @@ static const struct { const char *name; int first; } GROUPS[] = {
 /* Row kinds, in d->crow: a value >= 0 is an index into d->regs; a heading is stored as -(heading number + 1). */
 static int is_heading(const Desk *d, int row) { return d->crow[row] < 0; }
 static const char *heading_name(int h) { return h == HEAD_MASTER ? "MASTER" : GROUPS[h].name; }
+const char *ctrl_heading_name(int h) { return heading_name(h); }   /* for other screens that list registers the same way (the handheld editor's palette) */
 
 void ctrl_build_rows(Desk *d) {
   int n = 0, g = 0, level = -1;

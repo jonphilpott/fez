@@ -56,16 +56,17 @@ static const Setting DLY_SETTINGS[] = {
   { "WOBBLE", REG_DLYWOB, 0, 32767, 512, 4096 }, { "NOISE", REG_DLYNZ, 0, 32767, 512, 4096 },
   { "FREEZE", REG_DLYFRZ, 0, 32767, 32767, 32767 },                           /* on at or above half, so one step flips it */
   { "MIX", REG_DLYMIX, 0, 32767, 512, 4096 }, { "INPUT", REG_DLYIN, 0, 32767, 512, 4096 } };
-static const char *const DEVICE_NAMES[DEV_COUNT] = { "CELLULAR", "LORENZ", "QUANTISER", "TURING", "DELAY", "KEYS" };
+static const char *const DEVICE_NAMES[DEV_COUNT] = { [DEV_DELAY] = "DELAY", [DEV_CELLULAR] = "CELLULAR", [DEV_LORENZ] = "LORENZ", [DEV_QUANTISER] = "QUANTISER", [DEV_TURING] = "TURING", [DEV_KEYS] = "KEYS" };
 
 static const Setting KB_SETTINGS[] = {
   { "OCTAVE", REG_KBOCT, 0, 8, 1, 1 }, { "PULSERS", REG_KBPUL, 0, 15, 1, 1 } };
 
 static const Setting *settings_of(int sub, int *n) {
-  static const Setting *const TABLE[DEV_COUNT] = { CA_SETTINGS, LZ_SETTINGS, QT_SETTINGS, TM_SETTINGS, DLY_SETTINGS, KB_SETTINGS };
+  static const Setting *const TABLE[DEV_COUNT] = { [DEV_DELAY] = DLY_SETTINGS, [DEV_CELLULAR] = CA_SETTINGS, [DEV_LORENZ] = LZ_SETTINGS, [DEV_QUANTISER] = QT_SETTINGS, [DEV_TURING] = TM_SETTINGS, [DEV_KEYS] = KB_SETTINGS };
   /* counted from the tables themselves, so adding a setting to a table cannot leave a stale number here */
-  static const int COUNT[DEV_COUNT] = { (int)(sizeof CA_SETTINGS / sizeof CA_SETTINGS[0]), (int)(sizeof LZ_SETTINGS / sizeof LZ_SETTINGS[0]),
-    (int)(sizeof QT_SETTINGS / sizeof QT_SETTINGS[0]), (int)(sizeof TM_SETTINGS / sizeof TM_SETTINGS[0]), (int)(sizeof DLY_SETTINGS / sizeof DLY_SETTINGS[0]), (int)(sizeof KB_SETTINGS / sizeof KB_SETTINGS[0]) };
+  static const int COUNT[DEV_COUNT] = { [DEV_DELAY] = (int)(sizeof DLY_SETTINGS / sizeof DLY_SETTINGS[0]), [DEV_CELLULAR] = (int)(sizeof CA_SETTINGS / sizeof CA_SETTINGS[0]),
+    [DEV_LORENZ] = (int)(sizeof LZ_SETTINGS / sizeof LZ_SETTINGS[0]), [DEV_QUANTISER] = (int)(sizeof QT_SETTINGS / sizeof QT_SETTINGS[0]),
+    [DEV_TURING] = (int)(sizeof TM_SETTINGS / sizeof TM_SETTINGS[0]), [DEV_KEYS] = (int)(sizeof KB_SETTINGS / sizeof KB_SETTINGS[0]) };
   *n = COUNT[sub];
   return TABLE[sub];
 }

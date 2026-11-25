@@ -93,10 +93,11 @@ void fez_reg_write(FezSynth *s, int addr, int value);
 void fez_tick(FezSynth *s, double dt_ms);               /* advance the control side by dt_ms milliseconds */
 
 /* ---- sound ----
-   Writes `frames` mono samples (-1..1) at FEZ_SAMPLE_RATE (48 kHz). Runs the control side itself, one tick every
+   fez_render_stereo writes `frames` left/right pairs (-1..1) at FEZ_SAMPLE_RATE (48 kHz); fez_render writes the mono mix of the same. Runs the control side itself, one tick every
    5 ms of audio, so the app only has to call this from its audio callback. Registers may be written between calls
    (from the same thread, or with the audio device locked). */
-void fez_render(FezSynth *s, float *out, int frames);
+void fez_render(FezSynth *s, float *out, int frames);         /* mono: (left + right) / 2, `frames` floats */
+void fez_render_stereo(FezSynth *s, float *out, int frames);  /* interleaved left, right: 2 * `frames` floats */
 
 /* ---- queues the audio side drains ---- */
 int  fez_pop_buf_event(FezSynth *s, BufEvent *out);     /* 1 if an event was returned */

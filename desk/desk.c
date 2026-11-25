@@ -18,12 +18,13 @@ typedef struct {
 static const TabDef TABS[TAB_COUNT] = {
   { "EDITOR",  tab_editor_draw,  tab_editor_key,  tab_editor_text,  "Ctrl+Enter apply  Ctrl+R run  [ ] block  Tab complete" },
   { "PATCHES", tab_patches_draw, tab_patches_key, tab_patches_text, "Up/Down pick  [ ] mine/examples  Enter load  Ctrl+S save  Ctrl+D delete  type to filter" },
+  { "CTRL",    tab_ctrl_draw,    tab_ctrl_key,    tab_ctrl_text,    "Up/Down pick  Left/Right change (Shift: coarse)  type a number, Enter  Tab units/raw" },
+  { "DEVICES", tab_devices_draw, tab_devices_key, tab_devices_text, "[ ] device  Up/Down setting  Left/Right change  Space step/reseed/freeze" },
+  { "BUFFER",  tab_buffer_draw,  tab_buffer_key,  tab_buffer_text,  "[ ] tape/voices  Space trigger  S stop  R record  F freeze  C clear" },
   { "PULSERS", tab_pulsers_draw, tab_pulsers_key, tab_pulsers_text, "Left/Right cell  Space toggle  Enter on BPM: adjust  type BPM, Enter  F fire" },
   { "SEQ",     tab_seq_draw,     tab_seq_key,     tab_seq_text,     "Up/Down step  Left/Right value (Shift: snap to note)  Space on/off  type a note" },
   { "MATRIX",  tab_matrix_draw,  tab_matrix_key,  tab_matrix_text,  "Left/Right cell  Enter pick/adjust  type a weight  Backspace delete route" },
-  { "DEVICES", tab_devices_draw, tab_devices_key, tab_devices_text, "[ ] device  Up/Down setting  Left/Right change  Space step/reseed/freeze" },
-  { "BUFFER",  tab_buffer_draw,  tab_buffer_key,  tab_buffer_text,  "[ ] tape/voices  Space trigger  S stop  R record  F freeze  C clear" },
-  { "CTRL",    tab_ctrl_draw,    tab_ctrl_key,    tab_ctrl_text,    "Up/Down pick  Left/Right change (Shift: coarse)  type a number, Enter  Tab units/raw" },
+  { "PLAY",    tab_play_draw,    tab_play_key,    tab_play_text,    "1 2 3 4 fire the pulsers  S clock the sequencer" },
   { "SCOPE",   tab_scope_draw,   tab_scope_key,   tab_scope_text,   "the output waveform, triggered on a rising edge" },
 };
 
@@ -35,6 +36,8 @@ static void init_layouts(Desk *d) {
   Layout mix   = { "MIX",  3, { { 0, 0, 560, 1000 }, { 560, 0, 1000, 420 }, { 560, 420, 1000, 1000 } }, { TAB_CTRL, TAB_SCOPE, TAB_PULSERS } };
   Layout watch = { "WATCH", 3, { { 0, 0, 1000, 340 }, { 0, 340, 500, 1000 }, { 500, 340, 1000, 1000 } }, { TAB_SCOPE, TAB_CTRL, TAB_DEVICES } };
   d->layouts[0] = code; d->layouts[1] = mix; d->layouts[2] = watch;
+  Layout hand = { "HAND", 1, { { 0, 0, 1000, 1000 } }, { TAB_PATCHES } };   /* the handheld: one tile, the whole screen */
+  d->layouts[3] = hand;
 }
 
 static int status_height(const Desk *d) { return GFX_CELL_H * d->scale + 4; }
@@ -50,6 +53,9 @@ static void compute_rects(Desk *d) {
     d->rect[i].h = area_h * l->rect[i].y1 / 1000 - d->rect[i].y;
   }
 }
+
+/* The handheld: layout 3, and nothing in the keys cycles away from it (Ctrl+Tab wraps within the first three). */
+void desk_set_handheld(Desk *d) { d->handheld = 1; d->layout = 3; d->focus = 0; compute_rects(d); }
 
 /* ---------------------------------------------------------------- set-up */
 
@@ -217,7 +223,8 @@ static void draw_status(Desk *d) {
   gfx_fill(cv, 0, y, cv->w, 1, gfx_colour(COL_LINE));
 
   char head[96];
-  snprintf(head, sizeof head, " %s  %s  pulsers %s ", d->layouts[d->layout].name, d->loaded_name, d->pulsers_on ? "on" : "off");
+  if (d->handheld) snprintf(head, sizeof head, " ");                           /* 256 pixels leave no room for the name: the button hints get the space (the Patches and Play screens show the rest) */
+  else snprintf(head, sizeof head, " %s  %s  pulsers %s ", d->layouts[d->layout].name, d->loaded_name, d->pulsers_on ? "on" : "off");
   int hx = (int)strlen(head) * GFX_CELL_W * s;
   gfx_text(cv, 0, y + 3, head, s, gfx_colour(COL_FG));
   if (d->muted) {                                        /* a solid red MUTED marker right after the name, so it cannot be missed */
@@ -236,11 +243,11 @@ static void draw_status(Desk *d) {
     hx += rw + GFX_CELL_W * s;
   }
 
-  int meter_w = 14 * GFX_CELL_W * s;                     /* the load meter sits at the right edge, the CLIP flag just left of it */
+  int meter_w = (d->handheld ? 9 : 14) * GFX_CELL_W * s;                     /* the load meter sits at the right edge, the CLIP flag just left of it */
   int clip_w = 6 * GFX_CELL_W * s;
   gfx_clip(cv, hx, y, cv->w - hx - meter_w - clip_w - 8, sh);
   if (d->msg_until > d->now_ms) gfx_text(cv, hx, y + 3, d->msg, s, gfx_colour(COL_AMB));
-  else gfx_text(cv, hx, y + 3, TABS[d->layouts[d->layout].tab[d->focus]].hint, s, gfx_colour(COL_DIM));
+  else gfx_text(cv, hx, y + 3, d->hint_override ? d->hint_override : TABS[d->layouts[d->layout].tab[d->focus]].hint, s, gfx_colour(COL_DIM));
   gfx_unclip(cv);
   /* The load bar: how much of real time the audio callback uses. Full bar = 100 percent = the point where the audio crackles.
      The bar is the recent average; a thin marker shows the worst reading of the last few seconds, which is what predicts a

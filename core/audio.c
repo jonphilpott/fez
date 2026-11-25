@@ -8,9 +8,9 @@
      buffer device (MIXBP) ---------------------------------------------- +
 
      mod osc / noise --> Moog ladder filter --> mod VCA ------------------------> bus
-     (voice + mod voice) --> delay and spring, wet returns ----------------------> bus
+     (voice + mod voice) --> tape delay --> spring (two tanks that feed each other: a stereo pair) --> bus (left, right)
      buffer device (MIXBF) ------------------------------------------------------> bus
-     bus --> compressor --> master level --> output
+     bus --> compressor (one detector for both ears) --> master level --> output (left, right)
 
    Time structure: sound is made one sample at a time, but parameters only change once per CHUNK of 16 samples
    (0.33 ms): we smooth the registers, convert them to physical units, and ramp gains linearly across the chunk.
@@ -21,7 +21,15 @@
 #include <string.h>
 
 #define TWO_PI 6.28318530717958647692
-#define SPR_DELAY ((int)(0.034 * FEZ_SAMPLE_RATE))   /* the spring's loop length: 34 ms */
+/* The spring is a stereo pair of tanks. Each is a short loop with a chain of allpass filters (see render_sample). They are tuned
+   differently, which is what makes the two ears hear two different chirps instead of one: tank 0 (left) loops in 34 ms, tank 1
+   (right) in 41 ms, and its allpass corners and lowpass sit a little higher. SPR_CROSS is how much of each tank's output is fed
+   into the other's loop: 0 would be two separate springs, 0.5 would make them one. At 0.3 the loop is still stable at full
+   feedback: the mixing matrix [1-x x; x 1-x] has eigenvalues 1 and 1-2x, neither above 1 in size. */
+static const int SPR_LEN[SPR_TANKS] = { (int)(0.034 * FEZ_SAMPLE_RATE), (int)(0.041 * FEZ_SAMPLE_RATE) };
+static const double SPR_AP_HZ[SPR_TANKS][SPR_ALLPASS] = { { 330, 520, 780, 1100, 1500, 2100, 2800 }, { 406, 640, 960, 1353, 1845, 2583, 3444 } };
+static const double SPR_LP_HZ[SPR_TANKS] = { 3200, 3000 };
+#define SPR_CROSS 0.3
 
 /* ---------------------------------------------------------------- small helpers */
 
@@ -76,9 +84,10 @@ void audio_init(Audio *a) {
     double tau = PARAM_TABLE[i].tau;
     a->k_sm[i] = tau > 0 ? 1.0 - exp(-(double)CHUNK / (FEZ_SAMPLE_RATE * tau)) : 1.0;   /* tau 0: no smoothing */
   }
-  static const double ap_hz[SPR_ALLPASS] = { 330, 520, 780, 1100, 1500, 2100, 2800 };
-  for (int i = 0; i < SPR_ALLPASS; i++) svf_coef(&a->spr_ap_c[i], ap_hz[i], 2.5);
-  svf_coef(&a->spr_c, 3200, 0.7071);                          /* Q 0.7071: flattest lowpass, gain never above 1 */
+  for (int t = 0; t < SPR_TANKS; t++) {
+    for (int i = 0; i < SPR_ALLPASS; i++) svf_coef(&a->spr_ap_c[t][i], SPR_AP_HZ[t][i], 2.5);
+    svf_coef(&a->spr_c[t], SPR_LP_HZ[t], 0.7071);               /* Q 0.7071: flattest lowpass, gain never above 1 */
+  }
   a->comp_ka = 1.0 - exp(-1.0 / (0.003 * FEZ_SAMPLE_RATE));   /* compressor attack 3 ms */
   a->comp_kr = 1.0 - exp(-1.0 / (0.2 * FEZ_SAMPLE_RATE));     /* release 200 ms */
   a->dly_len = 0.3 * FEZ_SAMPLE_RATE;
@@ -93,9 +102,9 @@ void audio_init(Audio *a) {
 void audio_clear_fx(Audio *a) {
   memset(a->dly, 0, sizeof a->dly);
   a->dly_damp.y = 0;
-  memset(a->spr, 0, sizeof a->spr);
+  memset(a->spr, 0, sizeof a->spr);                          /* both tanks */
   memset(a->spr_ap, 0, sizeof a->spr_ap);
-  memset(&a->spr_svf, 0, sizeof a->spr_svf);
+  memset(a->spr_svf, 0, sizeof a->spr_svf);
   a->comp_env = 0;
 }
 
@@ -174,7 +183,7 @@ static void begin_chunk(FezSynth *s) {
   double md_cut = cut_hz(P(s, REG_MDCUT));
   /* White noise through a low cutoff carries little energy, so lift it as the cutoff falls to keep sweeps level. */
   double lift = clampd(sqrt(8000.0 / md_cut), 1.0, 6.0);
-  double next[15] = {
+  double next[16] = {
     cos(bl), sin(bl) * cx_scale[a->cx_shape],                                  /* g_sine, g_shape */
     0.25 + 0.75 * P(s, REG_FOLD) / FULL,                                            /* pre: drive into the folder */
     P(s, REG_MIXCX) / FULL, P(s, REG_MIXMD) / FULL, P(s, REG_MIXNZ) / FULL,                      /* mixer: complex, mod, noise */
@@ -182,12 +191,13 @@ static void begin_chunk(FezSynth *s) {
     pow(P(s, REG_MDLVL) / FULL, 1.5),                                                /* mod voice VCA */
     pow(P(s, REG_LEVEL) / FULL, 1.5) * 1.8,                                          /* master level */
     P(s, REG_MIXBF) / FULL, P(s, REG_MIXBP) / FULL,                                        /* buffer out: to bus, to the gate */
-    P(s, REG_DLYMIX) / FULL, P(s, REG_SPRMIX) / FULL * 1.4,                                  /* delay wet, spring wet */
+    P(s, REG_DLYMIX) / FULL, P(s, REG_SPRMIX) / FULL * 1.7,                                  /* delay wet, spring wet */
+    P(s, REG_SPRWID) / FULL,                                                                /* spring stereo width: 0 mono, 1 wide */
     pow(P(s, REG_DLYIN) / FULL, 2.0)       /* how much sound is written into the delay loop: squared, so the quiet end has room */
   };
-  Ramp *r[15] = { &a->g_sine, &a->g_shape, &a->pre, &a->mix_cx, &a->mix_md, &a->mix_nz, &a->md_osc_g, &a->md_nz_g,
-                  &a->md_vca, &a->master, &a->out_bf, &a->out_bp, &a->dly_wet, &a->spr_wet, &a->dly_in };
-  for (int i = 0; i < 15; i++) {
+  Ramp *r[16] = { &a->g_sine, &a->g_shape, &a->pre, &a->mix_cx, &a->mix_md, &a->mix_nz, &a->md_osc_g, &a->md_nz_g,
+                  &a->md_vca, &a->master, &a->out_bf, &a->out_bp, &a->dly_wet, &a->spr_wet, &a->spr_wid, &a->dly_in };
+  for (int i = 0; i < 16; i++) {
     if (!a->primed) r[i]->cur = next[i];                                       /* first chunk: start there, do not fade in */
     ramp_to(r[i], next[i]);
   }
@@ -212,7 +222,8 @@ static void begin_chunk(FezSynth *s) {
 
 /* ---------------------------------------------------------------- one sample */
 
-static double render_sample(FezSynth *s) {
+/* One sample of the whole synth, as a left and a right value. Everything up to the spring is mono; the spring makes it stereo. */
+static void render_sample(FezSynth *s, double *out_l, double *out_r) {
   Audio *a = &s->audio;
 
   /* ---- sources ---- */
@@ -320,34 +331,65 @@ static double render_sample(FezSynth *s) {
   double wet = ramp_next(&a->dly_wet);
   double stage1 = dry * (1.0 - wet) + damped * wet;
 
-  /* 2) SPRING: a short loop (34 ms) with a chain of allpass filters, which delay low frequencies more than high
-     ones, so each echo is a "chirp" like a real spring tank. It is fed by the delay stage's output. */
-  double sp = a->spr[(a->spr_w - SPR_DELAY + SPR_SAMPLES) % SPR_SAMPLES];
-  for (int i = 0; i < SPR_ALLPASS; i++) sp = svf_allpass(&a->spr_ap[i], &a->spr_ap_c[i], sp);
-  double sp_lp = svf_lowpass(&a->spr_svf, &a->spr_c, sp);
-  a->spr[a->spr_w] = (float)flush_denormal(stage1 + tanh(sp_lp * a->spr_fb_g));
+  /* 2) SPRING, as a stereo pair. Each tank is a short loop with a chain of allpass filters, which delay low frequencies more
+     than high ones, so each echo is a "chirp" like a real spring tank. Both tanks are fed by the delay stage's output, but
+     they are tuned differently (see SPR_LEN) and each is also fed a little of the other, so the two ears get related but
+     different reverb. Steps: (a) read both tanks, (b) write both loops, (c) blend the two outputs by the width control. */
+  double tank[SPR_TANKS];
+  for (int t = 0; t < SPR_TANKS; t++) {                                       /* (a) */
+    double x = a->spr[t][(a->spr_w - SPR_LEN[t] + SPR_SAMPLES) % SPR_SAMPLES];
+    for (int i = 0; i < SPR_ALLPASS; i++) x = svf_allpass(&a->spr_ap[t][i], &a->spr_ap_c[t][i], x);
+    tank[t] = svf_lowpass(&a->spr_svf[t], &a->spr_c[t], x);
+  }
+  for (int t = 0; t < SPR_TANKS; t++) {                                       /* (b) the loop is the tank's own output mixed with the other's, soft clipped */
+    double fed = (1.0 - SPR_CROSS) * tank[t] + SPR_CROSS * tank[1 - t];
+    a->spr[t][a->spr_w] = (float)flush_denormal(stage1 + tanh(fed * a->spr_fb_g));
+  }
   if (++a->spr_w >= SPR_SAMPLES) a->spr_w = 0;
-  double stage2 = stage1 + sp_lp * ramp_next(&a->spr_wet);
+  /* (c) width by mid and side: mid is what the tanks share, side is how they differ. Width 0 keeps only the mid, so both ears
+     hear the same signal (mono); full width gives each ear its own tank. This changes smoothly, with no retuning clicks. */
+  double wet_g = ramp_next(&a->spr_wet), wid = ramp_next(&a->spr_wid);
+  double mid = 0.5 * (tank[0] + tank[1]), side = 0.5 * (tank[0] - tank[1]) * wid;
+  double bus_l = stage1 + (mid + side) * wet_g;
+  double bus_r = stage1 + (mid - side) * wet_g;
 
-  /* ---- bus, compressor, master ---- */
-  double bus = stage2;
-  /* compressor: follow the level; above -10 dB (0.316) reduce it so every 8 dB in gives 1 dB out */
-  double lvl = fabs(bus);
+  /* ---- compressor, master ---- */
+  /* compressor: follow the louder ear; above -10 dB (0.316) reduce it so every 8 dB in gives 1 dB out. One detector and one
+     gain for both ears, so the compressor never moves the stereo image. */
+  double lvl = fmax(fabs(bus_l), fabs(bus_r));
   a->comp_env += (lvl - a->comp_env) * (lvl > a->comp_env ? a->comp_ka : a->comp_kr);
   const double thr = 0.3162;
   double gain = a->comp_env > thr ? pow(a->comp_env / thr, 1.0 / 8.0 - 1.0) : 1.0;
-  double out = bus * gain * ramp_next(&a->master);
+  double out_gain = gain * ramp_next(&a->master);
+  double l = bus_l * out_gain, r = bus_r * out_gain;
 
   /* safety: never output NaN, never exceed full scale (a final hard limit protects speakers and ears) */
-  if (!(out == out)) out = 0;
-  return clampd(out, -1.0, 1.0);
+  if (!(l == l)) l = 0;
+  if (!(r == r)) r = 0;
+  *out_l = clampd(l, -1.0, 1.0);
+  *out_r = clampd(r, -1.0, 1.0);
 }
 
+/* Fill `out` with interleaved stereo: left, right, left, right ... (2 * frames floats). */
+void fez_render_stereo(FezSynth *s, float *out, int frames) {
+  Audio *a = &s->audio;
+  for (int i = 0; i < frames; i++) {
+    if (a->chunk_pos == 0) begin_chunk(s);
+    double l, r;
+    render_sample(s, &l, &r);
+    out[2 * i] = (float)l; out[2 * i + 1] = (float)r;
+    if (++a->chunk_pos == CHUNK) a->chunk_pos = 0;
+  }
+}
+
+/* The same sound mixed down to one channel, (left + right) / 2: for the tools and tests that want a mono signal. */
 void fez_render(FezSynth *s, float *out, int frames) {
   Audio *a = &s->audio;
   for (int i = 0; i < frames; i++) {
     if (a->chunk_pos == 0) begin_chunk(s);
-    out[i] = (float)render_sample(s);
+    double l, r;
+    render_sample(s, &l, &r);
+    out[i] = (float)(0.5 * (l + r));
     if (++a->chunk_pos == CHUNK) a->chunk_pos = 0;
   }
 }

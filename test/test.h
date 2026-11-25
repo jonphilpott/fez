@@ -9,5 +9,7 @@ extern int test_fails;
 
 void test_tables(void);
 void test_patchfile(void);
+void test_audio(void);
+void test_pad(void);
 
 #endif

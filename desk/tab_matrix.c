@@ -60,7 +60,7 @@ static void draw_pick(Desk *d, View *v) {
   char buf[64];
 
   view_text(v, 0, 0, d->mtx.mode == MTX_PICK_SRC ? "PICK A SOURCE" : "PICK A DESTINATION", COL_AMB);
-  snprintf(buf, sizeof buf, d->mtx.flen ? "filter: %s_" : "type to filter", d->mtx.filter);
+  snprintf(buf, sizeof buf, d->mtx.flen ? "filter: %s_" : d->handheld ? "%s" : "type to filter", d->mtx.filter);
   view_text(v, 0, 1, buf, d->mtx.flen ? COL_CYN : COL_DIM);
   for (int r = 0; r < vis; r++) {
     int sel = top + r == d->mtx.psel;

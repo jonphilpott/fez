@@ -44,23 +44,23 @@ int wavrec_start(WavRec *w, const char *path, int rate) {
   return 0;
 }
 
-int wavrec_write(WavRec *w, const float *mono, int n) {
+int wavrec_write(WavRec *w, const float *lr, int frames) {
   unsigned char buf[512 * FRAME_BYTES];
-  while (n > 0) {
-    int chunk = n < 512 ? n : 512;
+  while (frames > 0) {
+    int chunk = frames < 512 ? frames : 512;
     for (int i = 0; i < chunk; i++) {
-      float x = mono[i];
-      if (x > 1.0f) x = 1.0f; else if (x < -1.0f) x = -1.0f;      /* a clipped peak must not wrap round to the opposite sign */
-      long v = lrintf(x * 8388607.0f);                            /* 2^23 - 1: the largest 24-bit signed value */
-      unsigned long u = (unsigned long)v & 0xFFFFFF;              /* two's complement, 24 bits */
-      for (int c = 0; c < CHANNELS; c++) {                        /* the same sample to both channels (the synth is mono) */
+      for (int c = 0; c < CHANNELS; c++) {                        /* left, then right */
+        float x = lr[2 * i + c];
+        if (x > 1.0f) x = 1.0f; else if (x < -1.0f) x = -1.0f;    /* a clipped peak must not wrap round to the opposite sign */
+        long v = lrintf(x * 8388607.0f);                          /* 2^23 - 1: the largest 24-bit signed value */
+        unsigned long u = (unsigned long)v & 0xFFFFFF;            /* two's complement, 24 bits */
         unsigned char *p = buf + i * FRAME_BYTES + c * BYTES_PER_SAMPLE;
         p[0] = (unsigned char)u; p[1] = (unsigned char)(u >> 8); p[2] = (unsigned char)(u >> 16);
       }
     }
     if (fwrite(buf, FRAME_BYTES, (size_t)chunk, w->f) != (size_t)chunk) return -1;
     w->frames += (unsigned long)chunk;
-    mono += chunk; n -= chunk;
+    lr += 2 * chunk; frames -= chunk;
   }
   return 0;
 }

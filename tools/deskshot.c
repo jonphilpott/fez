@@ -7,7 +7,7 @@
 
 static FezSynth synth;
 static Desk desk;
-static float ring[SCOPE_RING];
+static float ring[2 * SCOPE_RING];
 static unsigned head;
 
 static void dump(const char *prefix, const char *name, uint32_t *px, int w, int h) {
@@ -31,10 +31,10 @@ int main(int argc, char **argv) {
   desk_set_canvas(&desk, px, w, h);
   if (argc > 5) desk.layouts[0].tab[0] = atoi(argv[5]);        /* optional: which tab the first tile shows */
 
-  static float out[480];
+  static float out[2 * 480];
   for (int i = 0; i < 200; i++) {                       /* two seconds of audio, copied into the scope ring as main.c does */
-    fez_render(&synth, out, 480);
-    for (int k = 0; k < 480; k++) ring[(head + (unsigned)k) & (SCOPE_RING - 1)] = out[k];
+    fez_render_stereo(&synth, out, 480);
+    for (int k = 0; k < 480; k++) { unsigned slot = (head + (unsigned)k) & (SCOPE_RING - 1); ring[2 * slot] = out[2 * k]; ring[2 * slot + 1] = out[2 * k + 1]; }
     head += 480;
     desk.peak = 0.3f;
   }
