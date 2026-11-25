@@ -48,7 +48,7 @@ li { margin: .3rem 0; }
 /* ---- code: a dark panel with the editor's inks (words gold, registers cyan, notes green, numbers white, comments quiet) ---- */
 code, pre { font: inherit; }
 code { background: var(--pnl); border: 1px solid var(--sel); padding: 0 .3em; }
-pre { background: var(--pnl); border: 1px solid var(--line); border-left: 3px solid var(--amb); padding: .75rem 1rem; overflow-x: auto; line-height: 1.5; }
+pre { background: var(--pnl); border: 1px solid var(--line); border-left: 3px solid var(--amb); padding: .75rem 1rem; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }   /* long lines wrap instead of hiding behind a scroll bar */
 pre code { background: none; border: 0; padding: 0; }
 .op   { color: var(--amb); }
 .reg  { color: var(--cyn); }

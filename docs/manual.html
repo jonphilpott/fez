@@ -71,7 +71,7 @@ li { margin: .3rem 0; }
 /* ---- code: a dark panel with the editor's inks (words gold, registers cyan, notes green, numbers white, comments quiet) ---- */
 code, pre { font: inherit; }
 code { background: var(--pnl); border: 1px solid var(--sel); padding: 0 .3em; }
-pre { background: var(--pnl); border: 1px solid var(--line); border-left: 3px solid var(--amb); padding: .75rem 1rem; overflow-x: auto; line-height: 1.5; }
+pre { background: var(--pnl); border: 1px solid var(--line); border-left: 3px solid var(--amb); padding: .75rem 1rem; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }   /* long lines wrap instead of hiding behind a scroll bar */
 pre code { background: none; border: 0; padding: 0; }
 .op   { color: var(--amb); }
 .reg  { color: var(--cyn); }
@@ -299,11 +299,6 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <p>Four words move numbers about without changing them. <code>DUP</code> copies the top, <code>DROP</code> throws it away, <code>SWAP</code> trades the top two, and <code>OVER</code> copies the second to the top. <code>ROT</code> brings the third to the top: after <code>1 2 3 ROT</code> the stack holds 2, 3, 1 (top).</p>
 
-<h4>Two kinds of multiply</h4>
-
-<p><code>*</code> multiplies whole numbers, as <code>+</code> and <code>-</code> add and subtract them: <code>6 7 *</code> leaves 42. Sound, however, is mostly proportions: half as loud, a quarter as bright. For that there is <code>F*</code>, the <b>fraction multiply</b>, in which 32768 stands for 1.0. So <code>.5 .5 F*</code> leaves .25 (8192), and <code>20000 .5 F*</code> leaves 10000: half of 20000. Use <code>F*</code> to scale a register by a proportion, and <code>*</code> for counting. Mixing them up is easy to spot: <code>6 7 F*</code> leaves 0, because six thirty-two-thousandths of seven thirty-two-thousandths is too small to count.</p>
-
-<p>To multiply and then divide by a whole number, use <code>*/</code>: <code>100 3 4 */</code> leaves 75. It keeps the full product between its two steps, so a big intermediate number does not stick.</p>
 
 <h3 id="numbers">Numbers</h3>
 
@@ -312,9 +307,50 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 <pre class="fez"><code><span class="num">12000</span>       <span class="cmt">\ a whole number, 0 to 32767</span>
 0x2A54      <span class="cmt">\ the same sort of number in hexadecimal (base 16)</span>
 <span class="num">.5</span>          <span class="cmt">\ a fraction of full scale: .5 is 16384, half of 32768</span>
-<span class="note">A4</span>          <span class="cmt">\ a note name: C-1 up to G9, with # or b for sharp or flat</span></code></pre>
+<span class="note">A4</span>          <span class="cmt">\ a note name: C-1 to G9; # sharp, b flat</span></code></pre>
 
 <p>A fraction is a number between 0 and 1 written with a point. It is stored as that fraction of 32768, so <code>.25</code> is 8192 and <code>.99</code> is 32440. Fractions are the natural way to write a register that runs from nothing to full, such as a filter cutoff. A note name is stored as a pitch; see <a href="#pitch">Pitch</a> for what that number means. A note name always includes its octave: <code>C4</code> is middle C.</p>
+
+
+<h3 id="tokens">Tokens and slots</h3>
+
+<p>A program is a row of <b>tokens</b> separated by spaces: a number, a note name, a register name or a word. Each token takes exactly one <b>slot</b>, which is one place in the block's memory. A block has 128 slots and a word has 24, and the editor shows how many you have used. There is no trick in the counting: five tokens are five slots.</p>
+
+<p>That has a consequence for numbers. <b>A number has no sign.</b> To write -5 you write <code>5 NEG</code>: the number, then the word that changes its sign. That is two tokens and two slots, and you can see both. If you type <code>-5</code> the editor says <code>no negative numbers: write 5 NEG</code> and refuses to run the block.</p>
+
+<pre class="fez"><code><span class="num">5</span> <span class="op">NEG</span>        <span class="cmt">\ -5</span>
+<span class="num">.5</span> <span class="op">NEG</span>       <span class="cmt">\ minus a half</span>
+<span class="num">12</span> <span class="op">ST</span> <span class="op">NEG</span>    <span class="cmt">\ twelve semitones down: an octave below</span></code></pre>
+
+<p>The rule is kept this strict on purpose, so that <code>SKIP</code>, which jumps over the next slot, always jumps over exactly the next token you can see.</p>
+
+
+<h3 id="saturation">Numbers stop at the ends</h3>
+
+<p>Every number in FEZ is a whole number from -32768 to 32767, the range that fits in 16 binary digits (the "16 bit" you will see in the source). Most programming languages let a number that runs past one end wrap round to the other: add 1 to 32767 and you get -32768. FEZ does not. A result that goes past either end <b>sticks</b> there. The usual word for this is <b>saturating</b>: the number is full and takes no more.</p>
+
+<pre class="fez"><code><span class="num">30000</span> <span class="num">5000</span> <span class="op">+</span>        <span class="cmt">\ 32767, not 35000</span>
+<span class="num">30000</span> <span class="op">NEG</span> <span class="num">5000</span> <span class="op">-</span>    <span class="cmt">\ -32768, not -35000</span>
+<span class="num">32767</span> <span class="op">NEG</span> <span class="num">1</span> <span class="op">-</span>       <span class="cmt">\ -32768</span>
+<span class="num">32767</span> <span class="op">NEG</span> <span class="num">1</span> <span class="op">-</span> <span class="op">NEG</span>   <span class="cmt">\ 32767: -32768 has no positive twin</span></code></pre>
+
+<p>Sticking is the right behaviour for sound. A cutoff pushed past fully open should stay open. If it wrapped, it would jump to fully shut, and you would hear a crack.</p>
+
+<div class="warn">The check happens at every step, not at the end, so the order of a sum matters. <code>30000 5000 + 5000 -</code> leaves 27767, because the first sum was cut to 32767 before 5000 was taken off. Take away first and add after, <code>30000 5000 - 5000 +</code>, and you get 30000. The word <code>*/</code>, which multiplies and then divides, keeps the full product between its two steps, so <code>20000 20000 20000 */</code> correctly leaves 20000.</div>
+
+<p>The words that stop at the ends are <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>*/</code>, <code>NEG</code>, <code>ABS</code> and <code>SHL</code>. The bit words (<code>AND</code>, <code>OR</code>, <code>XOR</code>, <code>NOT</code>, <code>SHR</code>, <code>ROL</code> and <code>ROR</code>) work on the 16 binary digits as they are and never stick: <code>1 NEG 4 SHR</code> leaves 4095, because the digits move right and zeros come in at the top. Words that only compare or choose (<code>MIN</code>, <code>MAX</code>, <code>=</code>, <code>&lt;</code>, <code>&gt;</code>) cannot overflow.</p>
+
+<p>Registers stop at their own ends too. Most hold 0 to 32767, so <code>5 NEG CUTOFF !</code> leaves the cutoff at 0 and <code>30000 5000 + CUTOFF !</code> leaves it at 32767. The registers meant for signed numbers (CV0 to CV3 and the scratch slots S0 to S15) hold -32768 to 32767.</p>
+
+<p>A number you type is limited as well. The largest is 32767, and a larger one is an error when you apply the block (<code>literal out of range</code>), not a silent cut. The most negative number, -32768, cannot be typed at all: write <code>32767 NEG 1 -</code>.</p>
+
+
+<h3 id="multiply">Two kinds of multiply</h3>
+
+<p><code>*</code> multiplies whole numbers, as <code>+</code> and <code>-</code> add and subtract them: <code>6 7 *</code> leaves 42. Sound, however, is mostly proportions: half as loud, a quarter as bright. For that there is <code>F*</code>, the <b>fraction multiply</b>, in which 32768 stands for 1.0. So <code>.5 .5 F*</code> leaves .25 (8192), and <code>20000 .5 F*</code> leaves 10000: half of 20000. Use <code>F*</code> to scale a register by a proportion, and <code>*</code> for counting. Mixing them up is easy to spot: <code>6 7 F*</code> leaves 0, because six thirty-two-thousandths of seven thirty-two-thousandths is too small to count.</p>
+
+<p>To multiply and then divide by a whole number, use <code>*/</code>: <code>100 3 4 */</code> leaves 75. It keeps the full product between its two steps, so a big intermediate number does not stick.</p>
+
 
 <h3 id="language-registers">Registers</h3>
 
@@ -325,7 +361,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
   <li><code>!</code> writes: <code>( value address -- )</code>. <code>12000 CUTOFF !</code> stores 12000 there.</li>
 </ul>
 
-<p>The value goes first because it must already be on the stack when the address arrives. Registers keep their own limits. Most hold 0 to 32767 (see below), and a few are read-only, such as KBGATE; writing to one is a fault.</p>
+<p>The value goes first because it must already be on the stack when the address arrives. Registers keep their own limits. Most hold 0 to 32767, and a few are read-only, such as KBGATE; writing to one is a fault.</p>
 
 <p>To add one to a register, read it, add, and write it back:</p>
 
@@ -337,6 +373,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <pre class="fez"><code><span class="reg">P0</span> <span class="op">@</span> <span class="num">1</span> <span class="op">+</span> <span class="reg">P0</span> <span class="op">!</span>     <span class="cmt">\ count how many times this block has run</span></code></pre>
 
+
 <h3 id="blocks">Blocks, words and ticks</h3>
 
 <p>Code lives in <b>blocks</b>. There are sixteen, each up to 128 slots long. A block does nothing until something <b>runs</b> it: a pulser, the sequencer, a key press, or another block. When it runs it goes once from top to bottom and stops. It does not loop on its own.</p>
@@ -347,11 +384,13 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <p>A block also has a safety limit of 256 steps per run. A loop that never ends stops there and is reported as a fault, instead of freezing the instrument.</p>
 
+
 <h3 id="faults">When something goes wrong</h3>
 
 <p>A <b>fault</b> is a mistake caught while a block runs: taking from an empty stack, a bad address, a jump to a label that is not there, a loop that reaches the step limit. The block <b>halts</b>, and the editor shows <code>HALTED</code> with the reason in red. The rest of FEZ carries on. Press <b>Ctrl+Enter</b> to apply the block again, which clears the fault and restarts it.</p>
 
 <p>Division by zero is the one gentle fault. <code>1 0 /</code> leaves 0, notes the fault, and the block carries on.</p>
+
 
 <h3 id="flow">Making decisions and loops</h3>
 
@@ -372,53 +411,24 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 <span class="op">YIELD</span>
 <span class="reg">S0</span> <span class="op">@</span> <span class="num">10</span> <span class="op">+</span> <span class="reg">S0</span> <span class="op">!</span>         <span class="cmt">\ second run: add ten, then start again</span></code></pre>
 
-<h3 id="tokens">Tokens and slots</h3>
-
-<p>A program is a row of <b>tokens</b> separated by spaces: a number, a note name, a register name or a word. Each token takes exactly one <b>slot</b>, which is one place in the block's memory. A block has 128 slots and a word has 24, and the editor shows how many you have used. There is no trick in the counting: five tokens are five slots.</p>
-
-<p>That has a consequence for numbers. <b>A number has no sign.</b> To write -5 you write <code>5 NEG</code>: the number, then the word that changes its sign. That is two tokens and two slots, and you can see both. If you type <code>-5</code> the editor says <code>no negative numbers: write 5 NEG</code> and refuses to run the block.</p>
-
-<pre class="fez"><code><span class="num">5</span> <span class="op">NEG</span>        <span class="cmt">\ -5</span>
-<span class="num">.5</span> <span class="op">NEG</span>       <span class="cmt">\ minus a half</span>
-<span class="num">12</span> <span class="op">ST</span> <span class="op">NEG</span>    <span class="cmt">\ twelve semitones down: an octave below</span></code></pre>
-
-<p>The rule is kept this strict on purpose, so that <code>SKIP</code>, which jumps over the next slot, always jumps over exactly the next token you can see.</p>
 
 <h3 id="rotate">Rotating a pattern</h3>
 
-<p>A number is also a row of 16 on-or-off bits, and a row of bits is a pattern: which steps of a rhythm sound, which cells of the automaton are alive. <code>ROL</code> and <code>ROR</code> slide such a pattern round like a ring. The bits that fall off one end come back in at the other, so none are lost. <code>SHL</code> and <code>SHR</code> cannot do this: <code>SHL</code> is a multiplication that sticks at the top (see below), and both fill with zeros.</p>
+<p>A number is also a row of 16 on-or-off bits, and a row of bits is a pattern: which steps of a rhythm sound, which cells of the automaton are alive. <code>ROL</code> and <code>ROR</code> slide such a pattern round like a ring. The bits that fall off one end come back in at the other, so none are lost. <code>SHL</code> and <code>SHR</code> cannot do this: <code>SHL</code> is a multiplication that sticks at the top (see <a href="#saturation">Numbers stop at the ends</a>), and both fill with zeros.</p>
 
 <p>Here is a complete rhythm. The pattern is 16 steps, one bit each: a 1 plays a note and a 0 is a rest. Run this once to set it:</p>
 
-<pre class="fez"><code>0x1249 <span class="reg">S0</span> <span class="op">!</span>          <span class="cmt">\ the pattern: 0001 0010 0100 1001, a note every third step</span></code></pre>
+<pre class="fez"><code>0x1249 <span class="reg">S0</span> <span class="op">!</span>          <span class="cmt">\ the pattern: a note every third step</span></code></pre>
 
 <p>Then give a block to a pulser. Each time it runs it looks at the bottom bit, plays if it is set, and turns the pattern one place so the next bit comes round:</p>
 
-<pre class="fez"><code><span class="reg">S0</span> <span class="op">@</span> <span class="num">1</span> <span class="op">AND</span> <span class="num">1</span> <span class="op">JZ</span>      <span class="cmt">\ bottom bit 0? jump to label 1 and stay silent</span>
+<pre class="fez"><code><span class="reg">S0</span> <span class="op">@</span> <span class="num">1</span> <span class="op">AND</span> <span class="num">1</span> <span class="op">JZ</span>      <span class="cmt">\ bottom bit 0? stay silent</span>
 <span class="num">1</span> <span class="reg">GATE</span> <span class="op">!</span>             <span class="cmt">\ bottom bit 1: play a note</span>
 <span class="num">1</span> <span class="op">L</span>
 <span class="reg">S0</span> <span class="op">@</span> <span class="num">1</span> <span class="op">ROR</span> <span class="reg">S0</span> <span class="op">!</span>      <span class="cmt">\ turn the pattern one place right</span></code></pre>
 
 <p>After 16 runs the pattern is back where it began. Change a bit of <code>S0</code> while it plays and the rhythm changes at once. <code>ROL</code> turns the pattern the other way. The same trick works on the automaton's row: <code>CAROW @ 3 ROR CAROW !</code> turns it three cells round.</p>
 
-<h3 id="saturation">Numbers stop at the ends</h3>
-
-<p>Every number in FEZ is a whole number from -32768 to 32767, the range that fits in 16 binary digits (the "16 bit" you will see in the source). Most programming languages let a number that runs past one end wrap round to the other: add 1 to 32767 and you get -32768. FEZ does not. A result that goes past either end <b>sticks</b> there. The usual word for this is <b>saturating</b>: the number is full and takes no more.</p>
-
-<pre class="fez"><code><span class="num">30000</span> <span class="num">5000</span> <span class="op">+</span>        <span class="cmt">\ 32767, not 35000</span>
-<span class="num">30000</span> <span class="op">NEG</span> <span class="num">5000</span> <span class="op">-</span>    <span class="cmt">\ -32768, not -35000</span>
-<span class="num">32767</span> <span class="op">NEG</span> <span class="num">1</span> <span class="op">-</span>       <span class="cmt">\ -32768</span>
-<span class="num">32767</span> <span class="op">NEG</span> <span class="num">1</span> <span class="op">-</span> <span class="op">NEG</span>   <span class="cmt">\ 32767: -32768 has no positive twin, so NEG and ABS stop at the top</span></code></pre>
-
-<p>Sticking is the right behaviour for sound. A cutoff pushed past fully open should stay open. If it wrapped, it would jump to fully shut, and you would hear a crack.</p>
-
-<div class="warn">The check happens at every step, not at the end, so the order of a sum matters. <code>30000 5000 + 5000 -</code> leaves 27767, because the first sum was cut to 32767 before 5000 was taken off. Take away first and add after, <code>30000 5000 - 5000 +</code>, and you get 30000. The word <code>*/</code>, which multiplies and then divides, keeps the full product between its two steps, so <code>20000 20000 20000 */</code> correctly leaves 20000.</div>
-
-<p>The words that stop at the ends are <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code>, <code>*/</code>, <code>NEG</code>, <code>ABS</code> and <code>SHL</code>. The bit words (<code>AND</code>, <code>OR</code>, <code>XOR</code>, <code>NOT</code>, <code>SHR</code>, <code>ROL</code> and <code>ROR</code>) work on the 16 binary digits as they are and never stick: <code>1 NEG 4 SHR</code> leaves 4095, because the digits move right and zeros come in at the top. Words that only compare or choose (<code>MIN</code>, <code>MAX</code>, <code>=</code>, <code>&lt;</code>, <code>&gt;</code>) cannot overflow.</p>
-
-<p>Registers stop at their own ends too. Most hold 0 to 32767, so <code>5 NEG CUTOFF !</code> leaves the cutoff at 0 and <code>30000 5000 + CUTOFF !</code> leaves it at 32767. The registers meant for signed numbers (CV0 to CV3 and the scratch slots S0 to S15) hold -32768 to 32767.</p>
-
-<p>A number you type is limited as well. The largest is 32767, and a larger one is an error when you apply the block (<code>literal out of range</code>), not a silent cut. The most negative number, -32768, cannot be typed at all: write <code>32767 NEG 1 -</code>.</p>
 
 <h3 id="pitch">Pitch</h3>
 
@@ -438,7 +448,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <p>To transpose, add. <code>ST</code> turns a number of semitones into the right amount to add, so a fifth up is seven semitones:</p>
 
-<pre class="fez"><code><span class="reg">PITCH</span> <span class="op">@</span> <span class="num">7</span> <span class="op">ST</span> <span class="op">+</span> <span class="reg">PITCH</span> <span class="op">!</span>      <span class="cmt">\ read the pitch, add a fifth, write it back</span></code></pre>
+<pre class="fez"><code><span class="reg">PITCH</span> <span class="op">@</span> <span class="num">7</span> <span class="op">ST</span> <span class="op">+</span> <span class="reg">PITCH</span> <span class="op">!</span>      <span class="cmt">\ add a fifth to the pitch</span></code></pre>
 
 <p>To go down, make the amount negative: <code>12 ST NEG</code> is an octave below. Registers hold 0 to 32767, so the top of the range is note 127 (G9).</p>
 
@@ -557,8 +567,8 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <pre class="fez"><code><span class="note">C4</span> <span class="reg">SQ0</span> <span class="op">!</span>  <span class="note">E4</span> <span class="reg">SQ1</span> <span class="op">!</span>  <span class="note">G4</span> <span class="reg">SQ2</span> <span class="op">!</span>  <span class="note">C5</span> <span class="reg">SQ3</span> <span class="op">!</span>     <span class="cmt">\ four notes of a chord</span>
 <span class="num">4</span> <span class="reg">SQLEN</span> <span class="op">!</span>                                   <span class="cmt">\ a loop of four</span>
-<span class="num">3</span> <span class="reg">SQDRV</span> <span class="op">!</span>                                   <span class="cmt">\ each step sets the pitch and plays it</span>
-<span class="num">1</span> <span class="reg">SQPUL</span> <span class="op">!</span>                                   <span class="cmt">\ pulser 0 is the clock</span></code></pre>
+<span class="num">3</span> <span class="reg">SQDRV</span> <span class="op">!</span>                                   <span class="cmt">\ set the pitch and play it</span>
+<span class="num">1</span> <span class="reg">SQPUL</span> <span class="op">!</span>                                   <span class="cmt">\ pulser 0 clocks it</span></code></pre>
 
 <p>With pulser 0 turned on and set to 120, that plays two notes a second, round and round. Pitches are in the units of <a href="#pitch">Pitch</a>, so you can add a semitone offset to a step with <code>ST</code>. Since steps are just registers, a block can rewrite them while the sequence plays.</p>
 
@@ -571,7 +581,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 <p>The glide is exponential: each step it covers a fixed share of the remaining distance, so it starts fast and finishes slowly, as a real analogue circuit does. This is the way to get a filter to swoop towards a new value instead of jumping.</p>
 
 <pre class="fez"><code><span class="num">26000</span> <span class="reg">SLT0</span> <span class="op">!</span>          <span class="cmt">\ a glide time of nearly a second</span>
-<span class="num">16000</span> <span class="op">RND</span> <span class="reg">CV0</span> <span class="op">!</span>       <span class="cmt">\ write a random target; SLO0 drifts towards it</span></code></pre>
+<span class="num">16000</span> <span class="op">RND</span> <span class="reg">CV0</span> <span class="op">!</span>       <span class="cmt">\ a random target; SLO0 follows</span></code></pre>
 
 <h3 id="matrix">The modulation matrix</h3>
 
@@ -581,9 +591,9 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <p>The sound reads the effective value. The register itself is not changed: the CTRL tab shows it, <code>CUTOFF @</code> reads it, and the sound moves around it. A weight of 32767 passes the whole source, 16384 passes half, and a negative weight turns the source upside down. You can have 16 routes. They are set in the MATRIX tab, or from code with <code>ROUTE</code>:</p>
 
-<pre class="fez"><code><span class="reg">LFO0</span> <span class="reg">CUTOFF</span> <span class="num">4000</span> <span class="op">ROUTE</span>      <span class="cmt">\ the slow sine moves the cutoff up and down by 4000</span>
-<span class="reg">ENV</span> <span class="reg">FMAMT</span> <span class="num">8000</span> <span class="op">ROUTE</span>        <span class="cmt">\ each note starts with more FM and mellows</span>
-<span class="reg">ENV</span> <span class="reg">CUTOFF</span> <span class="num">6000</span> <span class="op">NEG</span> <span class="op">ROUTE</span>   <span class="cmt">\ a negative weight: the cutoff falls as the note opens</span></code></pre>
+<pre class="fez"><code><span class="reg">LFO0</span> <span class="reg">CUTOFF</span> <span class="num">4000</span> <span class="op">ROUTE</span>      <span class="cmt">\ the LFO sways the cutoff</span>
+<span class="reg">ENV</span> <span class="reg">FMAMT</span> <span class="num">8000</span> <span class="op">ROUTE</span>        <span class="cmt">\ each note starts bright</span>
+<span class="reg">ENV</span> <span class="reg">CUTOFF</span> <span class="num">6000</span> <span class="op">NEG</span> <span class="op">ROUTE</span>   <span class="cmt">\ a negative weight</span></code></pre>
 
 <p>The word takes the source, the destination and the weight, in that order. Routing the same pair again just changes the weight. Any register that shapes the sound can be a destination, except <code>GATE</code>. A full matrix, or an unknown source or destination, is a fault.</p>
 
@@ -658,7 +668,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
   <li><code>LZSEED</code>: write any number to restart the path from a new place.</li>
 </ul>
 
-<pre class="fez"><code><span class="reg">LZX</span> <span class="reg">CUTOFF</span> <span class="num">6000</span> <span class="op">ROUTE</span>        <span class="cmt">\ the filter wanders with the attractor</span>
+<pre class="fez"><code><span class="reg">LZX</span> <span class="reg">CUTOFF</span> <span class="num">6000</span> <span class="op">ROUTE</span>        <span class="cmt">\ the filter wanders</span>
 <span class="reg">LZZ</span> <span class="reg">FOLD</span> <span class="num">4000</span> <span class="op">ROUTE</span></code></pre>
 
 <figure class="shot pad"><img src="data:image/png;base64,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" alt="The Lorenz page"><figcaption>The Lorenz page: the path of the attractor, and its settings.</figcaption></figure>
@@ -678,7 +688,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 <pre class="fez"><code><span class="num">1</span> <span class="reg">QON</span> <span class="op">!</span>
 <span class="num">4</span> <span class="reg">QSCALE</span> <span class="op">!</span>                   <span class="cmt">\ major pentatonic</span>
 <span class="note">C3</span> <span class="reg">QROOT</span> <span class="op">!</span>
-<span class="reg">LFO0</span> <span class="reg">PITCH</span> <span class="num">3000</span> <span class="op">ROUTE</span>        <span class="cmt">\ the LFO sweeps about an octave each way, in steps of the scale</span></code></pre>
+<span class="reg">LFO0</span> <span class="reg">PITCH</span> <span class="num">3000</span> <span class="op">ROUTE</span>        <span class="cmt">\ an octave each way, in key</span></code></pre>
 
 <h3 id="turing">Turing machine</h3>
 
@@ -693,7 +703,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 </ul>
 
 <pre class="fez"><code><span class="num">1</span> <span class="reg">TMPUL</span> <span class="op">!</span>                    <span class="cmt">\ pulser 0 steps the machine</span>
-<span class="reg">TMOUT</span> <span class="reg">PITCH</span> <span class="num">6000</span> <span class="op">ROUTE</span>       <span class="cmt">\ the bits choose the pitch, over about two octaves</span>
+<span class="reg">TMOUT</span> <span class="reg">PITCH</span> <span class="num">6000</span> <span class="op">ROUTE</span>       <span class="cmt">\ the bits pick the pitch</span>
 <span class="num">1</span> <span class="reg">QON</span> <span class="op">!</span>  <span class="num">4</span> <span class="reg">QSCALE</span> <span class="op">!</span>          <span class="cmt">\ keep it in key</span></code></pre>
 
 <p>Lock the pattern by setting <code>0 TMCHANCE !</code>, and loosen it a little at a time.</p>
@@ -728,7 +738,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 </ul>
 
 <pre class="fez"><code><span class="num">19930</span> <span class="reg">DLYTIME</span> <span class="op">!</span>     <span class="cmt">\ 7.3 seconds round</span>
-<span class="num">29000</span> <span class="reg">DLYFB</span> <span class="op">!</span>       <span class="cmt">\ nearly 89 percent: each phrase returns for minutes</span>
+<span class="num">29000</span> <span class="reg">DLYFB</span> <span class="op">!</span>       <span class="cmt">\ nearly 89 percent feedback</span>
 <span class="num">18000</span> <span class="reg">DLYLP</span> <span class="op">!</span>       <span class="cmt">\ each trip round is darker</span>
 <span class="num">3000</span> <span class="reg">DLYWOB</span> <span class="op">!</span>       <span class="cmt">\ a trace of wow</span>
 <span class="num">22000</span> <span class="reg">DLYIN</span> <span class="op">!</span>       <span class="cmt">\ new notes lie over the old</span></code></pre>
@@ -796,7 +806,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 <span class="num">15291</span> <span class="reg">GPOS1</span> <span class="op">!</span>  <span class="num">1</span> <span class="reg">GFLG1</span> <span class="op">!</span>   <span class="num">8000</span> <span class="reg">GLVL1</span> <span class="op">!</span>     <span class="cmt">\ 14 seconds</span>
 <span class="num">22937</span> <span class="reg">GPOS2</span> <span class="op">!</span>  <span class="num">1</span> <span class="reg">GFLG2</span> <span class="op">!</span>   <span class="num">7000</span> <span class="reg">GLVL2</span> <span class="op">!</span>     <span class="cmt">\ 21 seconds</span>
 <span class="num">29490</span> <span class="reg">GPOS3</span> <span class="op">!</span>  <span class="num">1</span> <span class="reg">GFLG3</span> <span class="op">!</span>   <span class="num">6000</span> <span class="reg">GLVL3</span> <span class="op">!</span>     <span class="cmt">\ 27 seconds</span>
-<span class="num">16000</span> <span class="reg">MIXBF</span> <span class="op">!</span>                                <span class="cmt">\ send them to the delay</span>
+<span class="num">16000</span> <span class="reg">MIXBF</span> <span class="op">!</span>                               <span class="cmt">\ send them on</span>
 
 <span class="cmt">\ the tape loop itself</span>
 <span class="num">19930</span> <span class="reg">DLYTIME</span> <span class="op">!</span>  <span class="num">29000</span> <span class="reg">DLYFB</span> <span class="op">!</span>  <span class="num">18000</span> <span class="reg">DLYLP</span> <span class="op">!</span>  <span class="num">22000</span> <span class="reg">DLYIN</span> <span class="op">!</span></code></pre>
@@ -945,7 +955,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <p>At rest a stick holds its pot at the middle of the range, 16384. Push right or up and the pot rises towards 32767; push left or down and it falls towards 0. A small dead zone around the centre keeps a stick that does not quite return to zero from nudging the sound. The pots do nothing until you route them. To make the left stick open the filter, send <code>MP0</code> to <code>CUTOFF</code> in the matrix:</p>
 
-<pre class="fez"><code><span class="reg">MP0</span> <span class="reg">CUTOFF</span> <span class="num">16384</span> <span class="op">ROUTE</span>      <span class="cmt">\ the left stick's left-right axis sweeps the cutoff</span></code></pre>
+<pre class="fez"><code><span class="reg">MP0</span> <span class="reg">CUTOFF</span> <span class="num">16384</span> <span class="op">ROUTE</span>      <span class="cmt">\ left-right sweeps the cutoff</span></code></pre>
 
 <p>Loading a patch leaves the pots where they are, because they belong to your hands and not to the patch. The CTRL screen shows all sixteen under the POTS heading. <code>MP4</code> to <code>MP15</code> are not connected to anything yet.</p>
 
@@ -1032,13 +1042,13 @@ name Deep Loop
 desc Frippertronics at ambient speed...
 listen Soft notes that return minutes later
 level 16384                 the master level
-pulser 0 on 1 rate 10       pulser number, on or off, pulses a minute
-reg CUTOFF 12000            a register, by name; only those that differ from the default
+pulser 0 on 1 rate 10       number, on or off, pulses a minute
+reg CUTOFF 12000            a register, by name (only if not default)
 reg DLYFB 29000
-route ENV CUTOFF 6000       a matrix route: source name, destination, weight
-ca 30 10836 0 4             the cellular automaton: rule, row, tap, trigger
-lz 8000 15300 4             the Lorenz attractor: rate, rho, trigger
-block 0                     the source of block 0; each line starts with "> "
+route ENV CUTOFF 6000       source, destination, weight
+ca 30 10836 0 4             automaton: rule, row, tap, trigger
+lz 8000 15300 4             Lorenz: rate, rho, trigger
+block 0                     its code; lines start "> "
 > 3 RND 0 =  1 JZ
 > ...
 word 2                      the same for a word</pre>
@@ -1093,7 +1103,7 @@ word 2                      the same for a word</pre>
 
 <p>One block, run by pulser 0. Each time it runs it chooses a random note and plays it:</p>
 
-<pre class="fez"><code><span class="cmt">\ bell: random degree 0..9 of colour 10 (minor pentatonic) over root C3</span>
+<pre class="fez"><code><span class="cmt">\ bell: random degree 0..9 of colour 10 over C3</span>
 <span class="num">10</span> <span class="op">RND</span> <span class="num">10</span> <span class="op">COLOUR</span> <span class="note">C3</span> <span class="op">+</span> <span class="reg">PITCH</span> <span class="op">!</span>
 <span class="num">6000</span> <span class="op">RND</span> <span class="num">4000</span> <span class="op">+</span> <span class="reg">FMAMT</span> <span class="op">!</span>
 <span class="num">1</span> <span class="reg">GATE</span> <span class="op">!</span></code></pre>
@@ -1109,7 +1119,7 @@ word 2                      the same for a word</pre>
 
 <h4>Rule 30 Rain</h4>
 
-<pre class="fez"><code><span class="cmt">\ block 0, run by pulser 0: reseed if the row died, then one generation</span>
+<pre class="fez"><code><span class="cmt">\ block 0 (pulser 0): reseed if dead, then step</span>
 <span class="reg">CACOUNT</span> <span class="op">@</span> <span class="num">1</span> <span class="op">JNZ</span>  0x0100 <span class="reg">CAROW</span> <span class="op">!</span>  <span class="num">1</span> <span class="op">L</span>
 <span class="num">1</span> <span class="reg">CASTEP</span> <span class="op">!</span></code></pre>
 
@@ -1128,7 +1138,7 @@ word 2                      the same for a word</pre>
   <li><code>CACOUNT @ 10 SHL</code> is the number of live cells times 1024: the more crowded the row, the more FM.</li>
 </ul>
 
-<pre class="fez"><code><span class="cmt">\ setup, run once: watch cell 3, fire pulser 1 on a birth there, use rule 30</span>
+<pre class="fez"><code><span class="cmt">\ setup, run once: tap cell 3; a birth fires pulser 1</span>
 <span class="num">3</span> <span class="reg">CATAP</span> <span class="op">!</span>  <span class="num">1</span> <span class="reg">CATRIG</span> <span class="op">!</span>  <span class="num">30</span> <span class="reg">CARULE</span> <span class="op">!</span></code></pre>
 
 <h4>Deep Loop</h4>

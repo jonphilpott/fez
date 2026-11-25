@@ -15,13 +15,13 @@ name Deep Loop
 desc Frippertronics at ambient speed...
 listen Soft notes that return minutes later
 level 16384                 the master level
-pulser 0 on 1 rate 10       pulser number, on or off, pulses a minute
-reg CUTOFF 12000            a register, by name; only those that differ from the default
+pulser 0 on 1 rate 10       number, on or off, pulses a minute
+reg CUTOFF 12000            a register, by name (only if not default)
 reg DLYFB 29000
-route ENV CUTOFF 6000       a matrix route: source name, destination, weight
-ca 30 10836 0 4             the cellular automaton: rule, row, tap, trigger
-lz 8000 15300 4             the Lorenz attractor: rate, rho, trigger
-block 0                     the source of block 0; each line starts with "> "
+route ENV CUTOFF 6000       source, destination, weight
+ca 30 10836 0 4             automaton: rule, row, tap, trigger
+lz 8000 15300 4             Lorenz: rate, rho, trigger
+block 0                     its code; lines start "> "
 > 3 RND 0 =  1 JZ
 > ...
 word 2                      the same for a word</pre>

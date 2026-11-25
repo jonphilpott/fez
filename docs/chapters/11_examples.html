@@ -27,7 +27,7 @@
 
 <p>One block, run by pulser 0. Each time it runs it chooses a random note and plays it:</p>
 
-<pre class="fez">\ bell: random degree 0..9 of colour 10 (minor pentatonic) over root C3
+<pre class="fez">\ bell: random degree 0..9 of colour 10 over C3
 10 RND 10 COLOUR C3 + PITCH !
 6000 RND 4000 + FMAMT !
 1 GATE !</pre>
@@ -43,7 +43,7 @@
 
 <h4>Rule 30 Rain</h4>
 
-<pre class="fez">\ block 0, run by pulser 0: reseed if the row died, then one generation
+<pre class="fez">\ block 0 (pulser 0): reseed if dead, then step
 CACOUNT @ 1 JNZ  0x0100 CAROW !  1 L
 1 CASTEP !</pre>
 
@@ -62,7 +62,7 @@ CACOUNT @ 10 SHL FMAMT !
   <li><code>CACOUNT @ 10 SHL</code> is the number of live cells times 1024: the more crowded the row, the more FM.</li>
 </ul>
 
-<pre class="fez">\ setup, run once: watch cell 3, fire pulser 1 on a birth there, use rule 30
+<pre class="fez">\ setup, run once: tap cell 3; a birth fires pulser 1
 3 CATAP !  1 CATRIG !  30 CARULE !</pre>
 
 <h4>Deep Loop</h4>

@@ -40,7 +40,7 @@
 
 <p>At rest a stick holds its pot at the middle of the range, 16384. Push right or up and the pot rises towards 32767; push left or down and it falls towards 0. A small dead zone around the centre keeps a stick that does not quite return to zero from nudging the sound. The pots do nothing until you route them. To make the left stick open the filter, send <code>MP0</code> to <code>CUTOFF</code> in the matrix:</p>
 
-<pre class="fez">MP0 CUTOFF 16384 ROUTE      \ the left stick's left-right axis sweeps the cutoff</pre>
+<pre class="fez">MP0 CUTOFF 16384 ROUTE      \ left-right sweeps the cutoff</pre>
 
 <p>Loading a patch leaves the pots where they are, because they belong to your hands and not to the patch. The CTRL screen shows all sixteen under the POTS heading. <code>MP4</code> to <code>MP15</code> are not connected to anything yet.</p>
 

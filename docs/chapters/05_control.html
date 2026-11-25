@@ -31,8 +31,8 @@
 
 <pre class="fez">C4 SQ0 !  E4 SQ1 !  G4 SQ2 !  C5 SQ3 !     \ four notes of a chord
 4 SQLEN !                                   \ a loop of four
-3 SQDRV !                                   \ each step sets the pitch and plays it
-1 SQPUL !                                   \ pulser 0 is the clock</pre>
+3 SQDRV !                                   \ set the pitch and play it
+1 SQPUL !                                   \ pulser 0 clocks it</pre>
 
 <p>With pulser 0 turned on and set to 120, that plays two notes a second, round and round. Pitches are in the units of <a href="#pitch">Pitch</a>, so you can add a semitone offset to a step with <code>ST</code>. Since steps are just registers, a block can rewrite them while the sequence plays.</p>
 
@@ -45,7 +45,7 @@
 <p>The glide is exponential: each step it covers a fixed share of the remaining distance, so it starts fast and finishes slowly, as a real analogue circuit does. This is the way to get a filter to swoop towards a new value instead of jumping.</p>
 
 <pre class="fez">26000 SLT0 !          \ a glide time of nearly a second
-16000 RND CV0 !       \ write a random target; SLO0 drifts towards it</pre>
+16000 RND CV0 !       \ a random target; SLO0 follows</pre>
 
 <h3 id="matrix">The modulation matrix</h3>
 
@@ -55,9 +55,9 @@
 
 <p>The sound reads the effective value. The register itself is not changed: the CTRL tab shows it, <code>CUTOFF @</code> reads it, and the sound moves around it. A weight of 32767 passes the whole source, 16384 passes half, and a negative weight turns the source upside down. You can have 16 routes. They are set in the MATRIX tab, or from code with <code>ROUTE</code>:</p>
 
-<pre class="fez">LFO0 CUTOFF 4000 ROUTE      \ the slow sine moves the cutoff up and down by 4000
-ENV FMAMT 8000 ROUTE        \ each note starts with more FM and mellows
-ENV CUTOFF 6000 NEG ROUTE   \ a negative weight: the cutoff falls as the note opens</pre>
+<pre class="fez">LFO0 CUTOFF 4000 ROUTE      \ the LFO sways the cutoff
+ENV FMAMT 8000 ROUTE        \ each note starts bright
+ENV CUTOFF 6000 NEG ROUTE   \ a negative weight</pre>
 
 <p>The word takes the source, the destination and the weight, in that order. Routing the same pair again just changes the weight. Any register that shapes the sound can be a destination, except <code>GATE</code>. A full matrix, or an unknown source or destination, is a fault.</p>
 

@@ -43,7 +43,7 @@ CAROW @ 15 AND 13 COLOUR C3 + PITCH !
   <li><code>LZSEED</code>: write any number to restart the path from a new place.</li>
 </ul>
 
-<pre class="fez">LZX CUTOFF 6000 ROUTE        \ the filter wanders with the attractor
+<pre class="fez">LZX CUTOFF 6000 ROUTE        \ the filter wanders
 LZZ FOLD 4000 ROUTE</pre>
 
 <figure class="shot pad"><img src="shots/pad-lorenz.png" alt="The Lorenz page"><figcaption>The Lorenz page: the path of the attractor, and its settings.</figcaption></figure>
@@ -63,7 +63,7 @@ LZZ FOLD 4000 ROUTE</pre>
 <pre class="fez">1 QON !
 4 QSCALE !                   \ major pentatonic
 C3 QROOT !
-LFO0 PITCH 3000 ROUTE        \ the LFO sweeps about an octave each way, in steps of the scale</pre>
+LFO0 PITCH 3000 ROUTE        \ an octave each way, in key</pre>
 
 <h3 id="turing">Turing machine</h3>
 
@@ -78,7 +78,7 @@ LFO0 PITCH 3000 ROUTE        \ the LFO sweeps about an octave each way, in steps
 </ul>
 
 <pre class="fez">1 TMPUL !                    \ pulser 0 steps the machine
-TMOUT PITCH 6000 ROUTE       \ the bits choose the pitch, over about two octaves
+TMOUT PITCH 6000 ROUTE       \ the bits pick the pitch
 1 QON !  4 QSCALE !          \ keep it in key</pre>
 
 <p>Lock the pattern by setting <code>0 TMCHANCE !</code>, and loosen it a little at a time.</p>
