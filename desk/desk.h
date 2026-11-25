@@ -23,7 +23,7 @@
 
 /* Keys the platform layer reports. Printable characters arrive separately, through desk_text(). Letters and symbols
    that are part of a Ctrl/Alt chord arrive in desk_key() as their lower-case ASCII code. */
-enum { KEY_NONE = 0, KEY_UP = 256, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_ESC, KEY_BACKSPACE, KEY_TAB, KEY_DELETE };
+enum { KEY_NONE = 0, KEY_UP = 256, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_ESC, KEY_BACKSPACE, KEY_TAB, KEY_DELETE, KEY_F1 };
 enum { MOD_SHIFT = 1, MOD_CTRL = 2, MOD_ALT = 4 };
 
 enum { TAB_EDITOR, TAB_PATCHES, TAB_PULSERS, TAB_SEQ, TAB_MATRIX, TAB_DEVICES, TAB_BUFFER, TAB_CTRL, TAB_SCOPE, TAB_COUNT };
@@ -87,8 +87,11 @@ typedef struct Desk {
 
   char msg[160]; double msg_until;
   double now_ms;
-  float peak;                    /* recent output level 0..1, for the meter (set by the platform layer) */
+  float peak;                    /* recent output level 0..1, for the scope's header (set by the platform layer) */
+  float cpu, cpu_peak;           /* audio load: share of real time the callback uses, smoothed and worst-in-3-s (1.0 = at the deadline) */
+  int clip;                      /* 1 while the output has recently reached full scale */
   int pulsers_on;                /* whether the pulsers run (Ctrl+P) */
+  int help, help_top;            /* the F1 help page is open; how far it is scrolled (narrow windows only) */
   int rec_toggle;                /* Ctrl+T sets this; main.c starts or stops the recording (it owns the file) and clears it */
   int recording; double rec_secs;/* set by main.c while a take runs: the status bar shows REC and the time */
   volatile int muted;            /* global mute (Shift+Esc): the app fades the output to silence; the synth keeps running. Read by the audio thread, hence volatile. */
@@ -197,6 +200,7 @@ void tab_buffer_draw(Desk *d, View *v);   void tab_buffer_key(Desk *d, int key, 
 void tab_matrix_draw(Desk *d, View *v);   void tab_matrix_key(Desk *d, int key, int mods);   void tab_matrix_text(Desk *d, int ch);
 void tab_seq_draw(Desk *d, View *v);      void tab_seq_key(Desk *d, int key, int mods);      void tab_seq_text(Desk *d, int ch);
 void tab_ctrl_draw(Desk *d, View *v);     void tab_ctrl_key(Desk *d, int key, int mods);     void tab_ctrl_text(Desk *d, int ch);
+void desk_help_draw(Desk *d);   int desk_help_key(Desk *d, int key);    /* help.c: the F1 page */
 void ctrl_build_rows(Desk *d);            /* once, after d->regs is filled: the CTRL list with its headings */
 void tab_scope_draw(Desk *d, View *v);    void tab_scope_key(Desk *d, int key, int mods);    void tab_scope_text(Desk *d, int ch);
 

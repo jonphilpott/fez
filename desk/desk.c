@@ -236,15 +236,32 @@ static void draw_status(Desk *d) {
     hx += rw + GFX_CELL_W * s;
   }
 
-  int meter_w = 14 * GFX_CELL_W * s;                     /* the level meter sits at the right edge */
-  gfx_clip(cv, hx, y, cv->w - hx - meter_w - 8, sh);
+  int meter_w = 14 * GFX_CELL_W * s;                     /* the load meter sits at the right edge, the CLIP flag just left of it */
+  int clip_w = 6 * GFX_CELL_W * s;
+  gfx_clip(cv, hx, y, cv->w - hx - meter_w - clip_w - 8, sh);
   if (d->msg_until > d->now_ms) gfx_text(cv, hx, y + 3, d->msg, s, gfx_colour(COL_AMB));
   else gfx_text(cv, hx, y + 3, TABS[d->layouts[d->layout].tab[d->focus]].hint, s, gfx_colour(COL_DIM));
   gfx_unclip(cv);
-  double lvl = d->peak * 1.6; lvl = lvl > 1 ? 1 : lvl;
+  /* The load bar: how much of real time the audio callback uses. Full bar = 100 percent = the point where the audio crackles.
+     The bar is the recent average; a thin marker shows the worst reading of the last few seconds, which is what predicts a
+     dropout. Colour: green below 70 percent, amber to 90, red above. */
   int mx = cv->w - meter_w - 4;
+  double avg = d->cpu > 1 ? 1 : d->cpu, pk = d->cpu_peak > 1 ? 1 : d->cpu_peak;
   gfx_fill(cv, mx, y + 5, meter_w, sh - 10, gfx_colour(COL_SEL));
-  gfx_fill(cv, mx, y + 5, (int)(lvl * meter_w), sh - 10, gfx_colour(d->peak > 0.9 ? COL_RED : COL_GRN));
+  gfx_fill(cv, mx, y + 5, (int)(avg * meter_w), sh - 10, gfx_colour(d->cpu > 0.9 ? COL_RED : d->cpu > 0.7 ? COL_AMB : COL_GRN));
+  const char *label = "CPU";                               /* inside the bar, at its right end (the peak marker is rarely there): dark over the fill, light over the empty track */
+  for (int i = 0; i < 3; i++) {
+    int lx = mx + meter_w - GFX_CELL_W * s * (4 - i), covered = (int)(avg * meter_w) > lx - mx + GFX_CELL_W * s / 2;
+    char ch[2] = { label[i], 0 };
+    gfx_text(cv, lx, y + 3, ch, s, gfx_colour(covered ? COL_BG : COL_FG));
+  }
+  int px = mx + (int)(pk * (meter_w - 2 * s));
+  gfx_fill(cv, px, y + 3, 2 * s, sh - 6, gfx_colour(d->cpu_peak > 0.9 ? COL_RED : COL_FG));
+  if (d->clip) {                                           /* CLIP: the output reached full scale in the last second */
+    int cx = mx - clip_w - 4;
+    gfx_fill(cv, cx, y + 1, clip_w, sh - 2, gfx_colour(COL_RED));
+    gfx_text(cv, cx + GFX_CELL_W * s / 2 + s, y + 3, "CLIP", s, gfx_colour(COL_BG));
+  }
 }
 
 void desk_draw(Desk *d) {
@@ -253,6 +270,7 @@ void desk_draw(Desk *d) {
   const Layout *l = &d->layouts[d->layout];
   if (d->focus >= l->ntiles) d->focus = 0;
   for (int i = 0; i < l->ntiles; i++) draw_tile(d, i);
+  if (d->help) desk_help_draw(d);                         /* F1: the help page covers the tiles */
   draw_status(d);
 }
 
@@ -297,6 +315,7 @@ int desk_note_key(Desk *d, int ch, int down) {
     d->kb_key_note[ch] = 0;
     return 1;
   }
+  if (d->help) return 0;                                        /* the help page is open: no notes */
   int semi = kb_semitones(ch);
   const Layout *l = &d->layouts[d->layout];
   if (semi < 0 || l->tab[d->focus] != TAB_DEVICES || d->dev.sub != DEV_KEYS) return 0;   /* only the KEYS page plays */
@@ -319,6 +338,8 @@ void desk_key(Desk *d, int key, int mods) {
   /* PANIC: Shift+Esc toggles the global mute from any tab, even in the middle of typing a number. Plain Esc is left alone,
      because most tabs use it to cancel an entry. */
   if (key == KEY_ESC && (mods & MOD_SHIFT)) { d->muted = !d->muted; return; }
+  if (key == KEY_F1 && !d->help) { d->help = 1; d->help_top = 0; return; }       /* F1 opens the help page ... */
+  if (d->help) { desk_help_key(d, key); return; }                               /* ... which takes every key until F1 or Esc closes it */
   if (mods & (MOD_CTRL | MOD_ALT)) {
     switch (key) {
       case KEY_LEFT:  move_focus(d, -1, 0); return;
@@ -347,5 +368,6 @@ void desk_key(Desk *d, int key, int mods) {
 }
 
 void desk_text(Desk *d, int ch) {
+  if (d->help) return;                                          /* the help page is open: typing does nothing */
   TABS[d->layouts[d->layout].tab[d->focus]].text(d, ch);
 }

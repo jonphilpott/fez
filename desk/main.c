@@ -22,7 +22,14 @@ static Desk desk;
 static SDL_AudioDeviceID dev;
 static float scope_ring[SCOPE_RING];      /* the last SCOPE_RING output samples, for the scope tab */
 static volatile unsigned scope_head;      /* total samples written; the newest is at (scope_head - 1) % SCOPE_RING */
-static volatile float out_peak;           /* recent output level, for the meter */
+static volatile float out_peak;           /* recent output level, for the scope's header */
+/* The load meter. The audio thread times itself: how long one callback takes, divided by how long the buffer it filled lasts.
+   At 1.0 the synth only just meets its deadline; above that the audio crackles. Published to the main thread as plain
+   volatile numbers (a torn read of a float only ever shows a slightly stale meter, so no lock is needed). */
+static volatile float cpu_avg, cpu_peak;
+static volatile int clip_left;            /* samples left to show the CLIP flag; reset to one second at every full-scale sample */
+#define CPU_SMOOTH 0.05                   /* weight of each new reading in the average: about a fifth of a second */
+#define CPU_PEAK_HOLD 3.0                 /* seconds the worst reading is kept */
 /* Recording the output. The audio thread must never touch the disk, so it drops each finished sample into a ring buffer and the
    main thread (which runs every 16 ms or so) empties the ring into the WAV file. The ring holds about 2.7 s, far more than the
    main loop ever lags. head is written only by the audio thread, tail only by the main thread, so no lock is needed. */
@@ -37,6 +44,7 @@ static float mute_gain = 1.0f;            /* 1 sounding, 0 muted; glides between
 
 static void audio_cb(void *user, Uint8 *stream, int len) {
   (void)user;
+  Uint64 t0 = SDL_GetPerformanceCounter();                   /* for the load meter: see the end of this function */
   float *out = (float *)stream;
   int frames = len / (int)(2 * sizeof(float));               /* interleaved stereo */
   static float mono[8192];
@@ -56,6 +64,7 @@ static void audio_cb(void *user, Uint8 *stream, int len) {
     out[2 * i] = out[2 * i + 1] = mono[i];                   /* same signal in both ears */
     scope_ring[(head + (unsigned)i) & (SCOPE_RING - 1)] = mono[i];
     if (fabsf(mono[i]) > pk) pk = fabsf(mono[i]);
+    if (fabsf(mono[i]) >= 0.99f) clip_left = FEZ_SAMPLE_RATE;
   }
   scope_head = head + (unsigned)frames;
   if (rec_on) {                                              /* what goes to the speakers is what goes to the file (mute fade included) */
@@ -67,6 +76,16 @@ static void audio_cb(void *user, Uint8 *stream, int len) {
     SDL_AtomicSet(&rec_head, h);
   }
   out_peak = pk;
+  if (clip_left > 0) clip_left -= frames;
+
+  /* Load meter: time spent / time available. The peak is held for a few seconds, then restarts from the current reading. */
+  static double peak_left = 0, peak = 0;
+  double avail = (double)frames / FEZ_SAMPLE_RATE;
+  double load = (double)(SDL_GetPerformanceCounter() - t0) / (double)SDL_GetPerformanceFrequency() / avail;
+  cpu_avg = (float)(cpu_avg + (load - cpu_avg) * CPU_SMOOTH);
+  peak_left -= avail;
+  if (load >= peak || peak_left <= 0) { peak = load; peak_left = CPU_PEAK_HOLD; }
+  cpu_peak = (float)peak;
 }
 
 /* Move whatever the audio thread has queued into the file. Called often from the main loop; returns 0 unless the disk failed. */
@@ -140,6 +159,7 @@ static int translate_key(SDL_Keycode k) {
     case SDLK_RETURN: case SDLK_KP_ENTER: return KEY_ENTER;
     case SDLK_ESCAPE: return KEY_ESC;    case SDLK_BACKSPACE: return KEY_BACKSPACE;
     case SDLK_TAB: return KEY_TAB;       case SDLK_DELETE: return KEY_DELETE;
+    case SDLK_F1: return KEY_F1;
     default: return k > 32 && k < 127 ? (int)k : KEY_NONE;
   }
 }
@@ -247,7 +267,7 @@ int main(void) {
       desk_set_canvas(&desk, pixels, pw, ph);
     }
     SDL_LockAudioDevice(dev);
-    desk.peak = out_peak;
+    desk.peak = out_peak; desk.cpu = cpu_avg; desk.cpu_peak = cpu_peak; desk.clip = clip_left > 0;
     desk_tick(&desk, (double)(now - last_frame));
     desk_draw(&desk);
     SDL_UnlockAudioDevice(dev);
