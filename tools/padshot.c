@@ -56,6 +56,14 @@ int main(int argc, char **argv) {
     dump(prefix, n);
     tap(BTN_R1);
   }
+  desk.layouts[3].tab[0] = TAB_DEVICES;                  /* every page of the Devices tab (R2 is the next page) */
+  for (int p = 1; p < 6; p++) {
+    static const char *const pages[] = { "delay", "cellular", "lorenz", "quantiser", "turing", "keys" };
+    tap(BTN_R2);
+    if (p == 1) for (int i = 0; i < 14; i++) { tap(BTN_X); fez_render_stereo(&synth, out, 480); desk_tick(&desk, 16); }   /* step the automaton so the picture has a history */
+    char n[32]; snprintf(n, sizeof n, "03%c_%s", 'a' + p, pages[p]);
+    dump(prefix, n);
+  }
   desk.layouts[3].tab[0] = TAB_EDITOR;
   tap(BTN_A); dump(prefix, "10_palette");                  /* A in the editor opens the palette */
   tap(BTN_R2); tap(BTN_R2); tap(BTN_R2); tap(BTN_R2); tap(BTN_R2); dump(prefix, "11_palette_notes");

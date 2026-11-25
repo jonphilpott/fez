@@ -196,10 +196,12 @@ static Button key_to_button(SDL_Keycode k) {
 }
 
 /* A game controller's buttons (the Brick shows up as one). SDL names buttons by position on an Xbox pad: A is the bottom
-   one. Handhelds laid out like a Nintendo pad put A on the right, so FEZ_PAD_SWAP=1 swaps A with B and X with Y. */
+   one. The Brick is laid out like a Nintendo pad (A right, B bottom, X top, Y left), so its A and B arrive swapped. Measured on
+   a real Brick, 25 Nov 2026 (A and B; X and Y assumed to follow). Swapping A with B and X with Y is therefore the default;
+   FEZ_PAD_SWAP=0 turns it off for a pad with the Xbox layout. */
 static Button controller_to_button(Uint8 b) {
   static int swap = -1;
-  if (swap < 0) { const char *e = getenv("FEZ_PAD_SWAP"); swap = e && e[0] == '1'; }
+  if (swap < 0) { const char *e = getenv("FEZ_PAD_SWAP"); swap = !(e && e[0] == '0'); }
   switch (b) {
     case SDL_CONTROLLER_BUTTON_DPAD_UP: return BTN_UP;       case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return BTN_DOWN;
     case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return BTN_LEFT;   case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return BTN_RIGHT;

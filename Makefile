@@ -31,10 +31,22 @@ test: test_core
 	./test_core
 
 clean:
-	rm -rf fez deskshot padshot test_core render *.dSYM
+	rm -rf fez deskshot padshot test_core render dist *.dSYM
 
+# Cross-build for the TrimUI Brick: run inside the toolchain container (brick/build.sh does that). The container's environment
+# supplies CC (an aarch64 compiler) and pkg-config pointing at the Brick's own SDL2. Output goes to dist/, so it never overwrites
+# the ./fez you run on this machine.
+brick: dist/fez dist/probe
 
-.PHONY: all test clean
+dist/fez: $(CORE) $(DESK) core/*.h desk/*.h
+	mkdir -p dist
+	$(CC) $(CFLAGS) -Icore -Idesk $(shell pkg-config --cflags sdl2) $(CORE) $(DESK) -o $@ $(shell pkg-config --libs sdl2) -lm
+
+dist/probe: brick/probe.c
+	mkdir -p dist
+	$(CC) -std=c99 -O2 -Wall $(shell pkg-config --cflags sdl2) brick/probe.c -o $@ $(shell pkg-config --libs sdl2) -lm
+
+.PHONY: all test clean brick
 
 # Draws every handheld screen to a picture file without a window (see tools/padshot.c).
 padshot: $(CORE) $(DESK) tools/padshot.c core/*.h desk/*.h

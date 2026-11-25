@@ -398,7 +398,14 @@ static const char *tab_hint(const Pad *p) {
     case TAB_EDITOR:  return "A words  B del  X apply  Y select";
     case TAB_PATCHES: return "A load  X save  B delete  L2 list";
     case TAB_CTRL:    return "A/B +/-  Y coarse  X units";
-    case TAB_DEVICES: return "A act  X space  L2/R2 page";
+    case TAB_DEVICES:                       /* X is the page's main action (see action() in tab_devices.c) */
+      switch (d->dev.sub) {
+        case DEV_CELLULAR: case DEV_TURING: return "A act  X step  L2/R2 page";
+        case DEV_QUANTISER:                 return "A act  X on/off  L2/R2 page";
+        case DEV_DELAY:                     return "A act  X freeze  L2/R2 page";
+        case DEV_KEYS:                      return "A act  X silence  L2/R2 page";
+        default:                            return "A act  X restart  L2/R2 page";   /* Lorenz */
+      }
     case TAB_BUFFER:  return "A adjust  X trigger  L2/R2 page";
     case TAB_PULSERS: return "A edit  X toggle  Y coarse";
     case TAB_SEQ:     return "A clock  X on/off  Y snap";

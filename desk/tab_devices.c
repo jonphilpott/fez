@@ -129,9 +129,12 @@ static void draw_settings(Desk *d, View *v, int col, int row, int width) {
 }
 
 /* A picture of a row of 16 bits over time: newest generation at the bottom. Bit 0 is drawn at the right, like a number.
+   cs is the size of one cell in pixels (usually the text row height; smaller on the handheld, to leave room for the settings
+   beside the picture). The picture is prows text rows tall, so a smaller cell shows more generations.
    live_mask says which bits are in use (others are drawn as dark columns); mark_col, if not negative, shades one bit's column. */
-static void draw_history(Desk *d, View *v, const uint16_t *hist, int n, int prows, int live_mask, int mark_col) {
-  int cs = v->rh, x0 = v->x, y0 = v->y + 2 * v->rh, rows = prows < CA_HIST ? prows : CA_HIST, sc = d->scale;
+static void draw_history(Desk *d, View *v, const uint16_t *hist, int n, int prows, int cs, int live_mask, int mark_col) {
+  int x0 = v->x, y0 = v->y + 2 * v->rh, rows = prows * v->rh / cs, sc = d->scale;
+  if (rows > CA_HIST) rows = CA_HIST;
   gfx_fill(&d->cv, x0, y0, 16 * cs, rows * cs, gfx_colour(COL_PNL));
   for (int c = 0; c < 16; c++)
     if (!((live_mask >> c) & 1)) gfx_fill(&d->cv, x0 + (15 - c) * cs, y0, cs, rows * cs, gfx_colour(COL_BG));
@@ -145,17 +148,19 @@ static void draw_history(Desk *d, View *v, const uint16_t *hist, int n, int prow
   gfx_frame(&d->cv, x0, y0, 16 * cs, rows * cs, gfx_colour(COL_LINE));
 }
 
-static void draw_cellular(Desk *d, View *v, int pane_w, int prows, int sx, int sy, int swidth) {
+/* compact: the handheld's layout. The picture (cells of size cs) is on the left, the settings on the right, and the two
+   status lines run along the bottom under both. Otherwise the status lines sit under the settings. */
+static void draw_cellular(Desk *d, View *v, int prows, int cs, int compact, int sx, int sy, int swidth) {
   FezSynth *s = d->synth;
-  (void)pane_w;
-  draw_history(d, v, d->dev.ca_hist, d->dev.ca_n, prows, 0xFFFF, s->ca.tap);        /* the watched column is shaded */
+  draw_history(d, v, d->dev.ca_hist, d->dev.ca_n, prows, cs, 0xFFFF, s->ca.tap);    /* the watched column is shaded */
   draw_settings(d, v, sx, sy, swidth);
   char buf[64];
   int alive = fez_reg_read(s, REG_CACOUNT), watched = fez_reg_read(s, REG_CABIT);
-  snprintf(buf, sizeof buf, "alive %d of 16", alive); view_text(v, sx, sy + 4, buf, COL_FG);
-  snprintf(buf, sizeof buf, "watching cell %d: %s", s->ca.tap, watched ? "alive" : "dead"); view_text(v, sx, sy + 5, buf, COL_FG);
-  if (sy + 7 < v->rows) view_text(v, sx, sy + 7, "Space: step once", COL_DIM);
-  if (sy + 8 < v->rows) view_text(v, sx, sy + 8, "n: random row   c: one cell", COL_DIM);
+  int row = compact ? 2 + prows + 1 : sy + 4, col = compact ? 0 : sx;
+  snprintf(buf, sizeof buf, "alive %d of 16", alive); view_text(v, col, row, buf, COL_FG);
+  snprintf(buf, sizeof buf, "watching cell %d: %s", s->ca.tap, watched ? "alive" : "dead"); view_text(v, col, row + 1, buf, COL_FG);
+  if (!compact && sy + 7 < v->rows) view_text(v, sx, sy + 7, "Space: step once", COL_DIM);     /* (the handheld's button bar says it) */
+  if (!compact && sy + 8 < v->rows) view_text(v, sx, sy + 8, "n: random row   c: one cell", COL_DIM);
 }
 
 /* One octave of piano keys. A key is lit if its note is in the scale over the root. The key the voice is playing now
@@ -199,7 +204,7 @@ static void draw_turing(Desk *d, View *v, int pane_w, int prows, int sx, int sy,
   FezSynth *s = d->synth;
   int len = s->mem[REG_TMLEN] < 2 ? 2 : s->mem[REG_TMLEN] > 16 ? 16 : s->mem[REG_TMLEN];
   (void)pane_w;
-  draw_history(d, v, d->dev.tm_hist, d->dev.tm_n, prows, (1 << len) - 1, -1);        /* bits past the loop length are dark */
+  draw_history(d, v, d->dev.tm_hist, d->dev.tm_n, prows, v->rh, (1 << len) - 1, -1);        /* bits past the loop length are dark */
   draw_settings(d, v, sx, sy, swidth);
   char buf[32];
   int out = fez_reg_read(s, REG_TMOUT);
@@ -342,11 +347,18 @@ void tab_devices_draw(Desk *d, View *v) {
   /* Wide tiles: the picture on the left, the settings beside it. Narrow tiles: the settings go under the picture. */
   int top_only = sub == DEV_DELAY || sub == DEV_KEYS;                        /* these pictures are always on top, full width */
   int pane_w = 16 * v->rh, wide = v->w >= pane_w + 26 * v->cw && !top_only;
+  /* The cellular page on a small screen (the Brick's 256x192): shrink the picture's cells until the settings fit beside it. */
+  int cs = v->rh, compact = 0;
+  if (sub == DEV_CELLULAR && !wide) {
+    int fit = (v->w - 26 * v->cw) / 16;                                      /* the settings and the status text need 24 columns, plus gaps */
+    if (fit >= 6) { cs = fit < v->rh ? fit : v->rh; compact = 1; pane_w = 16 * cs; }
+  }
   int prows, sx, sy, swidth;
-  if (wide) { prows = v->rows - 2; sx = (pane_w + v->cw - 1) / v->cw + 2; sy = 2; swidth = v->cols - sx - 1; }
+  if (compact) { prows = v->rows - 5; sx = (pane_w + v->cw - 1) / v->cw + 2; sy = 2; swidth = v->cols - sx - 1; }   /* 5 = the two header rows and the blank and two status rows below */
+  else if (wide) { prows = v->rows - 2; sx = (pane_w + v->cw - 1) / v->cw + 2; sy = 2; swidth = v->cols - sx - 1; }
   else { int n; settings_of(sub, &n); prows = v->rows - 2 - (n + (sub == DEV_DELAY ? 2 : sub == DEV_KEYS ? 6 : 5)); if (prows < 3) prows = 3;      /* the settings, live values and hints need n + 5 rows under the picture */ sx = 0; sy = 2 + prows + 1; swidth = v->cols - 1; }
   if (prows < 3) return;
-  if (sub == DEV_CELLULAR) draw_cellular(d, v, pane_w, prows, sx, sy, swidth);
+  if (sub == DEV_CELLULAR) draw_cellular(d, v, prows, cs, compact, sx, sy, swidth);
   else if (sub == DEV_LORENZ) draw_lorenz(d, v, wide ? pane_w : v->w - 2, prows, sx, sy, swidth);
   else if (sub == DEV_QUANTISER) draw_quantiser(d, v, wide ? pane_w : v->w - 2, prows, sx, sy, swidth);
   else if (sub == DEV_DELAY) { draw_delay(d, v, v->w - 2, prows); draw_settings(d, v, sx, sy, swidth); }

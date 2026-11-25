@@ -8,3 +8,5 @@
 *.o
 # picture files from deskshot / padshot
 *.ppm
+/dist/
+/brick/.toolchain/

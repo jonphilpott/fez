@@ -35,6 +35,10 @@ Targets: the desktop app (macOS, Linux; works now), a Raspberry Pi build of the 
 - `desk.handheld` shortens the status bar and swaps a few key-name hints for button ones; `desk.hint_override` carries the pad's hints.
 - The DEVICES pages start with DELAY: DELAY, CELLULAR, LORENZ, QUANTISER, TURING, KEYS.
 
+### Getting it onto the Brick
+
+`brick/build.sh` (needs Docker; Colima works) pulls LoveRetro's published `ghcr.io/loveretro/tg5040-toolchain` image (an aarch64 gcc 8.3 plus the Brick's own SDL2 2.26, from the Trimui SDK; building the image from its Dockerfile failed in an unrelated library), runs `make brick` inside it, and lays out two paks in `dist/`: `FEZ-probe.pak` (a small program that reports the device's SDL drivers, screen, audio and button numbers, and plays a tone; its report goes to `probe.log` in the pak folder) and `FEZ.pak` (the app; log in `fez.log`; `HOME` is set to the card so patches and recordings land in `FEZ/` on it). Copy a pak folder to `Tools/tg5040/` on the card of a NextUI or MinUI install. Run the probe first. The cross-build works (25 Nov 2026: aarch64 ELF binaries needing only libSDL2, libm and libc, GLIBC 2.17 at most; a harmless RUNPATH points at a container path). Nothing has been run on a Brick yet (the files are written from the documentation: a pak is a folder with a `launch.sh`), so the first run is where the guesses get tested.
+
 ## Build and test (from the repo root)
 
     make test            # builds and runs the tests; must end "all tests ok"
@@ -75,7 +79,7 @@ Recording: the audio thread never touches the disk. It drops each output sample 
 
 ## Current state (25 Nov 2026)
 
-13 example patches (including Ambient Loops, an Eno-style tape-loop piece, and Deep Loop, Frippertronics at ambient speed: 7.3 s delay, low DLYIN, 30 s buffer, a breathing input level). The desktop app feels good to Jon. It builds and runs on Linux amd64 (a laptop; reported by Jon on 25 Nov 2026). Not yet tried on a Raspberry Pi, ARM, or the Brick. The handheld UI (`fez --brick`) was built on 25 Nov 2026 and checked only headless (padshot pictures, `test/test_pad.c`, the real shell on SDL's dummy drivers); the controller mapping for the Brick's own buttons is a guess until it runs there (`FEZ_PAD_SWAP=1` swaps A with B and X with Y if the labels come out the wrong way round).
+13 example patches (including Ambient Loops, an Eno-style tape-loop piece, and Deep Loop, Frippertronics at ambient speed: 7.3 s delay, low DLYIN, 30 s buffer, a breathing input level). The desktop app feels good to Jon. It builds and runs on Linux amd64 (a laptop; reported by Jon on 25 Nov 2026). Not yet tried on a Raspberry Pi, ARM, or the Brick. On the handheld the CELLULAR page shows the picture (7 pixel cells) on the left, the settings on the right and the two status lines along the bottom (`compact` in `desk/tab_devices.c`). The handheld UI (`fez --brick`) was built on 25 Nov 2026 and checked only headless (padshot pictures, `test/test_pad.c`, the real shell on SDL's dummy drivers); the Brick's own buttons were measured with the probe on 25 Nov 2026 (it reports as an "Xbox 360 Controller", so SDL's names work; A and B arrive swapped, so swapping A/B and X/Y is the default; `FEZ_PAD_SWAP=0` turns it off; X and Y are assumed, not yet checked).
 
 ## Open ideas, not started
 
