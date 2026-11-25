@@ -155,7 +155,7 @@ static int parse_token(const char *t, Slot out[2], char *err, size_t errsz) {
 void vm_compile(Compiled *c, const char *src, int max_slots) {
   memset(c, 0, sizeof *c);
   for (int i = 0; i < 16; i++) c->labels[i] = -1;
-  char err[96] = "";
+  char err[128] = "";
   int line = 1, total = 0;                            /* total counts every slot, even past the array */
   const char *p = src;
   while (*p && !err[0]) {
@@ -168,7 +168,7 @@ void vm_compile(Compiled *c, const char *src, int max_slots) {
     Slot s[2];
     char msg[96];
     int k = parse_token(tok, s, msg, sizeof msg);
-    if (k < 0) { snprintf(err, sizeof err, "line %d: %.80s", line, msg); break; }
+    if (k < 0) { snprintf(err, sizeof err, "line %d: %s", line, msg); break; }
     for (int j = 0; j < k; j++) { if (total < BLOCK_SLOTS) c->slots[total] = s[j]; total++; }
   }
   c->count = total;

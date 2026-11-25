@@ -115,7 +115,7 @@ void tab_patches_draw(Desk *d, View *v) {
   int top = *sel - vis / 2; top = top < 0 ? 0 : top > n - vis ? n - vis : top;
 
   /* header: the two lists, the active one lit */
-  char hdr[32];
+  char hdr[48];   /* "filter: " + up to 31 typed letters + "_" must fit */
   view_fill(v, sub == SUB_MINE ? 0 : 15, 0, sub == SUB_MINE ? 14 : 9, 1, COL_AMBD);
   snprintf(hdr, sizeof hdr, "MY PATCHES %d", d->pat.nuser);
   view_text(v, 0, 0, hdr, sub == SUB_MINE ? COL_AMB : COL_DIM);

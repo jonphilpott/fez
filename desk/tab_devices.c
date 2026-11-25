@@ -258,7 +258,7 @@ static void draw_keys(Desk *d, View *v, int pane_w, int prows, int sx, int sy, i
     if (n % 12) continue;
     int y = y0 + h - 1 - (n - lo) * (h - 1) / span;
     gfx_fill(&d->cv, x0, y, w, 1, gfx_colour(COL_SEL));
-    char lab[8]; snprintf(lab, sizeof lab, "C%d", n / 12 - 1);
+    char lab[16]; snprintf(lab, sizeof lab, "C%d", n / 12 - 1);
     gfx_text(&d->cv, x0 + 2 * sc, y - GFX_CELL_H * sc - sc, lab, sc, gfx_colour(COL_DIM));
   }
   int colw = w / KB_HIST + 1;

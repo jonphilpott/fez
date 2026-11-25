@@ -228,7 +228,7 @@ static void draw_status(Desk *d) {
   }
 
   if (d->recording) {                                    /* a red REC marker with the elapsed time */
-    char rec[16]; int secs = (int)d->rec_secs;
+    char rec[32]; int secs = (int)d->rec_secs;
     snprintf(rec, sizeof rec, "REC %d:%02d", secs / 60, secs % 60);
     int rw = ((int)strlen(rec) + 1) * GFX_CELL_W * s;
     gfx_fill(cv, hx, y + 1, rw, sh - 2, gfx_colour(COL_RED));

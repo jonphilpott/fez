@@ -38,7 +38,7 @@ static float rec_ring[REC_RING];
 static SDL_atomic_t rec_head, rec_tail, rec_drops;
 static volatile int rec_on;
 static WavRec wav;
-static char home_fez[512];                /* "~/FEZ/": where recordings and patches live ("" if there is no home folder) */
+static char home_fez[400];                /* "~/FEZ/": where recordings and patches live ("" if there is no home folder) */
 static float mute_gain = 1.0f;            /* 1 sounding, 0 muted; glides between so muting never clicks */
 #define MUTE_STEP (1.0f / 960.0f)         /* a full fade takes 960 samples: 20 ms at 48 kHz */
 
@@ -183,7 +183,7 @@ int main(void) {
   {                                                           /* one visible folder: ~/FEZ/patches/ and ~/FEZ/recordings/ (easy to find, back up and share) */
     const char *home = getenv("HOME");
     if (home && home[0] && snprintf(home_fez, sizeof home_fez, "%s/FEZ/", home) < (int)sizeof home_fez) {
-      char sub[560];
+      char sub[512];
       mkdir(home_fez, 0755);
       snprintf(sub, sizeof sub, "%srecordings/", home_fez); mkdir(sub, 0755);
       snprintf(sub, sizeof sub, "%spatches/", home_fez);
