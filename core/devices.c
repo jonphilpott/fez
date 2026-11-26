@@ -13,12 +13,11 @@
 static int popcount16(int x) { int n = 0; x &= 0xffff; while (x) { n += x & 1; x >>= 1; } return n; }
 
 /* Registers hold signed 16-bit values; a 16-bit row with bit 15 set reads back negative. */
-static int as_i16(int x) { x &= 0xffff; return x >= 0x8000 ? x - 0x10000 : x; }
 
 int fez_ca_read(const FezSynth *s, int addr) {
   switch (addr) {
     case REG_CARULE: return s->ca.rule;
-    case REG_CAROW: return as_i16(s->ca.row);
+    case REG_CAROW: return fez_i16(s->ca.row);
     case REG_CACOUNT: return popcount16(s->ca.row);                                   /* live cells */
     case REG_CADENS: { int d = popcount16(s->ca.row) * 2048; return d > 32767 ? 32767 : d; }   /* density: a matrix source */
     case REG_CATAP: return s->ca.tap;
@@ -128,12 +127,11 @@ const char *fez_scale_name(int scale) {
 }
 
 /* Floor division for negative numbers too (C's / truncates toward zero). */
-static int floor_div(int a, int b) { int q = a / b; return (a % b != 0 && (a < 0) != (b < 0)) ? q - 1 : q; }
 
 int fez_quantise(int p, int scale, int root) {
   int mask = QT_SCALES[fez_clamp(scale, 0, 7)];
-  int root_pc = floor_div(root + 128, 256) % 12;
-  int lo = floor_div(p, 256), hi = -floor_div(-p, 256);                     /* hi = ceil(p / 256) */
+  int root_pc = fez_floor_div(root + 128, 256) % 12;
+  int lo = fez_floor_div(p, 256), hi = -fez_floor_div(-p, 256);                     /* hi = ceil(p / 256) */
   for (int k = 0; k < 12 && !((mask >> (((lo - root_pc) % 12 + 12) % 12)) & 1); k++) lo--;
   for (int k = 0; k < 12 && !((mask >> (((hi - root_pc) % 12 + 12) % 12)) & 1); k++) hi++;
   int m = (p - lo * 256 <= hi * 256 - p) ? lo : hi;

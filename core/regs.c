@@ -10,6 +10,13 @@ int fez_clamp(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
 /* JS Math.round: halves round up (-0.5 gives 0). C's round() rounds halves away from zero, so it differs. */
 int fez_round(double x) { return (int)floor(x + 0.5); }
 
+/* Division that rounds toward minus infinity. C's / truncates toward zero, which differs for negatives: -7 / 2 is -3 in C,
+   but -4 here, so steps of a negative pitch line up with the positive ones. */
+int fez_floor_div(int a, int b) { int q = a / b; return (a % b != 0 && ((a < 0) != (b < 0))) ? q - 1 : q; }
+
+/* Wrap any int into the signed 16-bit range: what a 16-bit register would hold after the same bit operations. */
+int fez_i16(int x) { x &= 0xffff; return x >= 0x8000 ? x - 0x10000 : x; }
+
 static int in(int a, int lo, int hi) { return a >= lo && a <= hi; }
 
 /* ---------------------------------------------------------------- queues to the audio side */
@@ -124,9 +131,9 @@ void fez_write(FezSynth *s, int a, int v, int b, unsigned *fault) {
 /* ---------------------------------------------------------------- modulation matrix routing (the ROUTE word) */
 
 void fez_set_route(FezSynth *s, int sr, int d, int w, unsigned *fault) {
-  /* Translate a source register address into the matrix's own source number (see SRC_NAMES in core.js). */
-  int src = in(sr, 1, 2) ? sr : in(sr, REG_CV0, REG_CV3) ? 3 + sr - REG_CV0 : in(sr, REG_MP0, REG_MP15) ? 7 + sr - REG_MP0 : sr == REG_CADENS ? 23
-          : in(sr, REG_SLO0, REG_SLO3) ? 24 + sr - REG_SLO0 : in(sr, REG_LZX, REG_LZZ) ? 28 + sr - REG_LZX : sr == REG_SQOUT ? 31 : sr == REG_TMOUT ? 32 : sr == REG_KBNOTE ? 33 : 0;
+  /* Translate a source register address into the matrix's own source number: its row in SRC_TABLE (0 if it is not a source). */
+  int src = 0;
+  for (int i = 1; i < SRC_COUNT; i++) if (SRC_TABLE[i].addr == sr) src = i;
   if (!src || d < 0 || d >= NUM_REGS || s->param_index[d] < 0 || d == REG_GATE) { *fault |= FAULT_ADDR; return; }
   for (int i = 0; i < s->nroutes; i++)
     if (s->routes[i].src == src && s->routes[i].dst == d) { s->routes[i].w = w; return; }   /* same pair: update the weight */

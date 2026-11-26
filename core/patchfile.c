@@ -27,11 +27,11 @@ static int addr_of(const char *word) {
   return -1;
 }
 
-/* A matrix source by name (any case), as SRC_NAMES spells it. Returns its number, or -1. Files hold names, never numbers,
+/* A matrix source by name (any case), as SRC_TABLE spells it. Returns its number, or -1. Files hold names, never numbers,
    so adding or moving a source cannot change what a saved route means. */
 static int src_of(const char *word) {
   for (int i = 1; i < SRC_COUNT; i++) {
-    const char *n = SRC_NAMES[i], *w = word;
+    const char *n = SRC_TABLE[i].name, *w = word;
     while (*n && *w && toupper((unsigned char)*n) == toupper((unsigned char)*w)) { n++; w++; }
     if (!*n && !*w) return i;
   }
@@ -90,7 +90,7 @@ int patchfile_write(const FezSynth *s, const PatchInfo *info, char *out, size_t 
   }
   for (int i = 0; i < s->nroutes; i++) {
     const char *dst = name_of(s->routes[i].dst);
-    put(&o, "route %s %s %d\n", SRC_NAMES[s->routes[i].src], dst ? dst : "?", s->routes[i].w);
+    put(&o, "route %s %s %d\n", SRC_TABLE[s->routes[i].src].name, dst ? dst : "?", s->routes[i].w);
   }
   put(&o, "ca %d %d %d %d\n", s->ca.rule, s->ca.row, s->ca.tap, s->ca.trig);
   put(&o, "lz %d %d %d\n", s->lz.rate, s->lz.rho, s->lz.trig);

@@ -21,18 +21,12 @@ const char *const OP_NAMES[OP_COUNT] = {
 /* Clamp to the 16-bit signed range. Registers and the stack saturate instead of wrapping. */
 static int sat(int r) { return r > 32767 ? 32767 : r < -32768 ? -32768 : r; }
 
-/* Wrap any int into the signed 16-bit range (what a 16-bit register would hold). */
-static int i16(int x) { x &= 0xffff; return x >= 0x8000 ? x - 0x10000 : x; }
-
-/* Division that rounds toward minus infinity. C's / truncates toward zero, which differs for negatives. */
-static int floor_div(int a, int b) { int q = a / b; return (a % b != 0 && ((a < 0) != (b < 0))) ? q - 1 : q; }
-
 /* Modulo with the result in 0..n-1 for positive n (C's % keeps the sign of the dividend). */
-static int floor_mod(int a, int n) { return a - floor_div(a, n) * n; }
+static int floor_mod(int a, int n) { return a - fez_floor_div(a, n) * n; }
 
 /* Arithmetic shift right by 15, written as a division so it does not depend on how the compiler shifts
-   negative numbers. This is the "* ": a Q15 multiply keeps 15 fraction bits. */
-static int shr15(int x) { return floor_div(x, 32768); }
+   negative numbers. This is F*: a fraction multiply (32768 is 1.0) keeps 15 fraction bits. */
+static int shr15(int x) { return fez_floor_div(x, 32768); }
 
 /* ---------------------------------------------------------------- the HZ word */
 
@@ -77,10 +71,36 @@ static long digits(const char *p, int base) {
 static void put_lit(Slot *s, int v) { s->is_op = 0; s->value = (int16_t)v; }
 static void put_op(Slot *s, int op) { s->is_op = 1; s->value = (int16_t)op; }
 
+/* A note name: a letter A to G, then an optional # (sharp) or lower-case b (flat), then the octave, which may be negative
+   (C4 = middle C = 15360; C-1 is the lowest). If the octave is left off, default_octave is used, or the text is not a
+   note when default_octave is NOTE_NEEDS_OCTAVE. Returns 1 with the pitch (MIDI note x 256), 0 if the text is not a note
+   name, or -1 if it is one but outside MIDI notes 0 to 127. The one note reader: the compiler, the editor's colours and
+   the sequencer's typed notes all use it, so they always agree. */
+int vm_parse_note(const char *t, int default_octave, int *pitch) {
+  static const int PITCH_CLASS[7] = { 9, 11, 0, 2, 4, 5, 7 };         /* A B C D E F G, in semitones above C */
+  int c = toupper((unsigned char)t[0]);
+  if (c < 'A' || c > 'G') return 0;
+  int pc = PITCH_CLASS[c - 'A'], i = 1;
+  if (t[i] == '#') { pc++; i++; }
+  else if (t[i] == 'b') { pc--; i++; }
+  int octave = default_octave;
+  if (t[i]) {
+    int neg = t[i] == '-', digits = 0, v = 0;
+    if (neg) i++;
+    for (; isdigit((unsigned char)t[i]) && digits < 2; i++, digits++) v = v * 10 + (t[i] - '0');
+    if (!digits || t[i]) return 0;
+    octave = neg ? -v : v;
+  } else if (default_octave == NOTE_NEEDS_OCTAVE) return 0;
+  int midi = (octave + 1) * 12 + pc;
+  if (midi < 0 || midi > 127) return -1;
+  *pitch = midi * 256;
+  return 1;
+}
+
 /* Turn one token into one slot. Returns 1, or -1 with a message in err.
    The checks run in this order, as in the JS: operations, a minus sign (an error), decimal, hex, fraction, note name,
    register name. Each token gives exactly one slot. */
-static int parse_token(const char *t, Slot out[2], char *err, size_t errsz) {
+static int parse_token(const char *t, Slot *out, char *err, size_t errsz) {
   char u[64];                                         /* upper-case copy for case-insensitive matching */
   size_t len = strlen(t);
   if (len >= sizeof u) { snprintf(err, errsz, "unknown token: %.60s", t); return -1; }
@@ -121,25 +141,11 @@ static int parse_token(const char *t, Slot out[2], char *err, size_t errsz) {
     put_lit(&out[0], r < 0 ? 0 : r > 32767 ? 32767 : (int)r);
     return 1;
   }
-  /* 6) note name: letter A-G, optional # or b, octave digit (C4 = 15360). Octave -1 is written C-1.
-     The JS pattern accepts a capital B as the accidental too, but only # and lower-case b change the pitch. */
+  /* 6) note name (C4 = 15360), see vm_parse_note */
   {
-    static const int base[7] = { 9, 11, 0, 2, 4, 5, 7 };   /* A B C D E F G */
-    const char *p = t;
-    if (toupper((unsigned char)p[0]) >= 'A' && toupper((unsigned char)p[0]) <= 'G') {
-      int semis = base[toupper((unsigned char)p[0]) - 'A'];
-      p++;
-      if (*p == '#' || *p == 'b' || *p == 'B') { if (*p == '#') semis++; else if (*p == 'b') semis--; p++; }
-      int oct_neg = 0;
-      if (*p == '-') { oct_neg = 1; p++; }
-      if (isdigit((unsigned char)p[0]) && p[1] == '\0') {
-        int oct = (oct_neg ? -1 : 1) * (p[0] - '0');
-        int v = (semis + 12 * (oct + 1)) * 256;
-        if (v < 0 || v > 32767) { snprintf(err, errsz, "note out of range: %.60s", t); return -1; }
-        put_lit(&out[0], v);
-        return 1;
-      }
-    }
+    int pitch, r = vm_parse_note(t, NOTE_NEEDS_OCTAVE, &pitch);
+    if (r < 0) { snprintf(err, errsz, "note out of range: %.60s", t); return -1; }
+    if (r > 0) { put_lit(&out[0], pitch); return 1; }
   }
   /* 7) register or other name from the name table */
   for (int k = 0; k < NAME_COUNT; k++)
@@ -168,15 +174,12 @@ void vm_compile(Compiled *c, const char *src, int max_slots) {
     char tok[128]; size_t n = 0;                                      /* collect one token */
     while (*p && !isspace((unsigned char)*p) && *p != '\\') { if (n < sizeof tok - 1) tok[n++] = *p; p++; }
     tok[n] = '\0';
-    Slot s[2];
+    Slot slot;
     char msg[96];
-    int k = parse_token(tok, s, msg, sizeof msg);
-    if (k < 0) { snprintf(err, sizeof err, "line %d: %s", line, msg); c->err_pos = tstart; break; }
-    for (int j = 0; j < k; j++) {
-      if (total < BLOCK_SLOTS) { c->slots[total] = s[j]; c->pos[total] = (uint16_t)tstart; }
-      if (total == max_slots && over_pos < 0) over_pos = tstart;
-      total++;
-    }
+    if (parse_token(tok, &slot, msg, sizeof msg) < 0) { snprintf(err, sizeof err, "line %d: %s", line, msg); c->err_pos = tstart; break; }
+    if (total < BLOCK_SLOTS) { c->slots[total] = slot; c->pos[total] = (uint16_t)tstart; }
+    if (total == max_slots && over_pos < 0) over_pos = tstart;
+    total++;
   }
   c->count = total;
   if (!err[0] && total <= BLOCK_SLOTS) {
@@ -239,16 +242,16 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
       case OP_ABS:  POP(a); PUSH(sat(a < 0 ? -a : a)); break;
       case OP_MIN:  POP(a); POP(x); PUSH(a < x ? a : x); break;
       case OP_MAX:  POP(a); POP(x); PUSH(a > x ? a : x); break;
-      case OP_AND:  POP(a); POP(x); PUSH(i16(x & a)); break;
-      case OP_OR:   POP(a); POP(x); PUSH(i16(x | a)); break;
-      case OP_XOR:  POP(a); POP(x); PUSH(i16(x ^ a)); break;
-      case OP_NOT:  POP(a); PUSH(i16(~a)); break;
+      case OP_AND:  POP(a); POP(x); PUSH(fez_i16(x & a)); break;
+      case OP_OR:   POP(a); POP(x); PUSH(fez_i16(x | a)); break;
+      case OP_XOR:  POP(a); POP(x); PUSH(fez_i16(x ^ a)); break;
+      case OP_NOT:  POP(a); PUSH(fez_i16(~a)); break;
       case OP_SHL:  POP(a); POP(x); PUSH(sat(x * (1 << (a & 15)))); break;
-      case OP_SHR:  POP(a); POP(x); PUSH(i16((x & 0xffff) >> (a & 15))); break;   /* logical shift on 16 bits */
+      case OP_SHR:  POP(a); POP(x); PUSH(fez_i16((x & 0xffff) >> (a & 15))); break;   /* logical shift on 16 bits */
       /* Rotate: the bits that fall off one end come back in at the other. Done on the unsigned 16 bits; n is taken mod 16,
          and n = 0 is handled apart because shifting a 16-bit value by 16 would be wrong. */
-      case OP_ROL:  { POP(a); POP(x); unsigned u = (unsigned)x & 0xffff, n = (unsigned)a & 15; PUSH(i16(n ? (u << n) | (u >> (16 - n)) : u)); break; }
-      case OP_ROR:  { POP(a); POP(x); unsigned u = (unsigned)x & 0xffff, n = (unsigned)a & 15; PUSH(i16(n ? (u >> n) | (u << (16 - n)) : u)); break; }
+      case OP_ROL:  { POP(a); POP(x); unsigned u = (unsigned)x & 0xffff, n = (unsigned)a & 15; PUSH(fez_i16(n ? (u << n) | (u >> (16 - n)) : u)); break; }
+      case OP_ROR:  { POP(a); POP(x); unsigned u = (unsigned)x & 0xffff, n = (unsigned)a & 15; PUSH(fez_i16(n ? (u >> n) | (u << (16 - n)) : u)); break; }
       case OP_EQ:   POP(a); POP(x); PUSH(x == a); break;
       case OP_LT:   POP(a); POP(x); PUSH(x < a); break;
       case OP_GT:   POP(a); POP(x); PUSH(x > a); break;
@@ -270,7 +273,7 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
       case OP_HZ:   POP(a); PUSH(hz_to_pitch(a)); break;
       case OP_COLOUR: {                               /* ( index colour -- pitch above the root, 8.8 semitones ) */
         POP(a); POP(x);
-        int col = floor_mod(a, 16), n = floor_mod(x, 5), oct = floor_div(x, 5);
+        int col = floor_mod(a, 16), n = floor_mod(x, 5), oct = fez_floor_div(x, 5);
         int j = n == 0 ? 0 : n == 1 ? (col >> 2) + 1 : n == 2 ? 5 : n == 3 ? 7 : (col & 3) + 8;
         PUSH(sat(oct * 3072 + JUST88[j]));
         break;
@@ -282,7 +285,7 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
         POP(a); POP(x);
         int mask = fez_scale_mask(floor_mod(a, 8)), n = 0;        /* wrap 0..7 like COLOUR wraps its col */
         for (int b2 = 0; b2 < 12; b2++) n += (mask >> b2) & 1;      /* notes per octave (never 0: every mask has bits) */
-        int oct = floor_div(x, n), k = floor_mod(x, n), semi = 0;
+        int oct = fez_floor_div(x, n), k = floor_mod(x, n), semi = 0;
         for (int b2 = 0; b2 < 12; b2++) if ((mask >> b2) & 1) { if (k-- == 0) { semi = b2; break; } }
         PUSH(sat(oct * 3072 + semi * 256));
         break;

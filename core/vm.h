@@ -18,7 +18,7 @@
 #define BLOCK_SRC_MAX 1280   /* source text kept per block: 128 slots at up to 9 characters each, plus slack */
 #define STEP_CAP    256      /* a block may execute this many slots per run; stops endless loops */
 
-/* Fault bits, OR-ed into a block's `fault` field. Bit 8 is unused on purpose: saturation is not a fault. */
+/* Fault bits, OR-ed into a block's `fault` field. The value 8 (bit 3) is unused on purpose: saturation is not a fault. */
 enum {
   FAULT_UNDER = 1,    /* stack underflow */
   FAULT_OVER  = 2,    /* stack overflow */
@@ -37,6 +37,8 @@ enum {
   OP_LABEL, OP_JMP, OP_JZ, OP_JNZ, OP_SKIP, OP_EXIT, OP_YIELD, OP_TRIG, OP_ROUTE, OP_WORD, OP_RND, OP_ST, OP_HZ,
   OP_COLOUR, OP_SELECT, OP_SCALE, OP_COUNT
 };
+#define NOTE_NEEDS_OCTAVE (-100)    /* for vm_parse_note: the octave must be written */
+int vm_parse_note(const char *text, int default_octave, int *pitch);   /* 1 note (pitch set), 0 not a note, -1 out of range; see vm.c */
 extern const char *const OP_NAMES[OP_COUNT];
 
 typedef struct { uint8_t is_op; int16_t value; } Slot;   /* is_op: value is an OP_ code; else a number */
@@ -46,7 +48,7 @@ typedef struct {
   char err[96];                    /* message if not (long tokens are cut short) */
   int count;                       /* slots used */
   int err_pos;                     /* byte offset in the source of the token that failed to compile, or -1 (an editor can highlight it) */
-  uint16_t pos[BLOCK_SLOTS];       /* byte offset in the source of the token each slot came from (a note name makes two slots, one token) */
+  uint16_t pos[BLOCK_SLOTS];       /* byte offset in the source of the token each slot came from (every token is one slot) */
   Slot slots[BLOCK_SLOTS];
   int16_t labels[16];              /* slot index just after "n L", or -1 if label n is not defined */
 } Compiled;

@@ -25,7 +25,7 @@ int regview_list(RegEntry *out, int max) {
     e.name = NAME_TABLE[i].name; e.addr = a;
     e.ro = a == REG_LEVEL || (a >= REG_MP0 && a <= REG_MP15) || (a >= REG_SLO0 && a <= REG_SLO3) || (a >= REG_CACOUNT && a <= REG_CADENS) || a == REG_CABIT || (a >= REG_LZX && a <= REG_LZZ) || a == REG_SQOUT || a == REG_BWPOS || a == REG_BWSTAT || a == REG_TMOUT || a == REG_KBNOTE || a == REG_KBGATE;
     e.is_signed = (a >= REG_CV0 && a <= REG_CV3) || (a >= REG_S0 && a <= REG_S15);
-    e.wo = a == REG_CASTEP || a == REG_LZSEED || a == REG_GATE || a == REG_SQCLK || a == REG_BWTRIG || a == REG_GTRIG || a == REG_GSTOP || a == REG_TMSTEP;
+    e.wo = a == REG_CASTEP || a == REG_LZSEED || a == REG_GATE || a == REG_SQCLK || a == REG_BWTRIG || a == REG_GTRIG || a == REG_GSTOP || a == REG_TMSTEP || a == REG_RUN;
     int k = n++;
     while (k > 0 && out[k - 1].addr > a) { out[k] = out[k - 1]; k--; }
     out[k] = e;
@@ -101,8 +101,6 @@ const char *regview_help(const char *name) {
 
 /* ---------------------------------------------------------------- access */
 
-static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
-
 int regview_read(FezSynth *s, int a) {
   if (a == REG_LEVEL) return s->level_pot;
   if (s->param_index[a] >= 0 && a != REG_GATE) return s->mem[a];
@@ -110,13 +108,13 @@ int regview_read(FezSynth *s, int a) {
 }
 
 void regview_write(FezSynth *s, int a, int v) {
-  if (a == REG_LEVEL) s->level_pot = clampi(v, 0, 32767); else fez_reg_write(s, a, v);
+  if (a == REG_LEVEL) s->level_pot = fez_clamp(v, 0, 32767); else fez_reg_write(s, a, v);
 }
 
 int regview_pget(FezSynth *s, int a) { return a == REG_LEVEL ? s->level_pot : s->mem[a]; }
 
 void regview_pset(FezSynth *s, int a, int v) {
-  v = clampi(v, 0, 32767);
+  v = fez_clamp(v, 0, 32767);
   if (a == REG_LEVEL) s->level_pot = v; else s->mem[a] = (int16_t)v;
 }
 
@@ -128,8 +126,8 @@ static int switch_choices(int a) { return a == REG_CXWAVE ? 3 : a == REG_MDWAVE 
 void regview_pstep(FezSynth *s, int a, int dir, int coarse) {
   int n = switch_choices(a);
   if (n) {
-    int c = clampi(regview_pget(s, a) * n / 32768, 0, n - 1) + dir;        /* the band the value is in now, then one band along */
-    c = clampi(c, 0, n - 1);
+    int c = fez_clamp(regview_pget(s, a) * n / 32768, 0, n - 1) + dir;        /* the band the value is in now, then one band along */
+    c = fez_clamp(c, 0, n - 1);
     regview_pset(s, a, (2 * c + 1) * 32768 / (2 * n));                      /* the middle of the new band */
     return;
   }
@@ -143,15 +141,6 @@ static int streq_nocase(const char *a, const char *b) {
   return *a == *b;
 }
 
-/* "C4", "F#3", "Bb-1": a note name the compiler accepts. */
-static int is_note(const char *t) {
-  if (!(toupper((unsigned char)t[0]) >= 'A' && toupper((unsigned char)t[0]) <= 'G')) return 0;
-  int i = 1;
-  if (t[i] == '#' || t[i] == 'b') i++;
-  if (t[i] == '-') i++;
-  return isdigit((unsigned char)t[i]) && t[i + 1] == '\0';
-}
-
 static int is_number(const char *t) {
   int i = 0, digits = 0;
   for (; t[i]; i++) { if (isdigit((unsigned char)t[i])) digits++; else if (t[i] != '.') return 0; }
@@ -161,28 +150,7 @@ static int is_number(const char *t) {
 int regview_token_kind(const char *t) {
   for (int i = 0; i < OP_COUNT; i++) if (streq_nocase(t, OP_NAMES[i])) return TOK_OP;
   for (int i = 0; i < NAME_COUNT; i++) if (streq_nocase(t, NAME_TABLE[i].name)) return TOK_REG;
-  if (is_note(t)) return TOK_NOTE;
+  { int p; if (vm_parse_note(t, NOTE_NEEDS_OCTAVE, &p) != 0) return TOK_NOTE; }       /* the compiler's own note reader */
   if (is_number(t)) return TOK_NUM;
   return TOK_OTHER;
-}
-
-int regview_parse_note(const char *t, int default_octave, int *pitch) {
-  static const int PITCH_CLASS[7] = { 9, 11, 0, 2, 4, 5, 7 };         /* A B C D E F G, in semitones above C */
-  int c = toupper((unsigned char)t[0]);
-  if (c < 'A' || c > 'G') return 0;
-  int pc = PITCH_CLASS[c - 'A'], i = 1;
-  if (t[i] == '#') { pc++; i++; }
-  else if (t[i] == 'b') { pc--; i++; }                                 /* a lower-case b after the letter is a flat */
-  int octave = default_octave;
-  if (t[i]) {
-    int neg = t[i] == '-', digits = 0, v = 0;
-    if (neg) i++;
-    for (; isdigit((unsigned char)t[i]) && digits < 2; i++, digits++) v = v * 10 + (t[i] - '0');
-    if (!digits || t[i]) return 0;
-    octave = neg ? -v : v;
-  }
-  int midi = (octave + 1) * 12 + pc;
-  if (midi < 0 || midi > 127) return 0;
-  *pitch = midi * 256;
-  return 1;
 }

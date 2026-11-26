@@ -22,6 +22,14 @@ static int run_and_read(const char *src, int reg) {
 }
 
 void test_vm(void) {
+  /* note names: one reader for the compiler, the editor's colours and the sequencer */
+  { int p;
+    CHECK(vm_parse_note("C4", NOTE_NEEDS_OCTAVE, &p) == 1 && p == 15360, "C4 is 15360");
+    CHECK(vm_parse_note("Bb-1", NOTE_NEEDS_OCTAVE, &p) == 1 && p == 10 * 256, "Bb-1 is MIDI note 10");
+    CHECK(vm_parse_note("g", NOTE_NEEDS_OCTAVE, &p) == 0 && vm_parse_note("g", 3, &p) == 1 && p == 55 * 256, "an octave can be required, or defaulted");
+    CHECK(vm_parse_note("CB4", NOTE_NEEDS_OCTAVE, &p) == 0, "a capital B after the letter is not a flat (the editor and compiler agree)");
+    CHECK(vm_parse_note("G#9", NOTE_NEEDS_OCTAVE, &p) == -1 && !compiles("G#9"), "a note above MIDI 127 is out of range");
+    CHECK(compiles("C4 Eb3 F#-1"), "note names compile"); }
   /* SCALE: degree 0 is the root, degrees wrap into the next octave, negatives go below */
   CHECK(run_and_read("2 1 SCALE PITCH !", REG_PITCH) == 1024, "major scale degree 2 is the third, 4 semitones up");
   CHECK(run_and_read("7 1 SCALE PITCH !", REG_PITCH) == 3072, "major scale degree 7 is an octave up");

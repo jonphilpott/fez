@@ -48,84 +48,91 @@ void fez_default_registers(int16_t mem[NUM_REGS]) {
   for (int i = 1; i < 8; i++) mem[REG_GRATE0 + i] = 15360;           /* every grain voice starts at unity speed */
 }
 
-void fez_load_patch(FezSynth *s, int index) {
-  const PatchDef *p = &PATCH_TABLE[fez_clamp(index, 0, PATCH_COUNT - 1)];
-
-  /* 1) registers: defaults first, then the patch's presets (raw writes, no range checks, like the JS) */
-  int16_t pots[16];                                              /* the pots are the controls themselves (knobs, sticks, MIDI), not part of a patch: a load leaves them where they are */
+/* Everything a patch load resets, whatever patch comes next: registers to their defaults (the pots excepted), every block
+   and word empty, every moving part at rest, the queues empty, and the buffer and effects told to clear. The two loaders
+   below start here and then add their own content. */
+static void reset_machine(FezSynth *s) {
+  /* 1) registers. The pots are the controls themselves (knobs, sticks, MIDI), not part of a patch, so they stay put. */
+  int16_t pots[16];
   memcpy(pots, s->mem + REG_MP0, sizeof pots);
   memset(s->mem, 0, sizeof s->mem);
   memset(s->priv, 0, sizeof s->priv);
   fez_default_registers(s->mem);
   memcpy(s->mem + REG_MP0, pots, sizeof pots);
-  for (int i = 0; i < PATCH_MAX_PRESETS && p->presets[i].addr != 0; i++) s->mem[p->presets[i].addr] = (int16_t)p->presets[i].value;
+  memset(s->eff, 0, sizeof s->eff);
 
-  /* 2) code */
-  for (int i = 0; i < NUM_BLOCKS; i++) {
-    vm_set_block(&s->vm, i, p->blocks[i]);
-    s->vm.blocks[i].runs = 0; s->vm.blocks[i].steps = 0;
-    vm_set_word(&s->vm, i, p->words[i]);
-  }
+  /* 2) code: every block and word empty */
+  for (int i = 0; i < NUM_BLOCKS; i++) { vm_set_block(&s->vm, i, ""); s->vm.blocks[i].runs = 0; s->vm.blocks[i].steps = 0; }
+  for (int i = 0; i < NUM_WORDS; i++) vm_set_word(&s->vm, i, "");
   s->vm.pending = 0;
-
-  /* 3) pulsers. The patch says which block each pulser runs; the registers store it the other way round,
-     as a 4-bit mask of pulsers per block (BP0..BP15), plus one mask each for the sequencer (SQPUL) and the grains (GRPUL). */
-  for (int i = 0; i < NUM_PULSERS; i++) {
-    s->pulsers[i].on = p->pulsers[i].on; s->pulsers[i].rate = p->pulsers[i].rate; s->pulsers[i].acc = 0; s->pulsers[i].last_fire = 0;
-    int blk = p->pulsers[i].block;
-    if (blk < 16) s->mem[REG_BP0 + blk] |= (int16_t)(1 << i);
-    else if (blk == 16) s->mem[REG_SQPUL] |= (int16_t)(1 << i);
-    else if (blk == 17) s->mem[REG_GRPUL] |= (int16_t)(1 << i);
-  }
   s->sw_run = 0;
 
-  /* 4) matrix, modulators, devices */
-  s->nroutes = p->nroutes;
-  for (int i = 0; i < p->nroutes; i++) s->routes[i] = p->routes[i];
+  /* 3) pulsers off, at a usual rate; the matrix empty */
+  for (int i = 0; i < NUM_PULSERS; i++) { s->pulsers[i].on = 0; s->pulsers[i].rate = 120; s->pulsers[i].acc = 0; s->pulsers[i].last_fire = 0; }
+  s->nroutes = 0;
+
+  /* 4) everything that moves, at rest */
   memset(s->slew, 0, sizeof s->slew);
   s->tm.bits = 0x5ac3;
   s->kb_n = 0; s->gate_hold = 0;                              /* a new patch lets go of every key */
   s->sq_cur = 7; s->sq_count = 0;                             /* so the first clock lands on step 0 */
-  s->bw.pos = 0; s->bw.rec = 0; s->bw.state = s->mem[REG_BWMODE] == 1 ? 1 : 0;
+  s->bw.pos = 0; s->bw.rec = 0;
   s->grn_next = 0;
-  s->level_pot = p->level; s->cutoff_add = p->cutoff;
   s->env.v = 0; s->env.phase = ENV_IDLE; s->env.atk = 0.01; s->env.rel = 0.2;
   s->lfo_phase = 0; s->lfo_val = 0;
-  s->ca.rule = p->ca.rule; s->ca.row = p->ca.row; s->ca.tap = p->ca.tap; s->ca.trig = p->ca.trig;
-  s->lz.x = 1; s->lz.y = 1; s->lz.z = 1; s->lz.rate = p->lz.rate; s->lz.rho = p->lz.rho; s->lz.trig = p->lz.trig;
+  s->lz.x = 1; s->lz.y = 1; s->lz.z = 1;
   s->tick_count = 0;
-  memset(s->eff, 0, sizeof s->eff);
 
   /* 5) queues: a new patch starts with an empty buffer, so the last patch's audio cannot play back */
   s->buf_q_head = s->buf_q_count = 0; s->gate_q_head = s->gate_q_count = 0;
   fez_push_buf_event(s, EV_CLEAR, 0);
   s->fx_clear = 1;                            /* and the effects start cold too: no tail from the last patch */
+}
 
-  /* 6) setup blocks run once (they fill scratch registers with scales, chords and so on) */
+void fez_load_patch(FezSynth *s, int index) {
+  const PatchDef *p = &PATCH_TABLE[fez_clamp(index, 0, PATCH_COUNT - 1)];
+  reset_machine(s);
+
+  /* 1) the patch's register presets (raw writes, no range checks: the table is written by hand and trusted) */
+  for (int i = 0; i < PATCH_MAX_PRESETS && p->presets[i].addr != 0; i++) s->mem[p->presets[i].addr] = (int16_t)p->presets[i].value;
+
+  /* 2) code */
+  for (int i = 0; i < NUM_BLOCKS; i++) vm_set_block(&s->vm, i, p->blocks[i]);
+  for (int i = 0; i < NUM_WORDS; i++) vm_set_word(&s->vm, i, p->words[i]);
+
+  /* 3) pulsers. The patch says which block each pulser runs; the registers store it the other way round,
+     as a 4-bit mask of pulsers per block (BP0..BP15), plus one mask each for the sequencer (SQPUL) and the grains (GRPUL). */
+  for (int i = 0; i < NUM_PULSERS; i++) {
+    s->pulsers[i].on = p->pulsers[i].on; s->pulsers[i].rate = p->pulsers[i].rate;
+    int blk = p->pulsers[i].block;
+    if (blk < 16) s->mem[REG_BP0 + blk] |= (int16_t)(1 << i);
+    else if (blk == 16) s->mem[REG_SQPUL] |= (int16_t)(1 << i);
+    else if (blk == 17) s->mem[REG_GRPUL] |= (int16_t)(1 << i);
+  }
+
+  /* 4) matrix, knobs, devices */
+  s->nroutes = p->nroutes;
+  for (int i = 0; i < p->nroutes; i++) s->routes[i] = p->routes[i];
+  s->level_pot = p->level; s->cutoff_add = p->cutoff;
+  s->ca.rule = p->ca.rule; s->ca.row = p->ca.row; s->ca.tap = p->ca.tap; s->ca.trig = p->ca.trig;
+  s->lz.rate = p->lz.rate; s->lz.rho = p->lz.rho; s->lz.trig = p->lz.trig;
+  s->bw.state = s->mem[REG_BWMODE] == 1 ? 1 : 0;
+
+  /* 5) setup blocks run once (they fill scratch registers with scales, chords and so on) */
   for (int i = 0; i < p->nsetup; i++) vm_run_block(&s->vm, p->setup[i]);
   fez_compute_eff(s);
 }
 
-/* A blank patch: default registers, no code, no matrix routes, every pulser off, the level knob at a normal
-   setting. The starting point for a new patch, and for reading a patch file (a file only lists what differs). */
+/* A blank patch: default registers, no code, no matrix routes, every pulser off, the level knob at half. The starting
+   point for a new patch, and for reading a patch file (a file only lists what differs). */
 void fez_load_blank(FezSynth *s) {
-  fez_load_patch(s, 0);                                        /* resets all the machinery; the rest below blanks the content */
-  int16_t pots[16];
-  memcpy(pots, s->mem + REG_MP0, sizeof pots);                   /* pots survive a load (see fez_load_patch) */
-  memset(s->mem, 0, sizeof s->mem);
-  memset(s->priv, 0, sizeof s->priv);
-  fez_default_registers(s->mem);
-  memcpy(s->mem + REG_MP0, pots, sizeof pots);
-  for (int i = 0; i < NUM_BLOCKS; i++) { vm_set_block(&s->vm, i, ""); vm_set_word(&s->vm, i, ""); }
-  for (int i = 0; i < NUM_PULSERS; i++) { s->pulsers[i].on = 0; s->pulsers[i].rate = 120; s->pulsers[i].acc = 0; s->pulsers[i].last_fire = 0; }
-  s->nroutes = 0;
-  s->cutoff_add = 0;                                           /* level_pot keeps the usual setting from the load above */
-  /* The devices start from their standard settings. Automaton: rule 30, the usual seed row, watching cell 0, no pulser.
-     Lorenz: sigma 10 and beta 8/3 are fixed in the equations; rho 28 is the classic chaotic setting (register 15291 is
-     27.9995 on the scale of lz_rho, the nearest the 15-bit register can get); start point (1, 1, 1); no pulser. */
+  reset_machine(s);
+  s->level_pot = 16384; s->cutoff_add = 0;
+  /* The devices start from their standard settings. Automaton: rule 30, the usual seed row, watching cell 0, no pulser
+     (trig 4). Lorenz: sigma 10 and beta 8/3 are fixed in the equations; rho 28 is the classic chaotic setting (register
+     15291 is 27.9995 on the scale of lz_rho, the nearest the 15-bit register can get); start point (1, 1, 1); no pulser. */
   s->ca.rule = 30; s->ca.row = 0x2a54; s->ca.tap = 0; s->ca.trig = 4;
   s->lz.rate = 8000; s->lz.rho = 15291; s->lz.trig = 4;
-  s->lz.x = s->lz.y = s->lz.z = 1;
   s->bw.state = s->mem[REG_BWMODE] == 1 ? 1 : 0;
   fez_compute_eff(s);
 }
@@ -183,25 +190,26 @@ void fez_all_notes_off(FezSynth *s) {
 
 /* ---------------------------------------------------------------- modulation matrix */
 
-/* The matrix sources (NUM_SOURCES of them), in the order SRC_NAMES lists them. Each is a signed number, nominally -32768..32767. */
-static void matrix_sources(const FezSynth *s, int sv[NUM_SOURCES]) {
-  int n = 0;
-  sv[n++] = 0;                                                  /* 0: none */
-  sv[n++] = s->lfo_val;                                         /* 1: LFO0 */
-  sv[n++] = fez_round(s->env.v * 32767);                        /* 2: ENV */
-  for (int i = 0; i < 4; i++) sv[n++] = s->mem[REG_CV0 + i];        /* 3-6: CV0..CV3 */
-  for (int i = 0; i < 16; i++) sv[n++] = s->mem[REG_MP0 + i];       /* 7-22: MP0..MP15 (modulation pots) */
-  sv[n++] = fez_ca_read(s, REG_CADENS);                                /* 23: CADENS */
-  for (int i = 0; i < 4; i++) sv[n++] = s->mem[REG_SLO0 + i];        /* 24-27: SLO0..SLO3 */
-  sv[n++] = fez_lz_read(s, REG_LZX);                                /* 28-30: LZX, LZY, LZZ */
-  sv[n++] = fez_lz_read(s, REG_LZY);
-  sv[n++] = fez_lz_read(s, REG_LZZ);
-  sv[n++] = fez_clamp((s->mem[REG_SQ0 + fez_clamp(s->sq_cur, 0, 7)] - 15360) * 8, -32768, 32767);   /* 31: SQ */
-  sv[n++] = fez_tm_out(s);                                      /* 32: TM (Turing machine output) */
-  sv[n++] = s->mem[REG_KBGATE] ? fez_clamp((s->mem[REG_KBNOTE] - 15360) * 8, -32768, 32767) : 0;   /* 33: KB (held note around C4, 0 when no key is down) */
+/* The value of one matrix source, named by the register address SRC_TABLE gives it. Each is a signed number, nominally
+   -32768..32767. Most are a register as it stands; a few are scaled so that "around the middle" is 0. */
+static int source_value(const FezSynth *s, int addr) {
+  if (addr == REG_LFO0) return s->lfo_val;
+  if (addr == REG_ENV) return fez_round(s->env.v * 32767);
+  if (addr == REG_CADENS) return fez_ca_read(s, REG_CADENS);
+  if (addr >= REG_LZX && addr <= REG_LZZ) return fez_lz_read(s, addr);
+  if (addr == REG_SQOUT) return fez_clamp((s->mem[REG_SQ0 + fez_clamp(s->sq_cur, 0, 7)] - 15360) * 8, -32768, 32767);   /* the step's note around C4 */
+  if (addr == REG_TMOUT) return fez_tm_out(s);
+  if (addr == REG_KBNOTE) return s->mem[REG_KBGATE] ? fez_clamp((s->mem[REG_KBNOTE] - 15360) * 8, -32768, 32767) : 0;  /* held note around C4, 0 with no key down */
+  if (addr == 0) return 0;                                                                     /* source 0: none */
+  return s->mem[addr];                                                                        /* CV0..CV3, MP0..MP15, SLO0..SLO3 */
 }
 
-/* One matrix source's value right now (src is a number from SRC_NAMES). For screens that show what a route is doing. */
+/* Every matrix source's value, in SRC_TABLE order. */
+static void matrix_sources(const FezSynth *s, int sv[NUM_SOURCES]) {
+  for (int i = 0; i < NUM_SOURCES; i++) sv[i] = source_value(s, SRC_TABLE[i].addr);
+}
+
+/* One matrix source's value right now (src is a row of SRC_TABLE). For screens that show what a route is doing. */
 int fez_matrix_source(const FezSynth *s, int src) {
   int sv[NUM_SOURCES];
   matrix_sources(s, sv);
@@ -257,7 +265,7 @@ static void advance(FezSynth *s, double dt_ms) {
 
   /* slew generators: one-pole smoothing of CV0..CV3, written to SLO0..SLO3. A one-pole filter moves a fixed
      fraction of the remaining distance each step: y += (target - y) * (1 - e^(-dt/tau)). */
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < NUM_SLEW; i++) {
     double target = s->mem[REG_CV0 + i], y = s->slew[i];
     int t = s->mem[REG_SLT0 + i];
     if (t == 0) y = target;                                     /* slew time 0 means off */

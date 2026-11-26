@@ -38,7 +38,7 @@ static const char *dst_name(const Desk *d, int addr) {
 
 static int pick_item_count(const Desk *d) { return d->mtx.mode == MTX_PICK_SRC ? SRC_COUNT - 1 : d->npars; }
 static int pick_item(const Desk *d, int i) { return d->mtx.mode == MTX_PICK_SRC ? i + 1 : d->pars[i]; }
-static const char *pick_item_name(const Desk *d, int i) { return d->mtx.mode == MTX_PICK_SRC ? SRC_NAMES[i + 1] : dst_name(d, d->pars[i]); }
+static const char *pick_item_name(const Desk *d, int i) { return d->mtx.mode == MTX_PICK_SRC ? SRC_TABLE[i + 1].name : dst_name(d, d->pars[i]); }
 
 /* The entries matching the typed filter, as indexes into the full list. */
 static int pick_filtered(const Desk *d, int *out) {
@@ -130,7 +130,7 @@ void tab_matrix_draw(Desk *d, View *v) {
     snprintf(buf, sizeof buf, "%2d", i + 1);
     view_text(v, 0, row, buf, COL_DIM);
     if (cur == 0) view_fill(v, C_SRC, row, 7, 1, COL_AMBD);
-    view_text(v, C_SRC, row, SRC_NAMES[clampi(rt->src, 0, SRC_COUNT - 1)], cur == 0 ? COL_AMB : COL_FG);
+    view_text(v, C_SRC, row, SRC_TABLE[clampi(rt->src, 0, SRC_COUNT - 1)].name, cur == 0 ? COL_AMB : COL_FG);
     if (cur == 1) view_fill(v, C_DST, row, 8, 1, COL_AMBD);
     view_text(v, C_DST, row, dst_name(d, rt->dst), cur == 1 ? COL_AMB : COL_FG);
 

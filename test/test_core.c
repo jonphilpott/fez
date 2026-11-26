@@ -6,6 +6,7 @@
 #include "fez.h"
 #include "vm.h"
 #include "words.h"
+#include "regview.h"
 #include "test.h"
 
 int test_fails = 0;
@@ -28,9 +29,20 @@ void test_tables(void) {
   CHECK(REG_CXWAVE > REG_PITCH && REG_CXBLEND < REG_GATE && REG_GATE < REG_CV0, "CXWAVE and CXBLEND belong to the voice run");
   CHECK(REG_GATELEVEL == REG_GATE + 1 && REG_CV0 == REG_GATELEVEL + 1, "GATELEVEL sits in the voice run, between GATE and CV0");
   CHECK(REG_CV3 == REG_CV0 + 3 && REG_MP15 == REG_MP0 + 15, "numbered families are contiguous");
-  CHECK(!strcmp(SRC_NAMES[7], "MP0") && !strcmp(SRC_NAMES[22], "MP15") && !strcmp(SRC_NAMES[23], "CADENS") && !strcmp(SRC_NAMES[33], "KB"), "the sixteen pots are matrix sources 7..22, in one run");
+  CHECK(!strcmp(SRC_TABLE[7].name, "MP0") && !strcmp(SRC_TABLE[22].name, "MP15") && !strcmp(SRC_TABLE[23].name, "CADENS") && !strcmp(SRC_TABLE[33].name, "KB"), "the sixteen pots are matrix sources 7..22, in one run");
   CHECK(HZ_TAB[0] == 0 && HZ_TAB[256] == 65536, "hz table runs from log2(1) to log2(2) in Q16");
   /* the word table describes every operation, in the same order as the compiler's list, with every field filled in */
+  /* the CTRL list's read-only and write-only marks agree with what the register file really does */
+  { static FezSynth t; static RegEntry list[NUM_REGS];
+    int n = regview_list(list, NUM_REGS), ok = 1;
+    for (int i = 0; i < n; i++) {
+      unsigned f = 0;
+      fez_init(&t, 1);
+      if (list[i].ro && list[i].addr != REG_LEVEL) { fez_write(&t, list[i].addr, 1, 0, &f); if (!f) { ok = 0; printf("  %s is marked read-only but can be written\n", list[i].name); } }   /* LEVEL: knob-owned, writes are ignored quietly */
+      f = 0;
+      if (!list[i].wo) { fez_read(&t, list[i].addr, 0, &f); if (f) { ok = 0; printf("  %s cannot be read but is not marked write-only\n", list[i].name); } }
+    }
+    CHECK(ok, "read-only and write-only marks match the register file"); }
   CHECK(PARAM_COUNT <= PARAM_MAX, "every parameter has a smoothing slot in the audio side (PARAM_MAX in audio.h)");
   CHECK(WORD_COUNT == OP_COUNT, "the word table has one entry per operation");
   for (int i = 0; i < WORD_COUNT && i < OP_COUNT; i++) {

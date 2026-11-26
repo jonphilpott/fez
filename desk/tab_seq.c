@@ -115,7 +115,7 @@ static void nudge_step(Desk *d, int dir, int snap) {
 static void commit_entry(Desk *d) {
   int i = d->seq.sel, pitch;
   int cur_octave = d->synth->mem[STEP0 + i] / 3072 - 1;       /* 3072 = an octave in 8.8 semitones; C4 = 15360 -> octave 4 */
-  if (regview_parse_note(d->seq.buf, cur_octave, &pitch)) d->synth->mem[STEP0 + i] = (int16_t)clampi(pitch, PITCH_MIN, PITCH_MAX);
+  if (vm_parse_note(d->seq.buf, cur_octave, &pitch) == 1) d->synth->mem[STEP0 + i] = (int16_t)clampi(pitch, PITCH_MIN, PITCH_MAX);
   else desk_say(d, "NOT A NOTE (try c#3)");
   cancel_entry(d);
 }

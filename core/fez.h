@@ -4,7 +4,7 @@
    The core has two halves that talk through small queues:
      control side  registers, the VM, pulsers, the modulation matrix, the devices (cellular automaton, Lorenz
                    attractor, sequencer). It runs in "ticks" of a few milliseconds.
-     audio side    the voice, effects and buffer device. It runs sample by sample and is added in steps 4 and 5.
+     audio side    the voice, effects and buffer device. It runs sample by sample (audio.c, buf.c).
    Everything is deterministic: given the same patch, random seed and sequence of calls, a run repeats exactly.
    (A change that alters a run for the same inputs is a change in behaviour: look at it twice.) */
 #ifndef FEZ_H
@@ -19,10 +19,11 @@
 #define FEZ_PI       3.14159265358979323846   /* M_PI is not in strict C99 */
 #define NUM_REGS     640       /* the register file: addresses 0..639 */
 #define NUM_PULSERS  4
+#define NUM_SLEW     4          /* slew generators: CV0..CV3 smoothed into SLO0..SLO3 */
 #define MAX_ROUTES   16         /* modulation matrix size */
 #define BUF_Q_SIZE   64         /* events waiting for the audio side; extra events are dropped */
 #define GATE_Q_SIZE  16
-#define NUM_SOURCES  34         /* matrix sources, 0 (none) to 33 (KB); test_core checks it against SRC_NAMES */
+#define NUM_SOURCES  34         /* matrix sources, 0 (none) to 33 (KB); test_core checks it against SRC_TABLE */
 #define KB_MAX_HELD  16         /* keys the keyboard device tracks at once */
 
 /* Events the control side hands to the audio side. */
@@ -54,7 +55,7 @@ typedef struct FezSynth {
   int nroutes;
 
   /* ---- slow modulators ---- */
-  double slew[NUM_PULSERS];       /* CV0..CV3 smoothed by their slew time (the SLO registers hold the rounded value) */
+  double slew[NUM_SLEW];          /* CV0..CV3 smoothed by their slew time (the SLO registers hold the rounded value) */
   double lfo_phase;               /* radians */
   int lfo_val;                    /* -32767..32767 */
   struct { double v; int phase; double atk, rel; } env;   /* control-rate envelope: a modulation source only */
@@ -132,5 +133,7 @@ int  fez_quantise(int pitch, int scale, int root);       /* snap a pitch (8.8 se
 void fez_push_buf_event(FezSynth *s, int type, int mask);
 int  fez_clamp(int x, int lo, int hi);
 int  fez_round(double x);                               /* round half up, like JS Math.round (C round() differs for -0.5) */
+int  fez_floor_div(int a, int b);                       /* a / b rounded toward minus infinity (C's / rounds toward zero) */
+int  fez_i16(int x);                                    /* wrap into -32768..32767, as a 16-bit register would */
 
 #endif

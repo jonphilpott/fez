@@ -38,10 +38,6 @@ int  regview_pget(FezSynth *s, int addr);
 void regview_pset(FezSynth *s, int addr, int value);
 void regview_pstep(FezSynth *s, int addr, int dir, int coarse);
 
-/* A note name such as "C4", "f#3", "Bb2" or "g" as a pitch in 8.8 semitones (MIDI note x 256, C4 = 15360). A name with
-   no octave number takes default_octave. Returns 1 and sets *pitch, or 0 if the text is not a note. */
-int regview_parse_note(const char *text, int default_octave, int *pitch);
-
 /* What a word in block source is, for colouring and completion. */
 enum { TOK_OTHER, TOK_OP, TOK_REG, TOK_NOTE, TOK_NUM };
 int regview_token_kind(const char *token);
