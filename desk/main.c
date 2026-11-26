@@ -8,7 +8,7 @@
    The window is drawn pixel by pixel into `pixels` and uploaded as one texture per frame. On a high-density
    display the window is measured in points, so SDL stretches the picture by a whole number and it stays sharp.
 
-   `fez --brick` runs the handheld version: a fixed 256x192 picture scaled up, the same screens, and the controls of the
+   `fez --brick` runs the handheld version: a picture of at least 256x192 scaled up by a whole number (desk_hand_size), the same screens, and the controls of the
    TrimUI Brick (see pad.c). A game controller works; so does the keyboard, standing in for the buttons (see key_to_button). */
 #include <SDL.h>
 #include <math.h>
@@ -30,7 +30,7 @@
 static FezSynth synth;                    /* about 8 MB (the buffer device is 5.8 MB, the delay 2.3 MB), so static rather than on the stack */
 static Desk desk;
 static Pad pad;
-static int brick_mode;                    /* --brick: the handheld UI at 256x192, driven by buttons */
+static int brick_mode;                    /* --brick: the handheld UI (256x192 or a little more), driven by buttons */
 static SDL_AudioDeviceID dev;
 static float scope_ring[2 * SCOPE_RING];  /* the last SCOPE_RING output frames, interleaved left and right, for the scope tab */
 static volatile unsigned scope_head;      /* total frames written; the newest is at (scope_head - 1) % SCOPE_RING */
@@ -300,7 +300,7 @@ int main(int argc, char **argv) {
                                : SDL_CreateWindow("FEZ", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 600, SDL_WINDOW_RESIZABLE);
   SDL_Renderer *ren = win ? SDL_CreateRenderer(win, -1, 0) : NULL;
   if (!win || !ren) { fprintf(stderr, "window: %s\n", SDL_GetError()); SDL_Quit(); return 1; }
-  if (brick_mode) SDL_RenderSetLogicalSize(ren, 256, 192);   /* whatever the window size, the picture is 256x192 scaled by a whole number where it fits */
+  if (brick_mode) SDL_RenderSetIntegerScale(ren, SDL_TRUE);  /* the handheld's picture is scaled by whole numbers only (desk_hand_size) */
 
   fez_init(&synth, (uint32_t)SDL_GetTicks() | 1);            /* seed the random generator from the clock */
   desk_init(&desk, &synth);
@@ -438,7 +438,12 @@ int main(int argc, char **argv) {
 
     int w, h;
     SDL_GetWindowSize(win, &w, &h);
-    if (brick_mode) { w = 256; h = 192; }                    /* the picture never changes size; SDL scales it */
+    if (brick_mode) {                                        /* the handheld: a picture sized for the screen's real pixels, which SDL scales up */
+      int ow, oh, k;
+      SDL_GetRendererOutputSize(ren, &ow, &oh);
+      desk_hand_size(ow, oh, &w, &h, &k);
+      if (w != pw || h != ph) SDL_RenderSetLogicalSize(ren, w, h);
+    }
     if (w != pw || h != ph) {                                /* new window size: new picture, new texture */
       free(pixels); if (tex) SDL_DestroyTexture(tex);
       pw = w; ph = h;

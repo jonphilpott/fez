@@ -182,6 +182,20 @@ int wrap_text(const char *s, int width, char lines[][64], int max_lines) {
 
 /* ---------------------------------------------------------------- drawing */
 
+/* The handheld's picture for a screen of screen_w x screen_h pixels. Pixel text only looks right at a whole-number scale (at
+   2.5x some pixels come out twice as wide as others), so: the largest whole scale that still leaves at least 256x192, the
+   size the handheld screens were laid out for, and then a picture of screen / scale, so the screen is filled rather than
+   bordered. The screens are drawn in proportion, so a picture larger than 256x192 just gets more room. Examples: the Brick,
+   1024x768: 4x, 256x192. 720x480: 2x, 360x240. 640x480: 2x, 320x240. 320x240: 1x, 320x240. A screen smaller than 256x192
+   still gets 256x192 at 1x (cropped by SDL; no such device is known). */
+void desk_hand_size(int screen_w, int screen_h, int *w, int *h, int *scale) {
+  int k = screen_w / 256 < screen_h / 192 ? screen_w / 256 : screen_h / 192;
+  if (k < 1) k = 1;
+  *scale = k;
+  *w = screen_w / k < 256 ? 256 : screen_w / k;
+  *h = screen_h / k < 192 ? 192 : screen_h / k;
+}
+
 /* KEYS plays the computer keyboard as a piano, which a handheld does not have; STICKS plays a gamepad's left stick: always
    on the handheld, and on the desktop while a gamepad is plugged in. */
 int desk_tab_shown(const Desk *d, int t) { return t == TAB_KEYS ? !d->handheld : t == TAB_STICKS ? d->handheld || d->gamepads > 0 : 1; }

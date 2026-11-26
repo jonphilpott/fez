@@ -1,4 +1,4 @@
-/* Draws every handheld (Brick) screen to a PPM file without a window: ./padshot PATCH OUTPREFIX
+/* Draws every handheld (Brick) screen to a PPM file without a window: ./padshot PATCH OUTPREFIX [W H]
    One picture per screen, then the menu, the palette, the patch-name picker and the help page. Buttons are pressed
    through the Pad, exactly as the real device's would be. For checking the 256x192 layouts. */
 #include <stdio.h>
@@ -6,15 +6,14 @@
 #include <string.h>
 #include "pad.h"
 
-#define W 256
-#define H 192
+static int W = 256, H = 192;          /* the picture: the Brick's, unless a size is given */
 
 static FezSynth synth;
 static Desk desk;
 static Pad pad;
 static float ring[2 * SCOPE_RING];
 static unsigned head;
-static uint32_t px[W * H];
+static uint32_t px[1024 * 768];
 
 static void dump(const char *prefix, const char *name) {
   desk_tick(&desk, 16); pad_tick(&pad);
@@ -32,6 +31,8 @@ static void tap(Button b) { pad_button(&pad, b, 1); pad_button(&pad, b, 0); desk
 int main(int argc, char **argv) {
   int patch = argc > 1 ? atoi(argv[1]) : 1;
   const char *prefix = argc > 2 ? argv[2] : "pad";
+  if (argc > 4) { W = atoi(argv[3]); H = atoi(argv[4]); }                       /* another screen's picture, e.g. 360 240 */
+  if (W < 256 || H < 192 || W * H > 1024 * 768) { fprintf(stderr, "size: at least 256x192, at most 1024x768 pixels\n"); return 1; }
   fez_init(&synth, 1);
   desk_init(&desk, &synth);
   desk_patches_loaded_example(&desk, patch - 1); desk_reload_editor(&desk);

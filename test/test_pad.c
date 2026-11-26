@@ -170,6 +170,15 @@ void test_pad(void) {
   pad_stick(&pad, 0, 32767);   CHECK(fez_reg_read(&s, REG_PITCH) == 57 * 256 + 1275 && s.mem[REG_KBGATE] == 1, "colours: right is degree 2, a just fourth above the root, played exactly");
   pad_stick(&pad, 0, 0);       CHECK(s.mem[REG_KBGATE] == 0, "and lets go at the centre");
   fez_reg_write(&s, REG_STKTYPE, 0); fez_reg_write(&s, REG_STKSCALE, 1); fez_reg_write(&s, REG_STKROOT, 15360);
+  /* the picture for a screen: the largest whole scale leaving 256x192, then filled */
+  { int w, h, k;
+    desk_hand_size(1024, 768, &w, &h, &k); CHECK(k == 4 && w == 256 && h == 192, "Brick 1024x768: 4x, 256x192");
+    desk_hand_size(720, 480, &w, &h, &k);  CHECK(k == 2 && w == 360 && h == 240, "720x480: 2x, 360x240");
+    desk_hand_size(640, 480, &w, &h, &k);  CHECK(k == 2 && w == 320 && h == 240, "640x480: 2x, 320x240");
+    desk_hand_size(320, 240, &w, &h, &k);  CHECK(k == 1 && w == 320 && h == 240, "320x240: 1x");
+    desk_hand_size(1280, 800, &w, &h, &k); CHECK(k == 4 && w == 320 && h == 200, "1280x800: 4x, 320x200");
+    desk_hand_size(200, 150, &w, &h, &k);  CHECK(k == 1 && w == 256 && h == 192, "smaller than 256x192: never less"); }
+
   /* the D-pad on STICKS: eight directions with the diagonals, legato; R2 held makes it move through the settings instead */
   {
     #define DOWN(b) pad_button(&pad, b, 1)
