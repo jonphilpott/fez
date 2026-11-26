@@ -711,7 +711,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <h3 id="keyboard">Keyboard</h3>
 
-<p>The keyboard device turns key presses into notes. On the desktop, the KEYS page of the DEVICES tab plays the computer keyboard like a piano: the bottom row (Z S X D C V G B H N J M) is one octave, and the row above (Q 2 W 3 E R 5 T 6 Y 7 U) is the next. The layout follows the position of the keys, so it works on any national layout. Only that page plays, and Space lets go of everything. The handheld has no KEYS page.</p>
+<p>The keyboard device turns key presses into notes. On the desktop, the KEYS page of the DEVICES tab plays the computer keyboard like a piano: the bottom row (Z S X D C V G B H N J M) is one octave, and the row above (Q 2 W 3 E R 5 T 6 Y 7 U) is the next. The layout follows the position of the keys, so it works on any national layout. Only that page plays, and Space lets go of everything. The handheld has no KEYS page; its STICK page plays the keyboard device from the right stick instead (see <a href="#stick-page">the handheld chapter</a>).</p>
 
 <p>A key press does four things: it writes the note into <code>PITCH</code> and <code>KBNOTE</code>, fires the gate, fires the pulsers in the mask <code>KBPUL</code>, and holds the gate open until the key is let go, then the release runs. If you press a second key while the first is held, the new one wins, and letting go of it returns to the first without a new attack. <code>KBOCT</code> (0 to 8) is the octave of the bottom key, and <code>KBGATE</code> is 1 while any key is down. <code>KBNOTE</code> and <code>KBGATE</code> are read only; <code>KBNOTE</code> is also a matrix source, which can be used to make a filter follow the notes you play.</p>
 
@@ -961,6 +961,25 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <p>Loading a patch leaves the pots where they are, because they belong to your hands and not to the patch. The CTRL screen shows all sixteen under the POTS heading. <code>MP4</code> to <code>MP15</code> are not connected to anything yet.</p>
 
+<h3 id="stick-page">Playing tunes with the right stick</h3>
+
+<p>The last page of the DEVICES screen, <b>STICK</b>, turns the right stick into an instrument. Its direction picks a note: straight up is the root, and each eighth of a turn clockwise is the next note of the scale, so the eight directions are the first eight notes. In a seven-note scale, up-left is the octave; in a five-note colour, the octave is down-left. The page draws the eight notes in a ring (for colours, their degree numbers, 0 to 7), with the root in green and the one you are holding lit. While this page is showing, the right stick plays and leaves <code>MP2</code> and <code>MP3</code> alone.</p>
+
+<p>Four settings choose the notes and how they sound:</p>
+
+<ul>
+  <li><b>TYPE</b> (<code>STKTYPE</code>): <b>scales</b> (0), the quantiser's eight, as the word <code>SCALE</code> gives them; or <b>colours</b> (1), the sixteen five-note scales in just intonation that the word <code>COLOUR</code> gives.</li>
+  <li><b>SCALE</b> (<code>STKSCALE</code>): which scale (0 to 7, major by default) or which colour (0 to 15).</li>
+  <li><b>ROOT</b> (<code>STKROOT</code>): the note straight up plays, C4 by default, as on the quantiser page. Left and right step a semitone; with Y held, a fifth.</li>
+  <li><b>MODE</b> (<code>STKMODE</code>): how a note sounds. X switches between the two.</li>
+</ul>
+
+<p>In <b>play</b> mode (0) the stick works like a key. Pushing it out plays the note with a fresh attack, moving round to another direction plays the next note, and letting the stick spring back lets go, so the release runs. Because it goes through the keyboard device, <code>KBNOTE</code>, <code>KBGATE</code> and the pulsers in <code>KBPUL</code> follow the stick as they follow keys. A colour's just notes fall between the keys: <code>KBNOTE</code> holds the nearest key, and <code>PITCH</code> the exact note.</p>
+
+<p>In <b>swell</b> mode (1) the direction only moves <code>PITCH</code>, with no attack, and how far you push sets <code>GATELEVEL</code>, which holds the gate open by hand. Push gently for a quiet note, push to the edge for full volume, and let the stick return to fade it out. Turning the stick round while it is pushed out glides through the scale without a break. Swell mode owns <code>GATELEVEL</code>: leaving the page or switching mode sets it back to 0.</p>
+
+<p>Near the border between two directions the stick keeps the note it has until you are clearly past the border, so a note does not flicker between two.</p>
+
 <h3 id="screens">The screens, and what A, B and X do on each</h3>
 
 <table class="regs">
@@ -1025,7 +1044,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 <h3 id="limits">What the Brick does not do</h3>
 
 <ul>
-  <li>There is no KEYS page: playing notes is a job for a keyboard. Use Start for single notes, and the sequencer, the Turing machine or the pulsers for the rest.</li>
+  <li>There is no KEYS page. The <a href="#stick-page">STICK page</a> takes its place: the right stick plays the notes of a scale.</li>
   <li>The handheld screens are smaller, so a few details, such as the longest register help lines, are shortened.</li>
 </ul>
 </section>
@@ -1415,6 +1434,11 @@ word 2                      the same for a word</pre>
 <tr class="ref-row"><td class="name" id="r-KBGATE">KBGATE</td><td class="addr">551</td><td class="def"></td><td class="def">read only</td><td>Keyboard: 1 while a key is held (read only)</td></tr>
 <tr class="ref-row"><td class="name" id="r-KBOCT">KBOCT</td><td class="addr">552</td><td class="def"></td><td class="def"></td><td>Keyboard octave, 0 to 8 (the bottom key is C)</td></tr>
 <tr class="ref-row"><td class="name" id="r-KBPUL">KBPUL</td><td class="addr">553</td><td class="def"></td><td class="def"></td><td>Keyboard: pulsers fired by each key press</td></tr>
+<tr class="grp"><th colspan="5">STICK</th></tr>
+<tr class="ref-row"><td class="name" id="r-STKTYPE">STKTYPE</td><td class="addr">554</td><td class="def"></td><td class="def"></td><td>Stick: 0 scales (as SCALE), 1 colours (COLOUR)</td></tr>
+<tr class="ref-row"><td class="name" id="r-STKSCALE">STKSCALE</td><td class="addr">555</td><td class="def"></td><td class="def"></td><td>Stick: scale 0 to 7, or colour 0 to 15</td></tr>
+<tr class="ref-row"><td class="name" id="r-STKROOT">STKROOT</td><td class="addr">556</td><td class="def"></td><td class="def"></td><td>Stick: the note pointing up plays (C4 = 15360)</td></tr>
+<tr class="ref-row"><td class="name" id="r-STKMODE">STKMODE</td><td class="addr">557</td><td class="def"></td><td class="def"></td><td>Stick: 0 plays notes, 1 swells GATELEVEL</td></tr>
 <tr class="grp"><th colspan="5">POTS</th></tr>
 <tr class="ref-row"><td class="name" id="r-MP0">MP0</td><td class="addr">560</td><td class="def"></td><td class="def">read only</td><td>Modulation pot, read only, matrix source</td></tr>
 <tr class="ref-row"><td class="name" id="r-MP1">MP1</td><td class="addr">561</td><td class="def"></td><td class="def">read only</td><td>Modulation pot, read only, matrix source</td></tr>
