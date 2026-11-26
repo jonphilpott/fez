@@ -6,28 +6,8 @@
 #include <string.h>
 
 static int cur_tab(const Pad *p) { return p->d->layouts[p->d->layout].tab[p->d->focus]; }
-/* ---------------------------------------------------------------- the analogue sticks */
-
-#define STICK_DEADZONE 4096           /* a stick at rest wanders a little: inside this the pot sits exactly at its centre */
-
-static int on_stick_page(const Pad *p) { return cur_tab(p) == TAB_STICKS; }
-
-void pad_stick(Pad *p, int axis, int raw) {
-  if (axis < 0 || axis > 3) return;
-  int v = raw < -32767 ? -32767 : raw;               /* keep -v in range */
-  if (axis & 1) v = -v;                              /* SDL's Y is negative upwards; the pot should rise when you push up */
-  if (axis < 2 && on_stick_page(p)) {                /* on the STICKS tab the left stick plays (tab_devices.c), and MP0/MP1 stay put */
-    Desk *d = p->d;
-    tab_devices_stick(d, axis == 0 ? v : d->dev.stk_x, axis == 1 ? v : d->dev.stk_y);
-    return;
-  }
-  /* 1) take off the dead zone and stretch what is left to the full range, so the pot leaves its centre smoothly */
-  int mag = v < 0 ? -v : v;
-  mag = mag <= STICK_DEADZONE ? 0 : (int)((long)(mag - STICK_DEADZONE) * 32767 / (32767 - STICK_DEADZONE));
-  v = v < 0 ? -mag : mag;
-  /* 2) -32767..32767 becomes the pot's 0..32767, centre 16384 */
-  fez_set_pot(p->d->synth, axis, 16384 + v / 2);
-}
+/* The analogue sticks: the same as a gamepad's on the desktop (desk_gamepad_axis in tab_devices.c). */
+void pad_stick(Pad *p, int axis, int raw) { desk_gamepad_axis(p->d, axis, raw); }
 
 static int held(const Pad *p, Button b) { return (p->held >> b) & 1; }
 
@@ -418,7 +398,6 @@ void pad_button(Pad *p, Button b, int down) {
 
 void pad_tick(Pad *p) {
   p->d->hint_override = tab_hint(p);                        /* the status bar's button hints for whatever is on screen now */
-  if (!on_stick_page(p) && (p->d->dev.stk_dir >= 0 || p->d->dev.stk_note >= 0 || p->d->dev.stk_swell)) tab_devices_stick_release(p->d);   /* left the page while playing */
   for (int b = 0; b < BTN_COUNT; b++)
     if (held(p, (Button)b) && repeatable(p, (Button)b) && p->d->now_ms >= p->repeat_at[b]) { press(p, (Button)b); p->repeat_at[b] = p->d->now_ms + 70; }
 }

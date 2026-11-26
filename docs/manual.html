@@ -485,7 +485,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <h4>Frequency modulation</h4>
 
-<p>The second oscillator, the <b>mod oscillator</b>, can push the pitch of the first up and down very fast. This is <b>frequency modulation</b> (FM). At low depth it adds a shimmer or vibrato. At high depth and audio speed it makes the clanging, bell-like tones FM is known for. Three registers set it: <code>FMRATE</code> is the speed (0.5 Hz to 2 kHz), <code>MDWAVE</code> is its wave shape (the quarters of the register give sine, triangle, square and saw), and <code>FMAMT</code> is the depth. The depth is squared, so the bottom of the register is subtle and the top is up to 2000 Hz of swing.</p>
+<p>A second oscillator, the <b>FM oscillator</b>, can push the pitch of the first up and down very fast. This is <b>frequency modulation</b> (FM). At low depth it adds a shimmer or vibrato. At high depth and audio speed it makes the clanging, bell-like tones FM is known for. Three registers set it: <code>FMRATE</code> is the speed (0.5 Hz to 2 kHz), <code>MDWAVE</code> is its wave shape (the quarters of the register give sine, triangle, square and saw), and <code>FMAMT</code> is the depth. The depth is squared, so the bottom of the register is subtle and the top is up to 2000 Hz of swing.</p>
 
 <h4>The wavefolder</h4>
 
@@ -521,13 +521,15 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <h3 id="mod-voice">The mod voice</h3>
 
-<p>The mod voice has its own filter and its own volume, and is never gated. It reuses the mod oscillator (so <code>FMRATE</code> sets its pitch) and the noise, blended by <code>MDNZ</code> (0 is all oscillator, full is all noise). The blend goes through a <b>ladder filter</b>: a lowpass of the kind Moog made, whose steep slope gives a thick, warm roll-off. <code>MDCUT</code> sets where it starts to cut (40 Hz to 14 kHz, scaled like <code>CUTOFF</code>), and <code>MDRES</code> adds <b>resonance</b>, a boost at the cutoff that turns a noise sweep from a hush into a whistle. <code>MDLVL</code> is its volume: 0 is silent, which is why the mod voice does nothing until you raise it.</p>
+<p>The mod voice has its own oscillator, its own filter and its own volume, and is never gated. <code>MDPITCH</code> tunes its oscillator exactly as <code>PITCH</code> tunes the main voice: 256 to a semitone, C4 is 15360, and <code>ST</code>, <code>HZ</code> and note names all work. Its wave is <code>MDWAVE</code>, the same shape as the FM oscillator, but the two run separately: <code>FMRATE</code> no longer changes the mod voice's note. The oscillator and the noise are blended by <code>MDNZ</code> (0 is all oscillator, full is all noise). The blend goes through a <b>ladder filter</b>: a lowpass of the kind Moog made, whose steep slope gives a thick, warm roll-off. <code>MDCUT</code> sets where it starts to cut (40 Hz to 14 kHz, scaled like <code>CUTOFF</code>), and <code>MDRES</code> adds <b>resonance</b>, a boost at the cutoff that turns a noise sweep from a hush into a whistle. <code>MDLVL</code> is its volume: 0 is silent, which is why the mod voice does nothing until you raise it.</p>
 
 <p>Low-passed white noise is quiet, so FEZ lifts the noise as the cutoff falls, up to six times, so a slow sweep keeps a steady loudness.</p>
 
-<pre class="fez"><code><span class="num">8000</span> <span class="reg">FMRATE</span> <span class="op">!</span>       <span class="cmt">\ the mod oscillator is a slow drone</span>
+<pre class="fez"><code><span class="note">A2</span> <span class="reg">MDPITCH</span> <span class="op">!</span>        <span class="cmt">\ the mod voice drones on A, under the main voice</span>
 <span class="num">12000</span> <span class="reg">MDCUT</span> <span class="op">!</span>
 <span class="num">20000</span> <span class="reg">MDLVL</span> <span class="op">!</span>       <span class="cmt">\ bring the mod voice up</span></code></pre>
+
+<p>Patches saved before <code>MDPITCH</code> existed load with it set to the frequency their <code>FMRATE</code> gave, so they sound as they did.</p>
 
 <h3 id="level">The master level</h3>
 
@@ -848,6 +850,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
   <li><b>SEQ</b>: the eight steps. Type a note name to set a step, and press <b>Enter</b> to clock the sequencer once.</li>
   <li><b>MATRIX</b>: the routes. <b>Enter</b> picks or adjusts a cell, and <b>Backspace</b> deletes a route.</li>
   <li><b>KEYS</b>: the computer keyboard as a piano (see below).</li>
+  <li><b>STICKS</b>: only while a gamepad is plugged in. Its left stick plays the notes of a scale, and A, B, X and Y fire pulsers 0 to 3, exactly as on the handheld (see <a href="#stick-page">the STICKS screen</a>).</li>
   <li><b>SCOPE</b>: a picture of the output wave, steadied by starting each sweep on a rising edge.</li>
 </ul>
 
@@ -883,6 +886,10 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
  Z X C V B N M         lower octave: white keys</pre>
 
 <p>The notes are Z (C), S (C sharp), X (D), D (D sharp), C (E), V (F), G (F sharp), B (G), H (G sharp), N (A), J (A sharp) and M (B), and the upper row is the next octave, starting on Q. <b>Space</b> lets go of every key. Only this tab plays; the rest of the time the letters are for typing. If the window loses focus, every held note is released. How a key behaves is explained in <a href="#keyboard">the keyboard device</a>.</p>
+
+<h3 id="gamepad">A gamepad</h3>
+
+<p>Plug in a gamepad and the STICKS tab appears. Its two sticks are the modulation pots <code>MP0</code> to <code>MP3</code> on every tab (left stick left and right is <code>MP0</code>, up and down <code>MP1</code>; the right stick <code>MP2</code> and <code>MP3</code>), and on the STICKS tab the left stick plays notes instead while A, B, X and Y fire the pulsers. The buttons go by the labels of an Xbox pad: A, B, X and Y are pulsers 0, 1, 2 and 3. Use the keyboard for the tab's settings. Unplug the pad and the tab leaves the tab bar.</p>
 
 <h3 id="setup">Sound output and MIDI: F2</h3>
 
@@ -1275,7 +1282,7 @@ word 2                      the same for a word</pre>
 <tr class="ref-row"><td class="name" id="r-ATK">ATK</td><td class="addr">103</td><td class="def">1349 = 1ms</td><td class="def"></td><td>Envelope attack, 1 ms to 10 s</td></tr>
 <tr class="ref-row"><td class="name" id="r-REL">REL</td><td class="addr">104</td><td class="def">9000 = 52ms</td><td class="def"></td><td>Envelope release, 10 ms to 4 s</td></tr>
 <tr class="ref-row"><td class="name" id="r-LFORATE">LFORATE</td><td class="addr">105</td><td class="def">25200 = 5.0Hz</td><td class="def"></td><td>Slow modulator (LFO) rate</td></tr>
-<tr class="ref-row"><td class="name" id="r-FMRATE">FMRATE</td><td class="addr">106</td><td class="def">8000 = 3.8Hz</td><td class="def"></td><td>Modulation oscillator rate</td></tr>
+<tr class="ref-row"><td class="name" id="r-FMRATE">FMRATE</td><td class="addr">106</td><td class="def">8000 = 3.8Hz</td><td class="def"></td><td>FM: the rate the main pitch is moved at</td></tr>
 <tr class="ref-row"><td class="name" id="r-FMAMT">FMAMT</td><td class="addr">107</td><td class="def">0 = 0Hz</td><td class="def"></td><td>FM depth: mod oscillator into the voice</td></tr>
 <tr class="ref-row"><td class="name" id="r-CXWAVE">CXWAVE</td><td class="addr">108</td><td class="def">0 = TRI</td><td class="def"></td><td>Complex wave: triangle, square or saw</td></tr>
 <tr class="ref-row"><td class="name" id="r-CXBLEND">CXBLEND</td><td class="addr">109</td><td class="def">0 = 0%</td><td class="def"></td><td>Complex oscillator blend: sine to chosen wave</td></tr>
@@ -1295,6 +1302,7 @@ word 2                      the same for a word</pre>
 <tr class="ref-row"><td class="name" id="r-MIXBF">MIXBF</td><td class="addr">121</td><td class="def">0 = 0%</td><td class="def"></td><td>Buffer out to the effects bus, never gated</td></tr>
 <tr class="ref-row"><td class="name" id="r-MIXBP">MIXBP</td><td class="addr">122</td><td class="def">0 = 0%</td><td class="def"></td><td>Buffer out into the filter and VCA</td></tr>
 <tr class="grp"><th colspan="5">MOD VOICE</th></tr>
+<tr class="ref-row"><td class="name" id="r-MDPITCH">MDPITCH</td><td class="addr">123</td><td class="def">15360 = C4</td><td class="def"></td><td>Mod voice pitch, 256 to a semitone (as PITCH)</td></tr>
 <tr class="ref-row"><td class="name" id="r-MDWAVE">MDWAVE</td><td class="addr">124</td><td class="def">0 = SIN</td><td class="def"></td><td>Mod oscillator wave: sine, tri, square, saw</td></tr>
 <tr class="ref-row"><td class="name" id="r-MDCUT">MDCUT</td><td class="addr">125</td><td class="def">32767 = 14k</td><td class="def"></td><td>Mod voice lowpass cutoff</td></tr>
 <tr class="ref-row"><td class="name" id="r-MDLVL">MDLVL</td><td class="addr">126</td><td class="def">0 = 0%</td><td class="def"></td><td>Mod voice level, never gated</td></tr>

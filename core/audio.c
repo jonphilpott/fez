@@ -180,6 +180,7 @@ static void begin_chunk(FezSynth *s) {
   /* 2) oscillators */
   a->f_cx = pitch_hz(P(s, REG_PITCH));
   a->f_md = fm_hz(P(s, REG_FMRATE));
+  a->f_mv = pitch_hz(P(s, REG_MDPITCH));
   a->fm_depth = fm_depth_hz(P(s, REG_FMAMT));
   a->cx_shape = cx_shape(s->eff[REG_CXWAVE]);
   a->md_shape = md_shape(s->eff[REG_MDWAVE]);
@@ -245,8 +246,12 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
 
   /* ---- sources ---- */
   double dt_md = fabs(a->f_md) / FEZ_SAMPLE_RATE;
-  double m = wave(a->md_shape, a->ph_md, dt_md);                  /* mod oscillator, also the FM source */
+  double m = wave(a->md_shape, a->ph_md, dt_md);                  /* the FM oscillator (FMRATE), which moves the complex oscillator's pitch */
   a->ph_md = advance_phase(a->ph_md, a->f_md);
+  /* The mod voice's own oscillator, tuned like the main voice (MDPITCH, 8.8). Same wave shape (MDWAVE) as the FM oscillator.
+     They were one oscillator until 26 Nov 2026; split so the mod voice can play notes while FM goes down to 0.5 Hz. */
+  double mv = wave(a->md_shape, a->ph_mv, a->f_mv / FEZ_SAMPLE_RATE);
+  a->ph_mv = advance_phase(a->ph_mv, a->f_mv);
   double zraw = white(a);
   double nz = svf_lowpass(&a->nz_svf, &a->nz_c, zraw * 0.7);       /* noise through its tone control (0.7: a level set by ear) */
 
@@ -291,7 +296,7 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
   double vca = onepole_run(&a->lpg_lp, onepole_coef(gate_hz), lpg_in) * y;
 
   /* ---- mod voice: oscillator and noise through a Moog ladder, its own VCA ---- */
-  double md_src = m * ramp_next(&a->md_osc_g) + zraw * ramp_next(&a->md_nz_g);
+  double md_src = mv * ramp_next(&a->md_osc_g) + zraw * ramp_next(&a->md_nz_g);
   double md = ladder_run(&a->md_ladder, &a->md_c, md_src) * ramp_next(&a->md_vca);
 
   /* ---- buffer device. Its input is chosen by BWSRC; its output returns one sample late. ---- */

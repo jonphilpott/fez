@@ -32,7 +32,7 @@
 #include <stddef.h>
 #include "fez.h"
 
-#define PATCH_FILE_VERSION 1
+#define PATCH_FILE_VERSION 2     /* 2: MDPITCH exists (26 Nov 2026); a version 1 file takes it from FMRATE */
 #define PATCH_NAME_MAX 48
 #define PATCH_TEXT_MAX 256
 

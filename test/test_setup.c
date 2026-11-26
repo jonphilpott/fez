@@ -51,7 +51,22 @@ void test_setup(void) {
   send(rel + 7, 2); CHECK(fez_reg_read(&s, REG_MP2) == 16384 + 2 * 256, "REL2C: 127 is one click down");
   CHECK(!strcmp(d.midi_last, "CC 21 = 127  ch 1"), "the page shows the last message");
 
-  /* 5) the page: F2 opens it, it draws, Esc closes it */
+  /* 5) a gamepad on the desktop: STICKS shows only while one is plugged in; there its left stick plays and A B X Y fire pulsers */
+  CHECK(!desk_tab_shown(&d, TAB_STICKS), "no gamepad: no STICKS tab on the desktop");
+  d.gamepads = 1;
+  CHECK(desk_tab_shown(&d, TAB_STICKS), "a gamepad plugged in shows it");
+  desk_gamepad_axis(&d, 0, 32767); CHECK(fez_reg_read(&s, REG_MP0) == 32767, "elsewhere the left stick is a pair of pots");
+  desk_gamepad_axis(&d, 0, 0);
+  d.layouts[d.layout].tab[d.focus] = TAB_STICKS;
+  desk_gamepad_axis(&d, 1, -32767); CHECK(s.mem[REG_KBGATE] == 1 && s.mem[REG_KBNOTE] == 60 * 256, "on STICKS, up plays the root");
+  s.vm.pending = 0; desk_gamepad_button(&d, 3); CHECK(s.vm.pending == 8, "Y fires P3");
+  d.layouts[d.layout].tab[d.focus] = TAB_EDITOR; desk_tick(&d, 16);
+  CHECK(s.mem[REG_KBGATE] == 0, "leaving STICKS lets go of the note");
+  desk_gamepad_axis(&d, 1, 0);
+  s.vm.pending = 0; desk_gamepad_button(&d, 3); CHECK(s.vm.pending == 0, "elsewhere the buttons do nothing");
+  d.gamepads = 0;
+
+  /* 6) the page: F2 opens it, it draws, Esc closes it */
   static uint32_t px[1024 * 600];
   desk_set_canvas(&d, px, 1024, 600);
   desk_key(&d, KEY_F2, 0); CHECK(d.setup_open, "F2 opens the setup page");

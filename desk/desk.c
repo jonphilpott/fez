@@ -98,7 +98,11 @@ int desk_contains_nocase(const char *hay, const char *needle) {
 }
 
 void desk_say(Desk *d, const char *msg) { snprintf(d->msg, sizeof d->msg, "%s", msg); d->msg_until = d->now_ms + 1600; }
-void desk_tick(Desk *d, double dt_ms) { d->now_ms += dt_ms; editor_watch_blocks(d); devices_watch(d); }
+void desk_tick(Desk *d, double dt_ms) {
+  d->now_ms += dt_ms; editor_watch_blocks(d); devices_watch(d);
+  if (d->layouts[d->layout].tab[d->focus] != TAB_STICKS && (d->dev.stk_dir >= 0 || d->dev.stk_note >= 0 || d->dev.stk_swell))
+    tab_devices_stick_release(d);                             /* STICKS left the front while the stick held a note: let go */
+}
 /* The tab's name as the tab bar shows it ("EDITOR", "SEQ", ...). */
 const char *desk_tab_name(int tab) { return TABS[tab].name; }
 
@@ -177,8 +181,9 @@ int wrap_text(const char *s, int width, char lines[][64], int max_lines) {
 
 /* ---------------------------------------------------------------- drawing */
 
-/* KEYS plays the computer keyboard as a piano, which a handheld does not have; STICKS plays the handheld's left stick. */
-int desk_tab_shown(const Desk *d, int t) { return t == TAB_KEYS ? !d->handheld : t == TAB_STICKS ? d->handheld : 1; }
+/* KEYS plays the computer keyboard as a piano, which a handheld does not have; STICKS plays a gamepad's left stick: always
+   on the handheld, and on the desktop while a gamepad is plugged in. */
+int desk_tab_shown(const Desk *d, int t) { return t == TAB_KEYS ? !d->handheld : t == TAB_STICKS ? d->handheld || d->gamepads > 0 : 1; }
 
 static void draw_tile(Desk *d, int i) {
   Canvas *cv = &d->cv;
@@ -194,7 +199,7 @@ static void draw_tile(Desk *d, int i) {
      left) for as long as the bar has room. */
   gfx_fill(cv, x, y, w, th, gfx_colour(COL_PNL));
   int list[TAB_COUNT], n = 0, at = 0;                              /* the tabs this machine has, and where the showing one is among them */
-  for (int t = 0; t < TAB_COUNT; t++) if (desk_tab_shown(d, t)) { if (t == tab) at = n; list[n++] = t; }
+  for (int t = 0; t < TAB_COUNT; t++) if (desk_tab_shown(d, t) || t == tab) { if (t == tab) at = n; list[n++] = t; }   /* the showing tab always (a gamepad unplugged while STICKS shows) */
   int cw = GFX_CELL_W * s, room = (w - 8) / cw;                    /* the bar's width in cells */
   int first = at, last = at, used = (int)strlen(TABS[tab].name) + 1;
   for (int grew = 1; grew;) {

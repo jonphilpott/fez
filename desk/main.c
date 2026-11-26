@@ -344,7 +344,9 @@ int main(int argc, char **argv) {
   double lock_peak = 0, lock_left = 0;                       /* the longest the per-frame tick held the audio lock lately, and how long to keep it */
   uint32_t *pixels = NULL; SDL_Texture *tex = NULL; int pw = 0, ph = 0;
   if (!brick_mode) SDL_StartTextInput();                     /* printable characters arrive as SDL_TEXTINPUT (the handheld has no typing) */
-  for (int i = 0; i < SDL_NumJoysticks(); i++) if (SDL_IsGameController(i)) SDL_GameControllerOpen(i);
+  if (brick_mode) for (int i = 0; i < SDL_NumJoysticks(); i++) if (SDL_IsGameController(i)) SDL_GameControllerOpen(i);
+  /* (the desktop opens and counts gamepads as their SDL_CONTROLLERDEVICEADDED events arrive: SDL sends one for each pad
+     already plugged in at start too) */
 
   Uint32 last_frame = SDL_GetTicks();
   while (!desk.quit) {
@@ -371,6 +373,15 @@ int main(int argc, char **argv) {
         SDL_GameControllerOpen(ev.cdevice.which);
       } else if (brick_mode) {
         /* the other events (mouse, text) mean nothing on the handheld */
+      } else if (ev.type == SDL_CONTROLLERDEVICEADDED) {       /* the desktop: a gamepad plugged in shows the STICKS tab */
+        if (SDL_GameControllerOpen(ev.cdevice.which)) desk.gamepads++;
+      } else if (ev.type == SDL_CONTROLLERDEVICEREMOVED) {
+        SDL_GameController *gc = SDL_GameControllerFromInstanceID(ev.cdevice.which);
+        if (gc) { SDL_GameControllerClose(gc); desk.gamepads--; }
+      } else if (ev.type == SDL_CONTROLLERAXISMOTION && ev.caxis.axis <= SDL_CONTROLLER_AXIS_RIGHTY) {   /* sticks: pots, or the STICKS tab's melody */
+        SDL_LockAudioDevice(dev); desk_gamepad_axis(&desk, ev.caxis.axis, ev.caxis.value); SDL_UnlockAudioDevice(dev);
+      } else if (ev.type == SDL_CONTROLLERBUTTONDOWN && ev.cbutton.button <= SDL_CONTROLLER_BUTTON_Y) {   /* A B X Y, by SDL's names (an Xbox pad's labels) */
+        SDL_LockAudioDevice(dev); desk_gamepad_button(&desk, ev.cbutton.button); SDL_UnlockAudioDevice(dev);
       } else if (ev.type == SDL_KEYDOWN) {                     /* (key repeats are wanted: held arrows keep stepping) */
         int mods = translate_mods(ev.key.keysym.mod), key = translate_key(ev.key.keysym.sym);
         int nk = note_key_char(ev.key.keysym.scancode), played = 0;

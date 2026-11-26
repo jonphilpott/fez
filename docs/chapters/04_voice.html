@@ -27,7 +27,7 @@
 
 <h4>Frequency modulation</h4>
 
-<p>The second oscillator, the <b>mod oscillator</b>, can push the pitch of the first up and down very fast. This is <b>frequency modulation</b> (FM). At low depth it adds a shimmer or vibrato. At high depth and audio speed it makes the clanging, bell-like tones FM is known for. Three registers set it: <code>FMRATE</code> is the speed (0.5 Hz to 2 kHz), <code>MDWAVE</code> is its wave shape (the quarters of the register give sine, triangle, square and saw), and <code>FMAMT</code> is the depth. The depth is squared, so the bottom of the register is subtle and the top is up to 2000 Hz of swing.</p>
+<p>A second oscillator, the <b>FM oscillator</b>, can push the pitch of the first up and down very fast. This is <b>frequency modulation</b> (FM). At low depth it adds a shimmer or vibrato. At high depth and audio speed it makes the clanging, bell-like tones FM is known for. Three registers set it: <code>FMRATE</code> is the speed (0.5 Hz to 2 kHz), <code>MDWAVE</code> is its wave shape (the quarters of the register give sine, triangle, square and saw), and <code>FMAMT</code> is the depth. The depth is squared, so the bottom of the register is subtle and the top is up to 2000 Hz of swing.</p>
 
 <h4>The wavefolder</h4>
 
@@ -63,13 +63,15 @@
 
 <h3 id="mod-voice">The mod voice</h3>
 
-<p>The mod voice has its own filter and its own volume, and is never gated. It reuses the mod oscillator (so <code>FMRATE</code> sets its pitch) and the noise, blended by <code>MDNZ</code> (0 is all oscillator, full is all noise). The blend goes through a <b>ladder filter</b>: a lowpass of the kind Moog made, whose steep slope gives a thick, warm roll-off. <code>MDCUT</code> sets where it starts to cut (40 Hz to 14 kHz, scaled like <code>CUTOFF</code>), and <code>MDRES</code> adds <b>resonance</b>, a boost at the cutoff that turns a noise sweep from a hush into a whistle. <code>MDLVL</code> is its volume: 0 is silent, which is why the mod voice does nothing until you raise it.</p>
+<p>The mod voice has its own oscillator, its own filter and its own volume, and is never gated. <code>MDPITCH</code> tunes its oscillator exactly as <code>PITCH</code> tunes the main voice: 256 to a semitone, C4 is 15360, and <code>ST</code>, <code>HZ</code> and note names all work. Its wave is <code>MDWAVE</code>, the same shape as the FM oscillator, but the two run separately: <code>FMRATE</code> no longer changes the mod voice's note. The oscillator and the noise are blended by <code>MDNZ</code> (0 is all oscillator, full is all noise). The blend goes through a <b>ladder filter</b>: a lowpass of the kind Moog made, whose steep slope gives a thick, warm roll-off. <code>MDCUT</code> sets where it starts to cut (40 Hz to 14 kHz, scaled like <code>CUTOFF</code>), and <code>MDRES</code> adds <b>resonance</b>, a boost at the cutoff that turns a noise sweep from a hush into a whistle. <code>MDLVL</code> is its volume: 0 is silent, which is why the mod voice does nothing until you raise it.</p>
 
 <p>Low-passed white noise is quiet, so FEZ lifts the noise as the cutoff falls, up to six times, so a slow sweep keeps a steady loudness.</p>
 
-<pre class="fez">8000 FMRATE !       \ the mod oscillator is a slow drone
+<pre class="fez">A2 MDPITCH !        \ the mod voice drones on A, under the main voice
 12000 MDCUT !
 20000 MDLVL !       \ bring the mod voice up</pre>
+
+<p>Patches saved before <code>MDPITCH</code> existed load with it set to the frequency their <code>FMRATE</code> gave, so they sound as they did.</p>
 
 <h3 id="level">The master level</h3>
 

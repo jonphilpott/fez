@@ -118,6 +118,7 @@ typedef struct Desk {
   int pulsers_on;                /* whether the pulsers run (Ctrl+P) */
   int help, help_top;            /* the F1 help page is open; how far it is scrolled (narrow windows only) */
   int setup_open, setup_row;     /* the F2 setup page is open; the row under the cursor */
+  int gamepads;                  /* gamepads plugged in (desktop; main.c counts them): any shows the STICKS tab */
   Entry setup_in;                /* a CC number being typed */
   Setup setup;
   char audio_names[SETUP_DEVS][SETUP_NAME]; int n_audio;   /* the devices found when the page opened (main.c fills them) */
@@ -262,6 +263,8 @@ const char *ctrl_heading_name(int h);     /* the name of group heading h, where 
 void tab_scope_draw(Desk *d, View *v);    void tab_scope_key(Desk *d, int key, int mods);    void tab_scope_text(Desk *d, int ch);
 void tab_keys_draw(Desk *d, View *v);     void tab_keys_key(Desk *d, int key, int mods);     void tab_keys_text(Desk *d, int ch);     /* in tab_devices.c */
 void tab_sticks_draw(Desk *d, View *v);   void tab_sticks_key(Desk *d, int key, int mods);   void tab_sticks_text(Desk *d, int ch);   /* in tab_devices.c */
-int  desk_tab_shown(const Desk *d, int tab);   /* this machine has the tab: KEYS needs a keyboard, STICKS the handheld */
+int  desk_tab_shown(const Desk *d, int tab);   /* this machine has the tab: KEYS needs a keyboard, STICKS a gamepad (the handheld, or d->gamepads) */
+void desk_gamepad_axis(Desk *d, int axis, int raw);   /* a stick moved (SDL axis 0..3, raw -32768..32767): pots MP0..MP3, or the STICKS tab's melody */
+void desk_gamepad_button(Desk *d, int button);        /* a gamepad's A B X Y (0..3) on the desktop: pulsers P0..P3 on the STICKS tab */
 
 #endif

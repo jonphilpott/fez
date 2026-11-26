@@ -163,7 +163,7 @@ void test_pad(void) {
   fez_reg_write(&s, REG_STKMODE, 1);
   pad_stick(&pad, 0, 32767);   CHECK(s.mem[REG_KBGATE] == 0 && fez_reg_read(&s, REG_PITCH) == 64 * 256 && fez_reg_read(&s, REG_GATELEVEL) == 32767, "swell: right sets E4 and opens the gate fully, with no key down");
   pad_stick(&pad, 0, 16000);   CHECK(fez_reg_read(&s, REG_GATELEVEL) > 10000 && fez_reg_read(&s, REG_GATELEVEL) < 20000, "half way is about half open");
-  tap(BTN_R1); pad_tick(&pad); CHECK(fez_reg_read(&s, REG_GATELEVEL) == 0, "leaving the screen closes the gate it opened");
+  tap(BTN_R1); desk_tick(&d, 16); CHECK(fez_reg_read(&s, REG_GATELEVEL) == 0, "leaving the screen closes the gate it opened");
   fez_reg_write(&s, REG_STKMODE, 0);
   d.layouts[3].tab[0] = TAB_STICKS;
   fez_reg_write(&s, REG_STKTYPE, 1); fez_reg_write(&s, REG_STKSCALE, 10); fez_reg_write(&s, REG_STKROOT, 57 * 256);   /* colour 10 from A3 */

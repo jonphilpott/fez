@@ -1,5 +1,6 @@
 /* Patch file tests: every built-in patch is written out, read back, and must behave exactly like the original. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "fez.h"
 #include "patchfile.h"
@@ -75,6 +76,11 @@ void test_patchfile(void) {
   /* damaged and foreign files */
   CHECK(patchfile_read(&copy, "hello", &back, err, sizeof err) == -1, "not a patch file");
   CHECK(patchfile_read(&copy, "FEZ PATCH 99\n", &back, err, sizeof err) == -1, "a newer version is refused");
+  /* MDPITCH: a version 1 file (before it existed) keeps its mod voice at the FMRATE frequency; a version 2 file means what it says */
+  patchfile_read(&copy, "FEZ PATCH 1\nreg FMRATE 21300\n", &back, err, sizeof err);
+  CHECK(abs(copy.mem[REG_MDPITCH] - 11512) <= 2, "version 1: FMRATE 21300 (109.8 Hz) becomes MDPITCH just under A2");
+  patchfile_read(&copy, "FEZ PATCH 2\nreg FMRATE 21300\n", &back, err, sizeof err);
+  CHECK(copy.mem[REG_MDPITCH] == 15360, "version 2: no MDPITCH line is the default, C4");
   int bad = patchfile_read(&copy, "FEZ PATCH 1\nname X\nreg NOSUCH 5\nreg CUTOFF 123\nbogus line\n", &back, err, sizeof err);
   CHECK(bad == 2 && copy.mem[REG_CUTOFF] == 123 && !strncmp(err, "line 3", 6), "bad lines are skipped and counted, good ones still load");
   CHECK(patchfile_write(&orig, &info, text1, 20) == -1, "a buffer that is too small is reported");

@@ -27,9 +27,9 @@ typedef struct {
   int chunk_pos, chunks_to_tick;        /* position in the current chunk; chunks until the next control tick */
 
   /* ---- oscillators ---- */
-  double ph_cx, ph_md;                  /* phases, 0..1 */
+  double ph_cx, ph_md, ph_mv;           /* phases, 0..1: the complex oscillator, the FM oscillator, the mod voice's oscillator */
   uint32_t nz_state;                    /* white-noise generator (separate from the synth's, which must stay deterministic) */
-  double f_cx, f_md, fm_depth;          /* base frequencies in Hz, FM depth in Hz (per chunk) */
+  double f_cx, f_md, f_mv, fm_depth;    /* frequencies in Hz (PITCH, FMRATE, MDPITCH), FM depth in Hz (per chunk) */
   int cx_shape, md_shape;
 
   /* ---- gains (ramped) ---- */

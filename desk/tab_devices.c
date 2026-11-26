@@ -411,6 +411,31 @@ void tab_devices_stick(Desk *d, int x, int y) {
   d->dev.stk_swell = 1;
 }
 
+/* A gamepad's sticks, the handheld's or one plugged into a computer (SDL numbers the axes 0 left X, 1 left Y, 2 right X,
+   3 right Y). Each direction is a modulation pot, MP0 to MP3, except that on the STICKS tab the left stick plays (above). */
+#define STICK_DEADZONE 4096           /* a stick at rest wanders a little: inside this the pot sits exactly at its centre */
+
+void desk_gamepad_axis(Desk *d, int axis, int raw) {
+  if (axis < 0 || axis > 3) return;
+  int v = raw < -32767 ? -32767 : raw;               /* keep -v in range */
+  if (axis & 1) v = -v;                              /* SDL's Y is negative upwards; the pot should rise when you push up */
+  if (axis < 2 && d->layouts[d->layout].tab[d->focus] == TAB_STICKS) {   /* the STICKS tab in front: the left stick plays, and MP0/MP1 stay put */
+    tab_devices_stick(d, axis == 0 ? v : d->dev.stk_x, axis == 1 ? v : d->dev.stk_y);
+    return;
+  }
+  /* 1) take off the dead zone and stretch what is left to the full range, so the pot leaves its centre smoothly */
+  int mag = v < 0 ? -v : v;
+  mag = mag <= STICK_DEADZONE ? 0 : (int)((long)(mag - STICK_DEADZONE) * 32767 / (32767 - STICK_DEADZONE));
+  v = v < 0 ? -mag : mag;
+  /* 2) -32767..32767 becomes the pot's 0..32767, centre 16384 */
+  fez_set_pot(d->synth, axis, 16384 + v / 2);
+}
+
+/* A gamepad's A B X Y (by SDL's names, 0 to 3) on the desktop: on the STICKS tab they fire pulsers P0 to P3. */
+void desk_gamepad_button(Desk *d, int button) {
+  if (button >= 0 && button < NUM_PULSERS && d->layouts[d->layout].tab[d->focus] == TAB_STICKS) d->synth->vm.pending |= 1u << button;   /* on the next tick, as TRIG does */
+}
+
 /* The stick's picture: the eight directions as a ring of note names (degree numbers for colours) round the centre, the one held lit, and a dot where
    the stick is now. In swell mode a bar along the bottom shows GATELEVEL. */
 static void draw_stick(Desk *d, View *v, int pane_w, int prows, int sx, int sy, int swidth) {

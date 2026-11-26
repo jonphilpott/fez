@@ -9,7 +9,7 @@
 
 const RegGroup REG_GROUPS[] = {
   { "VOICE", REG_PITCH },      { "CV", REG_CV0 },         { "MIXER", REG_MIXCX },
-  { "MOD VOICE", REG_MDWAVE }, { "DELAY", REG_DLYTIME },  { "SLEW", REG_SLT0 },        { "SCRATCH", REG_S0 },
+  { "MOD VOICE", REG_MDPITCH }, { "DELAY", REG_DLYTIME },  { "SLEW", REG_SLT0 },        { "SCRATCH", REG_S0 },
   { "CELLULAR", REG_CARULE },  { "LORENZ", REG_LZRATE },  { "SEQUENCER", REG_SQSTEP }, { "BUFFER", REG_BWMODE },
   { "GRAINS", REG_GPOS0 },     { "PULSERS", REG_BP0 },    { "QUANTISER", REG_QON },    { "TURING", REG_TMPUL },
   { "KEYBOARD", REG_KBNOTE }, { "STICK", REG_STKTYPE }, { "POTS", REG_MP0 } };
@@ -64,7 +64,7 @@ void regview_fmt_note(char *o, size_t n, int p) {
 void regview_fmt_param(char *o, size_t n, int a, int v) {
   static const char *CX[3] = { "TRI", "SQR", "SAW" }, *MD[4] = { "SIN", "TRI", "SQR", "SAW" };
   switch (a) {
-    case REG_PITCH: regview_fmt_note(o, n, v); break;
+    case REG_PITCH: case REG_MDPITCH: regview_fmt_note(o, n, v); break;
     case REG_CUTOFF: case REG_MDCUT: fmt_hz(o, n, cut_hz(v)); break;
     case REG_ATK: fmt_sec(o, n, atk_sec(v)); break;
     case REG_REL: fmt_sec(o, n, rel_sec(v)); break;
@@ -131,7 +131,7 @@ void regview_pstep(FezSynth *s, int a, int dir, int coarse) {
     regview_pset(s, a, (2 * c + 1) * 32768 / (2 * n));                      /* the middle of the new band */
     return;
   }
-  regview_pset(s, a, regview_pget(s, a) + dir * (a == REG_PITCH ? 256 * (coarse ? 12 : 1) : coarse ? 4096 : 512));
+  regview_pset(s, a, regview_pget(s, a) + dir * (a == REG_PITCH || a == REG_MDPITCH ? 256 * (coarse ? 12 : 1) : coarse ? 4096 : 512));
 }
 
 /* ---------------------------------------------------------------- source words */

@@ -1,7 +1,9 @@
 /* Patch files: see patchfile.h for the format. */
 #include "patchfile.h"
 #include "regview.h"
+#include "scales.h"
 #include <ctype.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -190,7 +192,14 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
   }
   if (kind) { if (kind == 1) vm_set_block(&s->vm, index, src); else vm_set_word(&s->vm, index, src); }
 
-  /* 3) state that follows from the registers */
+  /* 3) a version 1 file was made when the mod voice played at the FM rate: keep it at that frequency, as a pitch (8.8 is
+        MIDI note x 256; 69 is A at 440 Hz). Below about 8 Hz the pitch bottoms out at 0. */
+  if (atoi(text + 10) < 2) {
+    double hz = fm_hz(s->mem[REG_FMRATE]);
+    fez_reg_write(s, REG_MDPITCH, (int)lround((69.0 + 12.0 * log2(hz / 440.0)) * 256.0));
+  }
+
+  /* 4) state that follows from the registers */
   s->bw.state = s->mem[REG_BWMODE] == 1 ? 1 : 0;
   fez_compute_eff(s);
   return bad;
