@@ -41,10 +41,11 @@
 
 <p>Next comes the part that gives the voice its character. A <b>lowpass gate</b> is a filter and a volume control in one, and the same signal drives both. When it is open, the sound passes at full level and bright. As it closes, the sound grows quieter <em>and</em> duller at once, as a plucked string or a struck bell does. It is modelled on the vactrol, a small lamp and light-sensitive resistor used in Buchla synthesisers. The lamp lights quickly and fades slowly, and the fade slows down the closer to dark it gets. That long tail is the sound.</p>
 
-<p>You control it with four registers:</p>
+<p>You control it with five registers:</p>
 
 <ul>
   <li><code>GATE</code>: write any non-zero number and the lamp lights. <code>1 GATE !</code> plays a note.</li>
+  <li><code>GATELEVEL</code>: how far the gate stays open all the time. The gate's real opening is <code>GATELEVEL</code> plus the lamp (the envelope), limited to fully open. At 0, the default, the gate is shut between notes and each <code>GATE</code> plays a note. At full the gate is always open and the voice drones, with no note needed. In between, the voice sounds softly all the time and each <code>GATE</code> lifts it. It is an ordinary register, so a matrix route (an LFO, say) can sway it, and a block can set it from code: <code>20000 GATELEVEL !</code>. It is the way to hold a note open, on the handheld too.</li>
   <li><code>ATK</code>: how fast the gate opens, from 1 ms to 500 ms.</li>
   <li><code>REL</code>: how long the tail lasts, from 10 ms to 4 s.</li>
   <li><code>CUTOFF</code>: how bright the sound is when the gate is fully open, from 40 Hz to 14 kHz. As the gate closes, the cutoff falls from here down to 40 Hz.</li>

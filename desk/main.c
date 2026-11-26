@@ -19,6 +19,10 @@
 #include "userpatch.h"
 #include "wavrec.h"
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#define mkdir(path, mode) _mkdir(path)      /* Windows' mkdir takes no permission bits */
+#endif
 #include <time.h>
 
 static FezSynth synth;                    /* ~2 MB (the buffer device alone is 1.5 MB), so static rather than on the stack */
@@ -136,7 +140,7 @@ static void rec_stop(void) {
   desk.recording = 0;
   int secs = (int)(frames / FEZ_SAMPLE_RATE);
   if (bad) snprintf(desk.msg, sizeof desk.msg, "RECORDING FAILED: DISK FULL OR UNWRITABLE");
-  else snprintf(desk.msg, sizeof desk.msg, "SAVED %d:%02d in ~/FEZ/recordings%s", secs / 60, secs % 60, drops ? " (SOME SAMPLES LOST)" : "");
+  else snprintf(desk.msg, sizeof desk.msg, "SAVED %d:%02d in the FEZ/recordings folder%s", secs / 60, secs % 60, drops ? " (SOME SAMPLES LOST)" : "");
   desk.msg_until = desk.now_ms + 8000;
 }
 
@@ -231,8 +235,19 @@ int main(int argc, char **argv) {
   desk.scope = scope_ring; desk.scope_head = &scope_head;
   desk.clip_set = clip_set; desk.clip_get = clip_get;
   {                                                           /* one visible folder: ~/FEZ/patches/ and ~/FEZ/recordings/ (easy to find, back up and share) */
+#ifdef _WIN32
+    const char *home = getenv("USERPROFILE");              /* C:\Users\<name>: Windows has no HOME. Forward slashes work in Windows paths. */
+#else
     const char *home = getenv("HOME");
-    if (home && home[0] && snprintf(home_fez, sizeof home_fez, "%s/FEZ/", home) < (int)sizeof home_fez) {
+#endif
+#ifdef __IPHONEOS__
+    /* On an iPad HOME is the app's private container; only its Documents folder is shown in the Files app (once the app's Info.plist
+       sets UIFileSharingEnabled), so the FEZ folder goes there. */
+    const char *under = "%s/Documents/FEZ/";
+#else
+    const char *under = "%s/FEZ/";
+#endif
+    if (home && home[0] && snprintf(home_fez, sizeof home_fez, under, home) < (int)sizeof home_fez) {
       char sub[512];
       mkdir(home_fez, 0755);
       snprintf(sub, sizeof sub, "%srecordings/", home_fez); mkdir(sub, 0755);

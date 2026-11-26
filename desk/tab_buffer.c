@@ -191,8 +191,9 @@ static void draw_voices_page(Desk *d, View *v) {
   int a = d->bf.cell < 4 ? voice_addr(COLS[d->bf.cell].base, d->bf.voice) : 490 + d->bf.voice;
   const char *name = NULL;
   for (int i = 0; i < NAME_COUNT; i++) if (NAME_TABLE[i].addr == a) { name = NAME_TABLE[i].name; break; }
-  if (name) { snprintf(buf, sizeof buf, "%s = %d", name, fez_reg_read(s, a)); view_text(v, 0, v->rows - 2, buf, COL_FG); view_text(v, 16, v->rows - 2, regview_help(name), COL_DIM); }
-  view_text(v, 0, v->rows - 1, "R relative to head   V reverse   T follows PITCH   L loops", COL_DIM);
+  if (name && d->handheld) view_text(v, 0, v->rows - 2, regview_help(name), COL_DIM);          /* no room for "NAME = value" beside the help on 49 columns */
+  else if (name) { snprintf(buf, sizeof buf, "%s = %d", name, fez_reg_read(s, a)); view_text(v, 0, v->rows - 2, buf, COL_FG); view_text(v, 16, v->rows - 2, regview_help(name), COL_DIM); }
+  view_text(v, 0, v->rows - 1, d->handheld ? "R relative  V reverse  T track pitch  L loop" : "R relative to head   V reverse   T follows PITCH   L loops", COL_DIM);
 }
 
 void tab_buffer_draw(Desk *d, View *v) {
@@ -256,7 +257,7 @@ void tab_buffer_key(Desk *d, int key, int mods) {
       int addr, lo, hi, step, big;
       if (d->bf.mode == BFM_TYPE && current_target(d, &addr, &lo, &hi, &step, &big)) { fez_reg_write(s, addr, clampi(atoi(d->bf.buf), lo, hi)); stop_entry(d); }
       else if (!tape && d->bf.cell >= 4) toggle_flag(d);
-      else if (!tape) { d->bf.mode = d->bf.mode == BFM_ADJUST ? BFM_NORMAL : BFM_ADJUST; desk_say(d, d->bf.mode == BFM_ADJUST ? "ADJUSTING: Left/Right, Enter when done" : "RELEASED"); }
+      else if (!tape) { d->bf.mode = d->bf.mode == BFM_ADJUST ? BFM_NORMAL : BFM_ADJUST; desk_say(d, d->bf.mode == BFM_ADJUST ? (d->handheld ? "ADJUSTING: Left/Right, A when done" : "ADJUSTING: Left/Right, Enter when done") : "RELEASED"); }
       break;
     }
     case KEY_ESC: stop_entry(d); break;

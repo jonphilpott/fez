@@ -44,6 +44,7 @@ static const HelpLine RIGHT[] = {
   { "Left / Right",  "MY PATCHES / EXAMPLES" },
   { "letters",       "type to filter the list" },
   { "Ctrl+S",        "save under a name (any tab)" },
+  { "Ctrl+N",        "new blank patch (asks first)" },
   { "Ctrl+D",        "delete the picked patch (asks)" },
   { "Ctrl+T",        "start / stop recording to WAV" },
   { "patch files",   "~/FEZ/patches" },

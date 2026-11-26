@@ -30,12 +30,13 @@ static const TabDef TABS[TAB_COUNT] = {
 
 /* ---------------------------------------------------------------- layouts */
 
-/* Three ways to cut the window up. Rectangles are in thousandths of the window (see Frac). One key cycles through them. */
+/* Three ways to cut the window up, named 1, 2 and 3 like workspaces in a tiling window manager. Rectangles are in thousandths of
+   the window (see Frac). Ctrl+Tab cycles through them. Each tile starts on a sensible tab and can be changed with Ctrl+[ ]. */
 static void init_layouts(Desk *d) {
-  Layout code  = { "CODE", 3, { { 0, 0, 580, 1000 }, { 580, 0, 1000, 400 }, { 580, 400, 1000, 1000 } }, { TAB_EDITOR, TAB_SCOPE, TAB_CTRL } };
-  Layout mix   = { "MIX",  3, { { 0, 0, 560, 1000 }, { 560, 0, 1000, 420 }, { 560, 420, 1000, 1000 } }, { TAB_CTRL, TAB_SCOPE, TAB_PULSERS } };
-  Layout watch = { "WATCH", 3, { { 0, 0, 1000, 340 }, { 0, 340, 500, 1000 }, { 500, 340, 1000, 1000 } }, { TAB_SCOPE, TAB_CTRL, TAB_DEVICES } };
-  d->layouts[0] = code; d->layouts[1] = mix; d->layouts[2] = watch;
+  Layout one   = { "LAYOUT 1", 3, { { 0, 0, 580, 1000 }, { 580, 0, 1000, 400 }, { 580, 400, 1000, 1000 } }, { TAB_EDITOR, TAB_SCOPE, TAB_CTRL } };     /* a tall tile and two small ones */
+  Layout two   = { "LAYOUT 2", 2, { { 0, 0, 500, 1000 }, { 500, 0, 1000, 1000 } }, { TAB_EDITOR, TAB_CTRL } };                                             /* a 50/50 split */
+  Layout three = { "LAYOUT 3", 3, { { 0, 0, 1000, 340 }, { 0, 340, 500, 1000 }, { 500, 340, 1000, 1000 } }, { TAB_SCOPE, TAB_CTRL, TAB_DEVICES } };      /* a wide strip over two halves */
+  d->layouts[0] = one; d->layouts[1] = two; d->layouts[2] = three;
   Layout hand = { "HAND", 1, { { 0, 0, 1000, 1000 } }, { TAB_PATCHES } };   /* the handheld: one tile, the whole screen */
   d->layouts[3] = hand;
 }
@@ -95,6 +96,9 @@ int desk_contains_nocase(const char *hay, const char *needle) {
 
 void desk_say(Desk *d, const char *msg) { snprintf(d->msg, sizeof d->msg, "%s", msg); d->msg_until = d->now_ms + 1600; }
 void desk_tick(Desk *d, double dt_ms) { d->now_ms += dt_ms; editor_watch_blocks(d); devices_watch(d); }
+/* The tab's name as the tab bar shows it ("EDITOR", "SEQ", ...). */
+const char *desk_tab_name(int tab) { return TABS[tab].name; }
+
 void desk_fire_gate(Desk *d) { fez_reg_write(d->synth, REG_GATE, 1); }
 
 void desk_toggle_pulsers(Desk *d) {
@@ -366,6 +370,7 @@ void desk_key(Desk *d, int key, int mods) {
       case 't': d->rec_toggle = 1; return;                      /* record a take of the output: main.c does the work (Ctrl+R is the editor's run) */
       case 'g': desk_fire_gate(d); return;
       case 'p': desk_toggle_pulsers(d); return;
+      case 'n': *tab = TAB_PATCHES; desk_patches_begin_new(d); return;       /* new blank patch: asks first, in the Patches tab */
       case 's': *tab = TAB_PATCHES; desk_patches_begin_save(d); return;     /* save: shows the name prompt in the Patches tab */
       case 'q': d->quit = 1; return;
       default: break;                                            /* other chords go to the tab (the editor has several) */

@@ -159,8 +159,8 @@ static void draw_cellular(Desk *d, View *v, int prows, int cs, int compact, int 
   int row = compact ? 2 + prows + 1 : sy + 4, col = compact ? 0 : sx;
   snprintf(buf, sizeof buf, "alive %d of 16", alive); view_text(v, col, row, buf, COL_FG);
   snprintf(buf, sizeof buf, "watching cell %d: %s", s->ca.tap, watched ? "alive" : "dead"); view_text(v, col, row + 1, buf, COL_FG);
-  if (!compact && sy + 7 < v->rows) view_text(v, sx, sy + 7, "Space: step once", COL_DIM);     /* (the handheld's button bar says it) */
-  if (!compact && sy + 8 < v->rows) view_text(v, sx, sy + 8, "n: random row   c: one cell", COL_DIM);
+  if (!d->handheld && sy + 7 < v->rows) view_text(v, sx, sy + 7, "Space: step once", COL_DIM);     /* (the handheld's button bar says it) */
+  if (!d->handheld && sy + 8 < v->rows) view_text(v, sx, sy + 8, "n: random row   c: one cell", COL_DIM);
 }
 
 /* One octave of piano keys. A key is lit if its note is in the scale over the root. The key the voice is playing now
@@ -196,7 +196,7 @@ static void draw_quantiser(Desk *d, View *v, int pane_w, int prows, int sx, int 
   snprintf(buf, sizeof buf, "PITCH register  %s", name); view_text(v, sx, sy + 4, buf, COL_FG);
   if (s->mem[REG_QON]) { regview_fmt_note(name, sizeof name, s->eff[REG_PITCH]); snprintf(buf, sizeof buf, "voice hears     %s", name); view_text(v, sx, sy + 5, buf, COL_GRN); }
   else view_text(v, sx, sy + 5, "voice hears     the register as it is", COL_DIM);
-  if (sy + 7 < v->rows) view_text(v, sx, sy + 7, "Space: on or off", COL_DIM);
+  if (!d->handheld && sy + 7 < v->rows) view_text(v, sx, sy + 7, "Space: on or off", COL_DIM);
   if (sy + 8 < v->rows) view_text(v, sx, sy + 8, "amber frame: the root", COL_DIM);
 }
 
@@ -212,8 +212,8 @@ static void draw_turing(Desk *d, View *v, int pane_w, int prows, int sx, int sy,
   view_text(v, sx, sy + 5, "out", COL_DIM);
   view_bar(v, sx + 4, sy + 5, swidth - 12 > 4 ? swidth - 12 : 4, out / 32767.0, COL_CYN, COL_SEL);
   snprintf(buf, sizeof buf, "%d", out); view_text_right(v, sx + swidth - 7, 6, sy + 5, buf, COL_FG);
-  if (sy + 7 < v->rows) view_text(v, sx, sy + 7, "Space: step once", COL_DIM);
-  if (sy + 8 < v->rows) view_text(v, sx, sy + 8, "n: random bits", COL_DIM);
+  if (!d->handheld && sy + 7 < v->rows) view_text(v, sx, sy + 7, "Space: step once", COL_DIM);
+  if (!d->handheld && sy + 8 < v->rows) view_text(v, sx, sy + 8, "n: random bits", COL_DIM);
 }
 
 /* The tape loop, live. The delay line is a ring of 1.5 s of audio; the picture is that ring, drawn left to right, so what
@@ -330,7 +330,7 @@ static void draw_lorenz(Desk *d, View *v, int pane_w, int prows, int sx, int sy,
     view_bar(v, sx + 2, sy + 4 + a, swidth - 10 > 4 ? swidth - 10 : 4, (val + 32768) / 65535.0, COL_CYN, COL_SEL);
     view_text_right(v, sx + swidth - 7, 6, sy + 4 + a, buf, COL_FG);
   }
-  if (sy + 8 < v->rows) view_text(v, sx, sy + 8, "Space or r: restart", COL_DIM);
+  if (!d->handheld && sy + 8 < v->rows) view_text(v, sx, sy + 8, "Space or r: restart", COL_DIM);
 }
 
 void tab_devices_draw(Desk *d, View *v) {

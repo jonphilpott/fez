@@ -135,7 +135,7 @@ void tab_pulsers_key(Desk *d, int key, int mods) {
       if (d->pul.editing) { set_rate(d, p, atoi(d->pul.buf)); stop_entry(d); }                 /* store a typed rate */
       else if (d->pul.field == F_RATE) {                                                     /* start or stop adjusting the slider */
         d->pul.adjusting = !d->pul.adjusting;
-        desk_say(d, d->pul.adjusting ? "ADJUSTING: Left/Right change, Enter when done" : "SLIDER RELEASED");
+        desk_say(d, d->pul.adjusting ? (d->handheld ? "ADJUSTING: Left/Right, A when done" : "ADJUSTING: Left/Right change, Enter when done") : "SLIDER RELEASED");
       } else toggle_field(d);
       break;
     case KEY_ESC: stop_entry(d); break;

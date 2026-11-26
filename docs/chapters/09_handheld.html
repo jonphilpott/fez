@@ -81,11 +81,13 @@
 
 <h3 id="menu">The menu</h3>
 
-<p>Press <b>Menu</b> for a list. <b>Up</b> and <b>Down</b> pick, <b>A</b> chooses, and <b>B</b> goes back.</p>
+<p>Press <b>Menu</b> for a box with two tabs. The first tab carries the name of the screen you are on (EDITOR, say) and lists the extra things that screen can do. <b>MENU</b> holds the things that belong to the whole machine. <b>Left</b> and <b>Right</b> (or <b>L1</b> and <b>R1</b>) switch tabs, <b>Up</b> and <b>Down</b> pick, <b>A</b> chooses, and <b>B</b> closes the box (or, inside Go to screen, goes back one step). A screen with no extra actions, such as Scope, opens on the MENU tab.</p>
 
 <ul>
-  <li><b>Screen actions</b>: extra things the current screen can do that do not fit on A, B and X. On the editor these are run the block once, undo, redo, clear the block, and four tick boxes that say which pulsers run this block. Other screens have theirs: on Buffer, trigger, stop, record, freeze and clear; on Devices, next and previous page and the reseed actions.</li>
-  <li><b>Go to screen</b>: jump straight to any screen.</li>
+  <li><b>Selecting and copying</b>: in the editor, hold <b>Y</b> and use the D-pad to select text, as Shift does on the desktop. Then open the menu and choose Copy or Cut; move the cursor, even to another block, and choose Paste. B deletes the selection if there is one, and otherwise the last word.</li>
+  <li>screen's own tab: extra things the current screen can do that do not fit on A, B and X. On the editor these are run the block once, undo, redo, copy, cut, paste, clear the block, and four tick boxes that say which pulsers run this block. Other screens have theirs: on Buffer, trigger, stop, record, freeze and clear; on Devices, next and previous page and the reseed actions.</li>
+  <li><b>MENU</b> tab, <b>Go to screen</b>: jump straight to any screen.</li>
+  <li><b>New blank patch</b>: throw the current patch away and start empty. It takes you to the Patches screen and opens a question box: <b>A</b> yes, <b>B</b> no. Deleting or replacing a saved patch asks the same way.</li>
   <li><b>Record to WAV</b>: start or stop a recording.</li>
   <li><b>Pulsers</b>: switch them all off or on.</li>
   <li><b>Button help</b>: a list of these buttons, on the device.</li>
@@ -93,13 +95,15 @@
 </ul>
 
 <figure class="shot pad"><img src="shots/pad-menu.png" alt="The menu, opened with the Menu button."><figcaption>The menu, opened with the Menu button.</figcaption></figure>
-<figure class="shot pad"><img src="shots/pad-actions.png" alt="The editor's Screen actions. The last four rows are tick boxes"><figcaption>The editor's Screen actions. The last four rows are tick boxes: here pulsers 0 and 2 run this block.</figcaption></figure>
+<figure class="shot pad"><img src="shots/pad-menu-main.png" alt="The MENU tab: go to screen, new blank patch, record, pulsers, help, quit, close"><figcaption>The MENU tab. Left or Right goes back to the screen's own tab.</figcaption></figure>
+<figure class="shot pad"><img src="shots/pad-actions.png" alt="The editor's own tab. The last four rows are tick boxes"><figcaption>The editor's own tab. The last four rows are tick boxes: here pulsers 0 and 2 run this block.</figcaption></figure>
 
 <h3 id="saving">Saving a patch</h3>
 
 <p>On the Patches screen, press <b>X</b>. A name picker opens: <b>Up</b> and <b>Down</b> move through the letters one at a time, <b>Left</b> and <b>Right</b> by five. <b>A</b> adds the letter, <b>B</b> removes the last one, <b>X</b> saves, and <b>Y</b> gives up. The patch goes into <code>FEZ/patches/</code> on the card. As on the desktop, nothing is saved automatically.</p>
 
 <figure class="shot pad"><img src="shots/pad-name.png" alt="The name picker. The name so far is above, and the letters run along the bottom: the boxed one is added by A."><figcaption>The name picker. The letter being chosen is shown under the name so far.</figcaption></figure>
+<figure class="shot pad"><img src="shots/pad-confirm.png" alt="The question box for New blank patch, with A Yes and B No"><figcaption>A question box, here for New blank patch. A answers yes and B answers no.</figcaption></figure>
 
 <h3 id="limits">What the Brick does not do</h3>
 

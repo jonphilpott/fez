@@ -13,6 +13,16 @@ static uint32_t px[256 * 192];
 static void tap(Button b) { pad_button(&pad, b, 1); pad_button(&pad, b, 0); d.now_ms += 1000; }
 static int tab(void) { return d.layouts[d.layout].tab[d.focus]; }
 
+static char test_clip[256];
+static void test_clip_set(const char *t) { snprintf(test_clip, sizeof test_clip, "%s", t); }
+static int test_clip_get(char *buf, int max) { snprintf(buf, (size_t)max, "%s", test_clip); return (int)strlen(buf); }
+/* open the editor's Screen actions and choose the row-th action */
+static void editor_action(int row) {
+  if (pad.menu == -1) tap(BTN_MENU);                                           /* the menu opens on the actions tab */
+  for (int i = 0; i < row; i++) tap(BTN_DOWN);
+  tap(BTN_A);
+}
+
 void test_pad(void) {
   fez_init(&s, 1);
   desk_init(&d, &s);
@@ -43,7 +53,7 @@ void test_pad(void) {
   s.vm.pending = 0; tap(BTN_Y); CHECK(s.vm.pending == 8, "Y fires P3");
 
   /* the menu opens and closes, and swallows buttons while open */
-  tap(BTN_MENU); CHECK(pad.menu == 0, "Menu opens the menu");
+  tap(BTN_MENU); CHECK(pad.menu != -1, "Menu opens the menu");
   s.vm.pending = 0; tap(BTN_DOWN); tap(BTN_B); CHECK(s.vm.pending == 0 && pad.menu == -1, "B closes the menu and does not fire a pulser");
 
   /* the editor palette: A opens it, A inserts a word into the block's text, B closes it */
@@ -82,9 +92,14 @@ void test_pad(void) {
 
   /* the editor's "Runs on P#" checkboxes change the block's pulser mask and leave the menu open */
   d.layouts[3].tab[0] = TAB_EDITOR; s.mem[REG_BP0 + d.ed.blk] = 0;
-  tap(BTN_MENU); CHECK(pad.menu == 0, "menu opens on the editor");
-  tap(BTN_A); CHECK(pad.menu == 2, "Screen actions opens its list");
-  for (int i = 0; i < 4; i++) tap(BTN_DOWN);                                    /* past Run, Undo, Redo, Clear: now on "Runs on P0" */
+  tap(BTN_MENU); CHECK(pad.menu == 2, "the menu opens on this screen's actions when it has some");
+  tap(BTN_RIGHT); CHECK(pad.menu == 0, "Right switches to the MENU tab");
+  tap(BTN_L1); CHECK(pad.menu == 2, "L1 switches back to the actions");
+  tap(BTN_R1); tap(BTN_LEFT); CHECK(pad.menu == 2, "R1 and Left switch tabs too");
+  tap(BTN_RIGHT); tap(BTN_A); CHECK(pad.menu == 1, "Go to screen opens its list");
+  tap(BTN_B); CHECK(pad.menu == 0, "B in the list goes back to the MENU tab");
+  tap(BTN_LEFT);
+  for (int i = 0; i < 7; i++) tap(BTN_DOWN);                                    /* past Run, Undo, Redo, Copy, Cut, Paste, Clear: now on "Runs on P0" */
   tap(BTN_A); CHECK(pad.menu == 2 && (s.mem[REG_BP0 + d.ed.blk] & 1), "A on Runs on P0 sets the bit and keeps the menu open");
   tap(BTN_DOWN); tap(BTN_DOWN); tap(BTN_A); CHECK(pad.menu == 2 && s.mem[REG_BP0 + d.ed.blk] == 5, "P2 can be added without closing the menu");
   tap(BTN_UP); tap(BTN_UP); tap(BTN_A); CHECK(s.mem[REG_BP0 + d.ed.blk] == 4, "A again clears the bit");
@@ -123,4 +138,52 @@ void test_pad(void) {
   pad_stick(&pad, 2, 6000);    CHECK(fez_reg_read(&s, REG_MP2) > 16384 && fez_reg_read(&s, REG_MP2) < 18000, "just outside the dead zone the pot moves only a little");
   pad_stick(&pad, 9, 32767);   CHECK(fez_reg_read(&s, REG_MP2) < 18000, "a bad axis is ignored");
   fez_load_patch(&s, 2);       CHECK(fez_reg_read(&s, REG_MP0) == 1 && fez_reg_read(&s, REG_MP1) == 32767, "loading a patch leaves the pots where they were");
+
+  /* the editor on the handheld: select with Y + D-pad, then copy, cut and paste from the Screen actions menu */
+  {
+    d.clip_set = test_clip_set; d.clip_get = test_clip_get;
+    d.layouts[3].tab[0] = TAB_EDITOR; d.ed.blk = 0;
+    if (pad.menu != -1) tap(BTN_B);
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta");
+    d.ed.cursor = 10; d.ed.anchor = -1;
+    for (int k = 0; k < 4; k++) { pad_button(&pad, BTN_Y, 1); pad_button(&pad, BTN_LEFT, 1); pad_button(&pad, BTN_LEFT, 0); pad_button(&pad, BTN_Y, 0); }
+    CHECK(d.ed.anchor == 10 && d.ed.cursor == 6, "holding Y with the D-pad selects text");
+    editor_action(3);                                                           /* Copy */
+    CHECK(strcmp(test_clip, "beta") == 0 && strcmp(d.ed.text[0], "alpha beta") == 0, "Copy puts the selection on the clipboard and leaves the text");
+    d.ed.cursor = 0; d.ed.anchor = -1;
+    editor_action(5);                                                           /* Paste */
+    CHECK(strcmp(d.ed.text[0], "betaalpha beta") == 0, "Paste inserts the clipboard at the cursor");
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "one two");
+    d.ed.cursor = 7; d.ed.anchor = 4;
+    editor_action(4);                                                           /* Cut */
+    CHECK(strcmp(test_clip, "two") == 0 && strcmp(d.ed.text[0], "one ") == 0, "Cut takes the selection out and puts it on the clipboard");
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta");
+    d.ed.cursor = 10; d.ed.anchor = 6;
+    tap(BTN_B);
+    CHECK(strcmp(d.ed.text[0], "alpha ") == 0, "B with a selection deletes just the selection, not the word before it");
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta");
+    d.ed.cursor = 10; d.ed.anchor = -1;
+    tap(BTN_B);
+    CHECK(strcmp(d.ed.text[0], "alpha ") == 0, "B with no selection still deletes the last word");
+  }
+
+  /* New blank patch: asks first, and changes nothing until the answer is yes */
+  {
+    if (pad.menu != -1) tap(BTN_B);
+    d.layouts[3].tab[0] = TAB_EDITOR;
+    desk_patches_loaded_example(&d, 0); desk_reload_editor(&d);
+    int before = s.mem[REG_FOLD];
+    CHECK(before == 6000 && strcmp(d.loaded_name, "Glass Bells") == 0, "Glass Bells is loaded for the test (FOLD 6000)");
+    tap(BTN_MENU); tap(BTN_RIGHT); tap(BTN_DOWN); tap(BTN_A);                    /* the MENU tab's second row: New blank patch */
+    CHECK(tab() == TAB_PATCHES && d.pat.mode == PAT_CONFIRM_NEW, "New blank patch goes to the Patches screen and asks");
+    pad_draw(&pad);                                                             /* the question box draws (the handheld shows a dialog, not a text line) */
+    CHECK(strcmp(d.loaded_name, "Glass Bells") == 0, "nothing is discarded before the answer");
+    tap(BTN_B);
+    CHECK(d.pat.mode == PAT_NORMAL && strcmp(d.loaded_name, "Glass Bells") == 0, "B says no and keeps the patch");
+    desk_key(&d, 'n', MOD_CTRL);
+    CHECK(d.pat.mode == PAT_CONFIRM_NEW, "Ctrl+N asks too");
+    tap(BTN_A);
+    CHECK(d.pat.mode == PAT_NORMAL && strcmp(d.loaded_name, "(blank)") == 0 && d.ed.text[0][0] == '\0', "A says yes: a blank patch with empty blocks");
+    CHECK(s.mem[REG_FOLD] != before && !s.pulsers[0].on, "the registers are back to the defaults and the pulsers are off");
+  }
 }

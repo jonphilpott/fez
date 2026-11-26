@@ -71,14 +71,17 @@ int main(int argc, char **argv) {
   for (int i = 0; i < 6; i++) tap(BTN_DOWN);
   dump(prefix, "11c_palette_regs_down");
   tap(BTN_B);
-  tap(BTN_MENU); dump(prefix, "12_menu");
-  tap(BTN_A); for (int i = 0; i < 4; i++) tap(BTN_DOWN); tap(BTN_A); tap(BTN_DOWN); tap(BTN_DOWN); tap(BTN_A); dump(prefix, "12b_actions");   /* P0 and P2 ticked */
-  tap(BTN_B);
-  tap(BTN_DOWN); tap(BTN_A); dump(prefix, "13_goto");
+  tap(BTN_MENU); dump(prefix, "12_menu");                 /* opens on the editor's actions */
+  synth.mem[REG_BP0] = 0;                                  /* so the two ticks below are the only ones */
+  for (int i = 0; i < 7; i++) tap(BTN_DOWN); tap(BTN_A); tap(BTN_DOWN); tap(BTN_DOWN); tap(BTN_A); dump(prefix, "12b_actions");   /* P0 and P2 ticked */
+  tap(BTN_RIGHT); dump(prefix, "12c_menu_main");           /* the MENU tab */
+  tap(BTN_A); dump(prefix, "13_goto");
   tap(BTN_B); tap(BTN_B);
   desk.layouts[3].tab[0] = TAB_PATCHES; tap(BTN_X); dump(prefix, "14_name");
   tap(BTN_Y);
-  tap(BTN_MENU); for (int i = 0; i < 4; i++) tap(BTN_DOWN); tap(BTN_A); dump(prefix, "15_help");
+  tap(BTN_MENU); tap(BTN_RIGHT); tap(BTN_DOWN); tap(BTN_A); dump(prefix, "16_confirm");   /* MENU tab, second row: New blank patch */
+  tap(BTN_B);
+  tap(BTN_MENU); tap(BTN_RIGHT); for (int i = 0; i < 4; i++) tap(BTN_DOWN); tap(BTN_A); dump(prefix, "15_help");          /* MENU tab, fifth row: Button help */
   printf("done\n");
   return 0;
 }

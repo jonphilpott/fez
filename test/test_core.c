@@ -26,6 +26,7 @@ void test_tables(void) {
     for (int j = i + 1; j < PARAM_COUNT; j++)
       CHECK(PARAM_TABLE[i].addr != PARAM_TABLE[j].addr, "two parameters share an address");
   CHECK(REG_CXWAVE > REG_PITCH && REG_CXBLEND < REG_GATE && REG_GATE < REG_CV0, "CXWAVE and CXBLEND belong to the voice run");
+  CHECK(REG_GATELEVEL == REG_GATE + 1 && REG_CV0 == REG_GATELEVEL + 1, "GATELEVEL sits in the voice run, between GATE and CV0");
   CHECK(REG_CV3 == REG_CV0 + 3 && REG_MP15 == REG_MP0 + 15, "numbered families are contiguous");
   CHECK(!strcmp(SRC_NAMES[7], "MP0") && !strcmp(SRC_NAMES[22], "MP15") && !strcmp(SRC_NAMES[23], "CADENS") && !strcmp(SRC_NAMES[33], "KB"), "the sixteen pots are matrix sources 7..22, in one run");
   CHECK(HZ_TAB[0] == 0 && HZ_TAB[256] == 65536, "hz table runs from log2(1) to log2(2) in Q16");

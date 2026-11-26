@@ -69,9 +69,24 @@ static void draw_pick(Desk *d, View *v) {
   }
   if (!n) view_text(v, 0, 2, "no match", COL_DIM);
   if (n > vis) view_scrollbar(v, top, vis, n, 2, vis);
-  if (n && d->mtx.mode == MTX_PICK_DST)
-    view_text(v, 14, 2, regview_help(pick_item_name(d, list[d->mtx.psel])), COL_DIM);          /* what the parameter does */
-  view_text(v, 0, v->rows - 1, "Up/Down  Enter choose  Esc cancel", COL_DIM);
+  if (n && d->mtx.mode == MTX_PICK_DST) {
+    /* what the parameter does, word-wrapped in the space to the right of the list (a long line would run off the screen) */
+    const char *t = regview_help(pick_item_name(d, list[d->mtx.psel]));
+    int width = v->cols - 14 - 2;                                    /* leave a column for the scrollbar */
+    for (int row = 2; row < v->rows - 1 && width > 4 && *t; row++) {
+      while (*t == ' ') t++;
+      int len = (int)strlen(t);
+      if (len > width) {                                             /* break at the last space that fits, or mid-word if there is none */
+        len = width;
+        while (len > 0 && t[len] != ' ') len--;
+        if (len == 0) len = width;
+      }
+      char line[80]; snprintf(line, sizeof line, "%.*s", len, t);
+      view_text(v, 14, row, line, COL_DIM);
+      t += len;
+    }
+  }
+  view_text(v, 0, v->rows - 1, d->handheld ? "Up/Down  A choose  B cancel" : "Up/Down  Enter choose  Esc cancel", COL_DIM);
 }
 
 /* A weight bar centred on zero: it fills right (magenta, when live) for positive, left (red) for negative. */
@@ -136,8 +151,11 @@ void tab_matrix_draw(Desk *d, View *v) {
     view_text(v, 0, v->rows - 2, regview_help(dst_name(d, s->routes[d->mtx.row].dst)), COL_DIM);
     static const char *const CELL_HELP[3] = { "Enter: pick a source (what moves the target)", "Enter: pick the parameter it moves",
                                               "Enter adjusts, or type a number. 32768 = full swing" };
-    view_text(v, 0, v->rows - 1, d->mtx.mode == MTX_ADJUST ? "ADJUSTING: Left/Right, Shift coarse, Enter done" : CELL_HELP[d->mtx.cell], COL_DIM);
-  } else if (v->rows >= 6) view_text(v, 0, v->rows - 1, "Enter adds a route", COL_DIM);
+    static const char *const PAD_HELP[3] = { "A: pick a source (what moves the target)", "A: pick the parameter it moves",
+                                             "A adjusts. 32768 = full swing" };
+    view_text(v, 0, v->rows - 1, d->mtx.mode == MTX_ADJUST ? (d->handheld ? "ADJUSTING: Left/Right, Y coarse, A done" : "ADJUSTING: Left/Right, Shift coarse, Enter done")
+                                                           : (d->handheld ? PAD_HELP : CELL_HELP)[d->mtx.cell], COL_DIM);
+  } else if (v->rows >= 6) view_text(v, 0, v->rows - 1, d->handheld ? "A adds a route" : "Enter adds a route", COL_DIM);
 }
 
 /* ---------------------------------------------------------------- keys */
@@ -221,7 +239,7 @@ void tab_matrix_key(Desk *d, int key, int mods) {
       else if (d->mtx.cell == 1) open_pick(d, MTX_PICK_DST);
       else {                                                            /* weight: start or stop adjusting */
         d->mtx.mode = d->mtx.mode == MTX_ADJUST ? MTX_NORMAL : MTX_ADJUST;
-        desk_say(d, d->mtx.mode == MTX_ADJUST ? "ADJUSTING: Left/Right change, Enter when done" : "WEIGHT RELEASED");
+        desk_say(d, d->mtx.mode == MTX_ADJUST ? (d->handheld ? "ADJUSTING: Left/Right, A when done" : "ADJUSTING: Left/Right change, Enter when done") : "WEIGHT RELEASED");
       }
       break;
     case KEY_ESC: stop_entry(d); break;

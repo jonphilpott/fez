@@ -95,7 +95,7 @@ void tab_seq_draw(Desk *d, View *v) {
     snprintf(buf, sizeof buf, "steps %d   clock does: %s%s%s", len, drv & 1 ? "PITCH " : "", drv & 2 ? "GATE" : "", drv ? "" : "nothing (code reads SQOUT)");
     view_text(v, 0, r, buf, COL_FG);
   }
-  if (r + 1 < v->rows) view_text(v, 0, r + 1, "P pitch  T gate  +/- steps  R restart  Enter clock", COL_DIM);
+  if (!d->handheld && r + 1 < v->rows) view_text(v, 0, r + 1, "P pitch  T gate  +/- steps  R restart  Enter clock", COL_DIM);
 }
 
 /* ---------------------------------------------------------------- keys */

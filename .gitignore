@@ -11,3 +11,6 @@
 /dist/
 /brick/.toolchain/
 /tools/manual_gen
+/demo
+/fez_mac
+.DS_Store

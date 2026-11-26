@@ -20,7 +20,9 @@ conv "$t/gb_10_palette.ppm"       pad-palette
 conv "$t/gb_11b_palette_regs.ppm" pad-palette-regs
 conv "$t/gb_12_menu.ppm"          pad-menu
 conv "$t/gb_12b_actions.ppm"      pad-actions
+conv "$t/gb_12c_menu_main.ppm"    pad-menu-main
 conv "$t/gb_14_name.ppm"          pad-name
+conv "$t/gb_16_confirm.ppm"       pad-confirm
 conv "$t/gb_15_help.ppm"          pad-help
 conv "$t/gb_01_patches.ppm"       pad-patches
 conv "$t/gb_02_ctrl.ppm"          pad-ctrl
@@ -35,8 +37,8 @@ conv "$t/dl_04_buffer.ppm"        pad-buffer
 # the desktop layouts, at the width of the manual's text column so they are shown at full sharpness
 FEZ_SHOT_CLEAN=1 ./deskshot 1 648 380 "$t/dk"  >/dev/null
 FEZ_SHOT_CLEAN=1 ./deskshot 3 648 380 "$t/dkc" >/dev/null
-conv "$t/dk_code.ppm"   desk-code
-conv "$t/dk_mix.ppm"    desk-mix
-conv "$t/dkc_watch.ppm" desk-watch
+conv "$t/dk_layout1.ppm"  desk-layout1
+conv "$t/dk_layout2.ppm"  desk-layout2
+conv "$t/dkc_layout3.ppm" desk-layout3
 rm -rf "$t"
 ls -l docs/shots

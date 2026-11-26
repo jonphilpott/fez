@@ -35,6 +35,27 @@ static void run(int blocks, double *diff, double *peak, int *bad) {
   }
 }
 
+
+static double gate_peak_from(int level, int fire, int blocks, int from);
+static double gate_peak(int level, int fire, int blocks) { return gate_peak_from(level, fire, blocks, blocks - 2); }
+/* The loudest sample in `blocks` blocks of 4800 frames, after the voice has been set up and (optionally) the gate fired once. */
+static double gate_peak_from(int level, int fire, int blocks, int from) {
+  fez_init(&s, 1);
+  fez_load_blank(&s);
+  fez_reg_write(&s, REG_MIXCX, 20000); fez_reg_write(&s, REG_CUTOFF, 32767); fez_reg_write(&s, REG_FOLD, 0);
+  fez_reg_write(&s, REG_FMAMT, 0); fez_reg_write(&s, REG_DLYMIX, 0); fez_reg_write(&s, REG_SPRMIX, 0);
+  fez_reg_write(&s, REG_ATK, 0); fez_reg_write(&s, REG_REL, 4000);          /* a short envelope, so a fired gate has faded before the end */
+  fez_reg_write(&s, REG_GATELEVEL, level);
+  if (fire) fez_reg_write(&s, REG_GATE, 1);
+  double peak = 0;
+  for (int b = 0; b < blocks; b++) {
+    fez_render_stereo(&s, lr, 4800);
+    if (b < from) continue;                                                  /* the last two blocks are measured once any fired envelope is long gone; the first two catch the envelope */
+    for (int i = 0; i < 4800; i++) { double l = fabs(lr[2 * i]); if (l > peak) peak = l; }
+  }
+  return peak;
+}
+
 void test_audio(void) {
   double diff, peak; int bad;
 
@@ -76,4 +97,12 @@ void test_audio(void) {
   fez_render_stereo(&s, lr, 4800);
   { double quiet = 0; for (int i = 0; i < 2 * 4800; i++) if (fabs(lr[i]) > quiet) quiet = fabs(lr[i]);
     CHECK(quiet < 0.02, "a patch load empties both spring tanks"); }
+
+  /* GATELEVEL: the gate is open by this much plus whatever the envelope adds */
+  CHECK(gate_peak(0, 0, 12) < 0.001, "GATELEVEL 0 and no envelope: the gate is shut and the voice is silent");
+  CHECK(gate_peak(32767, 0, 12) > 0.02, "GATELEVEL full: the gate stays open and the voice drones with no envelope");
+  double half = gate_peak(14000, 0, 12), more = gate_peak(30000, 0, 12);
+  CHECK(half > 0.001 && more > half, "a higher GATELEVEL is louder (and brighter)");
+  CHECK(gate_peak(0, 1, 12) < 0.001, "a fired envelope alone has faded to silence by the end of the test");
+  CHECK(gate_peak_from(14000, 1, 12, 0) > gate_peak_from(14000, 0, 12, 0) * 1.3, "the envelope adds to GATELEVEL: a fired gate is louder than the level alone");
 }

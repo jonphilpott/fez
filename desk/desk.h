@@ -74,7 +74,7 @@ enum { DEV_DELAY, DEV_CELLULAR, DEV_LORENZ, DEV_QUANTISER, DEV_TURING, DEV_KEYS,
 #define LZ_HIST 400                                       /* points of the Lorenz trace */
 enum { MTX_NORMAL, MTX_PICK_SRC, MTX_PICK_DST, MTX_ADJUST, MTX_TYPE };   /* the MATRIX tab's modes */
 enum { SUB_MINE, SUB_EXAMPLES };               /* the Patches tab's two lists, in tab order */
-enum { PAT_NORMAL, PAT_NAMING, PAT_CONFIRM_DELETE, PAT_CONFIRM_OVERWRITE };
+enum { PAT_NORMAL, PAT_NAMING, PAT_CONFIRM_DELETE, PAT_CONFIRM_OVERWRITE, PAT_CONFIRM_NEW };
 #define MAX_USER_PATCHES 128
 
 typedef struct Desk {
@@ -177,6 +177,8 @@ void desk_toggle_pulsers(Desk *d);
 void desk_reload_editor(Desk *d);
 void desk_patches_refresh(Desk *d);          /* re-read the user patch folder */
 void desk_patches_begin_save(Desk *d);       /* Ctrl+S: ask for a name */
+void desk_patches_begin_new(Desk *d);
+const char *desk_tab_name(int tab);        /* Ctrl+N: ask whether to throw this patch away and start a blank one */
 void desk_patches_loaded_blank(Desk *d);     /* start from a blank patch */
 void desk_patches_loaded_example(Desk *d, int index);   /* load an example patch into the synth and the UI */
 void editor_watch_blocks(Desk *d);           /* once per frame: note which blocks have run since the last frame */            /* after a patch load: take every block's source from the synth */

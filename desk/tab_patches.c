@@ -9,6 +9,7 @@
      Up/Down        move (Shift: first or last)         Left/Right   switch list
      Enter          load the selected patch             letters      type to narrow the list; Esc clears
      Ctrl+S         save under a name (from any tab)    Ctrl+D or Delete   delete the selected user patch (asks first)
+     Ctrl+N         start a blank patch (from any tab; asks before discarding the current one)
 
    The load and save code lives here because a patch is picked, named and confirmed here. The text format is in the core
    (patchfile.c); disk access is in userpatch.c. */
@@ -99,6 +100,10 @@ void desk_patches_begin_save(Desk *d) {
   d->pat.nlen = (int)strlen(d->pat.name);
 }
 
+/* Ctrl+N: nothing is thrown away until the user says yes (Enter), because there is no autosave. The question is drawn by the
+   Patches tab, so the caller must show that tab (desk.c and pad.c both do). */
+void desk_patches_begin_new(Desk *d) { d->pat.mode = PAT_CONFIRM_NEW; }
+
 /* ---------------------------------------------------------------- drawing */
 
 void tab_patches_draw(Desk *d, View *v) {
@@ -164,8 +169,10 @@ void tab_patches_draw(Desk *d, View *v) {
 
   /* the prompt line at the bottom */
   int pr = v->rows - 1;
+  if (d->handheld && d->pat.mode != PAT_NORMAL) return;     /* the handheld naming picker and questions are dialogs (pad.c) */
   if (d->pat.mode == PAT_NAMING) { snprintf(buf, sizeof buf, "SAVE AS: %s_   Enter saves, Esc cancels", d->pat.name); view_text(v, 0, pr, buf, COL_AMB); }
   else if (d->pat.mode == PAT_CONFIRM_OVERWRITE) { snprintf(buf, sizeof buf, "\"%s\" EXISTS. Enter overwrites, Esc cancels", d->pat.name); view_text(v, 0, pr, buf, COL_RED); }
+  else if (d->pat.mode == PAT_CONFIRM_NEW) view_text(v, 0, pr, "DISCARD AND START BLANK? Enter yes, Esc no", COL_RED);
   else if (d->pat.mode == PAT_CONFIRM_DELETE) { snprintf(buf, sizeof buf, "DELETE \"%s\"? Enter deletes, Esc cancels", d->pat.names[rows[*sel]]); view_text(v, 0, pr, buf, COL_RED); }
 }
 
@@ -191,7 +198,10 @@ void tab_patches_key(Desk *d, int key, int mods) {
       if (userpatch_exists(d->pat.dir, d->pat.name) && !(d->loaded_user && !strcmp(d->pat.name, d->loaded_name))) { d->pat.mode = PAT_CONFIRM_OVERWRITE; return; }
       d->pat.mode = PAT_NORMAL; do_save(d);
     } else if (d->pat.mode == PAT_CONFIRM_OVERWRITE) { d->pat.mode = PAT_NORMAL; do_save(d); }
-    else {                                                     /* delete */
+    else if (d->pat.mode == PAT_CONFIRM_NEW) {
+      d->pat.mode = PAT_NORMAL;
+      desk_patches_loaded_blank(d); desk_reload_editor(d); desk_say(d, "NEW BLANK PATCH");
+    } else {                                                     /* delete */
       d->pat.mode = PAT_NORMAL;
       if (n && userpatch_delete(d->pat.dir, d->pat.names[rows[*sel]]) == 0) { desk_say(d, "DELETED"); desk_patches_refresh(d); }
       else desk_say(d, "DELETE FAILED");
@@ -214,7 +224,9 @@ void tab_patches_key(Desk *d, int key, int mods) {
       } else load_user(d, d->pat.names[rows[*sel]]);
       break;
     case KEY_DELETE: case 'd':                                 /* 'd' arrives with Ctrl held: plain letters come through the text path */
-      if (key == KEY_DELETE || (mods & MOD_CTRL)) { if (sub == SUB_MINE && n) d->pat.mode = PAT_CONFIRM_DELETE; }
+      if (key == KEY_DELETE || (mods & MOD_CTRL)) {
+        if (sub == SUB_MINE && n) { d->pat.mode = PAT_CONFIRM_DELETE; snprintf(d->pat.name, sizeof d->pat.name, "%s", d->pat.names[rows[*sel]]); }   /* the name is kept for the question */
+      }
       break;
     default: break;
   }

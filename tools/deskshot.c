@@ -44,13 +44,8 @@ int main(int argc, char **argv) {
   desk.ed.last_key_ms = 999;
   printf("scale %d, layout tiles: ", desk.scale);
   for (int l = 0; l < 3; l++) {
-    if (l == 1) {                                       /* in MIX: move to the parameters tile, type a value, move down */
-      desk_key(&desk, KEY_DOWN, 0); desk_key(&desk, KEY_DOWN, 0);
-      desk_text(&desk, '2'); desk_text(&desk, '0'); desk_text(&desk, '0');
-      desk.pul.row = 1; desk.pul.field = 1; desk.pul.adjusting = 1;     /* show the pulser slider being adjusted */
-    }
     desk_draw(&desk);
-    static const char *names[] = { "code", "mix", "watch" };
+    static const char *names[] = { "layout1", "layout2", "layout3" };
     dump(prefix, names[l], px, w, h);
     desk_key(&desk, KEY_TAB, MOD_CTRL);                 /* next layout */
   }

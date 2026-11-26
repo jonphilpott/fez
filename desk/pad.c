@@ -99,6 +99,7 @@ static void insert_word(Pad *p, const char *w) {
 
 /* Delete back to the start of the previous word (and any blanks just before the cursor). */
 static void delete_word(Desk *d) {
+  if (d->ed.anchor >= 0 && d->ed.anchor != d->ed.cursor) { desk_key(d, KEY_BACKSPACE, 0); return; }   /* a selection (held Y and the D-pad): delete just that */
   const char *t = d->ed.text[d->ed.blk];
   int c = d->ed.cursor;
   while (c > 0 && (t[c - 1] == ' ' || t[c - 1] == '\n')) { desk_key(d, KEY_BACKSPACE, 0); c--; }
@@ -111,9 +112,10 @@ enum { MENU_CLOSED = -1, MENU_MAIN = 0, MENU_GOTO = 1, MENU_ACTIONS = 2 };
 
 /* What a tab can do that a plain button does not reach: each is a key the desktop tab already understands. */
 typedef struct { const char *label; int key, mods, text, check; } Action;   /* text: send the key as typed text, not a key press. check: a checkbox for "this block runs on pulser (key - '1')": it shows its state, and the menu stays open after A */
-static const Action A_EDITOR[]  = { { "Run block once", 'r', MOD_CTRL, 0, 0 }, { "Undo", 'z', MOD_CTRL, 0, 0 }, { "Redo", 'y', MOD_CTRL, 0, 0 }, { "Clear block", 0, 0, 0, 0 },
+static const Action A_EDITOR[]  = { { "Run block once", 'r', MOD_CTRL, 0, 0 }, { "Undo", 'z', MOD_CTRL, 0, 0 }, { "Redo", 'y', MOD_CTRL, 0, 0 },
+  { "Copy", 'c', MOD_CTRL, 0, 0 }, { "Cut", 'x', MOD_CTRL, 0, 0 }, { "Paste", 'v', MOD_CTRL, 0, 0 }, { "Clear block", 0, 0, 0, 0 },
   { "Runs on P0", '1', MOD_CTRL, 0, 1 }, { "Runs on P1", '2', MOD_CTRL, 0, 1 }, { "Runs on P2", '3', MOD_CTRL, 0, 1 }, { "Runs on P3", '4', MOD_CTRL, 0, 1 } };
-static const Action A_PATCHES[] = { { "Save patch", 's', MOD_CTRL, 0, 0 }, { "Delete patch", 'd', MOD_CTRL, 0, 0 }, { "Other list", '[', 0, 1, 0 } };
+static const Action A_PATCHES[] = { { "Save patch", 's', MOD_CTRL, 0, 0 }, { "Delete patch", 'd', MOD_CTRL, 0, 0 }, { "New blank patch", 'n', MOD_CTRL, 0, 0 }, { "Other list", '[', 0, 1, 0 } };
 static const Action A_CTRL[]    = { { "Units / raw", KEY_TAB, 0, 0, 0 } };
 static const Action A_DEVICES[] = { { "Next page", ']', 0, 1, 0 }, { "Previous page", '[', 0, 1, 0 }, { "Cellular: new row", 'n', 0, 1, 0 }, { "Cellular: single cell", 'c', 0, 1, 0 }, { "Lorenz: reset", 'r', 0, 1, 0 }, { "Turing: new bits", 'n', 0, 1, 0 } };
 static const Action A_BUFFER[]  = { { "Trigger voice", ' ', 0, 1, 0 }, { "Stop voice", 's', 0, 1, 0 }, { "Record one-shot", 'r', 0, 1, 0 }, { "Freeze / run head", 'f', 0, 1, 0 }, { "Clear tape", 'c', 0, 1, 0 } };
@@ -129,12 +131,12 @@ static const struct { const Action *a; int n; } ACTIONS[TAB_COUNT] = {
 
 static const char *const TAB_NAMES[TAB_COUNT] = { "Editor", "Patches", "Control", "Devices", "Buffer", "Pulsers", "Sequencer", "Matrix", "Play", "Scope" };
 
-/* The main menu's rows. Tab actions appears only on a tab that has some. */
-enum { MM_ACTIONS, MM_GOTO, MM_RECORD, MM_PULSERS, MM_HELP, MM_QUIT, MM_CLOSE, MM_COUNT };
+/* The MENU tab's rows. (The other tab, ACTIONS, lists what the current screen can do; see ACTIONS above.) */
+enum { MM_GOTO, MM_NEW, MM_RECORD, MM_PULSERS, MM_HELP, MM_QUIT, MM_CLOSE, MM_COUNT };
 static const char *main_label(const Pad *p, int row) {
   switch (row) {
-    case MM_ACTIONS: return "Screen actions";
     case MM_GOTO: return "Go to screen";
+    case MM_NEW: return "New blank patch";
     case MM_RECORD: return p->d->recording ? "Stop recording" : "Record to WAV";
     case MM_PULSERS: return p->d->pulsers_on ? "Pulsers: switch off" : "Pulsers: switch on";
     case MM_HELP: return "Button help";
@@ -146,12 +148,13 @@ static const char *main_label(const Pad *p, int row) {
 /* The rows in the open menu level, as a count. */
 static int menu_rows(const Pad *p) {
   if (p->menu == MENU_GOTO) return TAB_COUNT;
-  if (p->menu == MENU_ACTIONS) return ACTIONS[cur_tab(p)].n;
+  if (p->menu == MENU_ACTIONS) return ACTIONS[cur_tab(p)].n ? ACTIONS[cur_tab(p)].n : 1;     /* one row saying there is nothing, so the list is never empty */
   return MM_COUNT;
 }
 static const char *menu_label(const Pad *p, int row) {
   if (p->menu == MENU_GOTO) return TAB_NAMES[row];
   if (p->menu == MENU_ACTIONS) {
+    if (!ACTIONS[cur_tab(p)].n) return "(none on this screen)";
     const Action *a = &ACTIONS[cur_tab(p)].a[row];
     if (!a->check) return a->label;
     static char box[40];                                                  /* "[x] Runs on P0": the block's pulser mask bit, read live */
@@ -173,18 +176,22 @@ static void menu_key(Pad *p, Button b) {
   int n = menu_rows(p);
   if (b == BTN_UP) p->msel = (p->msel + n - 1) % n;
   else if (b == BTN_DOWN) p->msel = (p->msel + 1) % n;
-  else if (b == BTN_B || b == BTN_MENU) { if (p->menu == MENU_MAIN) p->menu = MENU_CLOSED; else { p->menu = MENU_MAIN; p->msel = 0; } }
+  else if ((b == BTN_LEFT || b == BTN_RIGHT || b == BTN_L1 || b == BTN_R1) && p->menu != MENU_GOTO) {     /* the two tabs: ACTIONS and MENU */
+    p->menu = p->menu == MENU_MAIN ? MENU_ACTIONS : MENU_MAIN; p->msel = 0;
+  }
+  else if (b == BTN_B || b == BTN_MENU) { if (p->menu == MENU_GOTO) { p->menu = MENU_MAIN; p->msel = MM_GOTO; } else p->menu = MENU_CLOSED; }
   else if (b == BTN_A) {
     int row = p->msel;
     if (p->menu == MENU_GOTO) { d->layouts[d->layout].tab[d->focus] = row; p->pal = 0; p->menu = MENU_CLOSED; }
     else if (p->menu == MENU_ACTIONS) {
+      if (!ACTIONS[cur_tab(p)].n) return;
       const Action *a = &ACTIONS[cur_tab(p)].a[row];
       if (!a->check) p->menu = MENU_CLOSED;                                /* a checkbox changes in place; everything else closes the menu */
       run_action(p, a);
     }
     else switch (row) {
-      case MM_ACTIONS: if (ACTIONS[cur_tab(p)].n) { p->menu = MENU_ACTIONS; p->msel = 0; } else desk_say(d, "NO ACTIONS ON THIS SCREEN"); break;
       case MM_GOTO: p->menu = MENU_GOTO; p->msel = cur_tab(p); break;
+      case MM_NEW: d->layouts[d->layout].tab[d->focus] = TAB_PATCHES; desk_patches_begin_new(d); p->pal = 0; p->menu = MENU_CLOSED; break;   /* shows the question on the Patches screen */
       case MM_RECORD: d->rec_toggle = 1; p->menu = MENU_CLOSED; break;
       case MM_PULSERS: desk_toggle_pulsers(d); p->menu = MENU_CLOSED; break;
       case MM_HELP: p->menu = MENU_CLOSED; p->help = 1; p->help_top = 0; break;
@@ -250,8 +257,9 @@ static const char *const HELP_LINES[] = {
   "           at the bottom of the screen)",
   "Start      fire the gate (play a note)",
   "Select     mute / unmute",
-  "Menu       the menu: actions, go to",
-  "           screen, record, help, quit",
+  "Menu       the menu. Two tabs (Left/Right or",
+  "           L1/R1): this screen's actions, and",
+  "           new patch, go to, record, help, quit",
   "Vol + / -  master volume",
   "Sticks     modulation pots MP0 to MP3",
   "",
@@ -337,7 +345,7 @@ static void press(Pad *p, Button b) {
   Desk *d = p->d;
   if (p->help) { help_key(p, b); return; }
   if (p->menu != MENU_CLOSED) { menu_key(p, b); return; }
-  if (b == BTN_MENU) { p->menu = MENU_MAIN; p->msel = 0; return; }
+  if (b == BTN_MENU) { p->menu = ACTIONS[cur_tab(p)].n ? MENU_ACTIONS : MENU_MAIN; p->msel = 0; return; }     /* opens on this screen's actions, if it has any */
   if (b == BTN_SELECT) { d->muted = !d->muted; return; }
   if (b == BTN_VOLU || b == BTN_VOLD) {
     d->synth->level_pot = clampi(d->synth->level_pot + (b == BTN_VOLU ? 1 : -1) * 1500, 0, 32767);
@@ -408,7 +416,8 @@ void pad_tick(Pad *p) {
 static const char *tab_hint(const Pad *p) {
   const Desk *d = p->d;
   if (p->help) return "Up/Down scroll  B close";
-  if (p->menu != MENU_CLOSED) return "Up/Down  A choose  B back";
+  if (p->menu == MENU_GOTO) return "Up/Down  A choose  B back";
+  if (p->menu != MENU_CLOSED) return "L/R tab  A choose  B close";
   if (cur_tab(p) == TAB_PATCHES && d->pat.mode == PAT_NAMING) return "Up/Dn A add B del X ok Y no";
   if (cur_tab(p) == TAB_PATCHES && d->pat.mode != PAT_NORMAL) return "A yes  B no";
   if (p->pal && cur_tab(p) == TAB_EDITOR) return "A insert B close X apply Y del";
@@ -443,7 +452,18 @@ static void draw_menu(Pad *p) {
   int n = menu_rows(p), vis = n < 12 ? n : 12, rh = 10, w = 150, h = vis * rh + 16, x = (cv->w - w) / 2, y = 8;
   p->menu_top = clampi(p->msel - vis / 2, 0, n - vis);
   panel(d, x, y, w, h);
-  gfx_text(cv, x + 6, y + 4, p->menu == MENU_GOTO ? "GO TO SCREEN" : p->menu == MENU_ACTIONS ? "SCREEN ACTIONS" : "MENU", 1, gfx_colour(COL_MAG));
+  if (p->menu == MENU_GOTO) gfx_text(cv, x + 6, y + 4, "GO TO SCREEN", 1, gfx_colour(COL_MAG));
+  else {                                                                  /* two tabs; the open one is lit */
+    /* drawn like the main tab bar: the open tab sits on a filled block, the other is dim. The first tab carries the screen's own name. */
+    const char *names[2] = { desk_tab_name(cur_tab(p)), "MENU" };
+    int tx = x + 4;
+    for (int t = 0; t < 2; t++) {
+      int on = t == (p->menu == MENU_ACTIONS ? 0 : 1), tw = ((int)strlen(names[t]) + 1) * GFX_CELL_W;
+      if (on) gfx_fill(cv, tx, y + 2, tw, 10, gfx_colour(COL_AMBD));
+      gfx_text(cv, tx + GFX_CELL_W / 2, y + 4, names[t], 1, gfx_colour(on ? COL_AMB : COL_DIM));
+      tx += tw + 4;
+    }
+  }
   for (int i = 0; i < vis; i++) {
     int row = p->menu_top + i, yy = y + 14 + i * rh, sel = row == p->msel;
     if (sel) gfx_fill(cv, x + 2, yy - 1, w - 4, rh, gfx_colour(COL_AMBD));
@@ -514,11 +534,33 @@ static void draw_help(Pad *p) {
   }
 }
 
+/* A question with two answers, in the middle of the screen: "Start a blank patch?" and the like. A is yes and B is no, as the hint line says. */
+static void draw_confirm(Pad *p) {
+  Desk *d = p->d; Canvas *cv = &d->cv;
+  const char *title = "", *line1 = "", *line2 = "";
+  char buf[PATCH_NAME_MAX + 8];
+  switch (d->pat.mode) {
+    case PAT_CONFIRM_NEW:       title = "START A BLANK PATCH?"; line1 = "This patch will be discarded."; line2 = "Unsaved changes are lost."; break;
+    case PAT_CONFIRM_DELETE:    title = "DELETE PATCH?"; snprintf(buf, sizeof buf, "\"%.30s\"", d->pat.name); line1 = buf; line2 = "It cannot be brought back."; break;
+    case PAT_CONFIRM_OVERWRITE: title = "REPLACE PATCH?"; snprintf(buf, sizeof buf, "\"%.30s\"", d->pat.name); line1 = buf; line2 = "A patch with that name exists."; break;
+    default: return;
+  }
+  int w = 192, h = 64, x = (cv->w - w) / 2, y = (cv->h - h) / 2;
+  panel(d, x, y, w, h);
+  gfx_text(cv, x + 8, y + 6, title, 1, gfx_colour(COL_RED));
+  gfx_text(cv, x + 8, y + 20, line1, 1, gfx_colour(COL_FG));
+  gfx_text(cv, x + 8, y + 30, line2, 1, gfx_colour(COL_DIM));
+  /* the two answers, drawn as the buttons they are */
+  gfx_fill(cv, x + 12, y + 44, 80, 14, gfx_colour(COL_AMBD)); gfx_text(cv, x + 20, y + 47, "A  Yes", 1, gfx_colour(COL_AMB));
+  gfx_frame(cv, x + 100, y + 44, 80, 14, gfx_colour(COL_DIM)); gfx_text(cv, x + 108, y + 47, "B  No", 1, gfx_colour(COL_FG));
+}
+
 void pad_draw(Pad *p) {
   Desk *d = p->d;
   gfx_unclip(&d->cv);
   if (p->help) draw_help(p);
   else if (cur_tab(p) == TAB_PATCHES && d->pat.mode == PAT_NAMING) draw_name(p);
+  else if (cur_tab(p) == TAB_PATCHES && d->pat.mode != PAT_NORMAL) draw_confirm(p);
   else if (p->pal && cur_tab(p) == TAB_EDITOR) draw_palette(p);
   if (p->menu != MENU_CLOSED) draw_menu(p);
 }

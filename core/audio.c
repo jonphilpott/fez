@@ -265,6 +265,9 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
     a->yf = flush_denormal(a->yf); a->ys = flush_denormal(a->ys);
   }
   double y = 0.7 * a->yf + 0.3 * a->ys;
+  /* GATELEVEL holds the gate open by a fixed amount; the envelope (the vactrol above) adds to it. 0 is the old behaviour, full is a
+     gate that is always wide open, so the voice drones. Both limits are 0 and 1, the vactrol's own range. */
+  y = clampd(y + P(s, REG_GATELEVEL) / 32767.0, 0.0, 1.0);
   /* one gate state drives both the level and the cutoff, like a Buchla 292: closing the gate also dulls the sound */
   double gate_hz = 40.0 * exp(y * a->lpg_ln_ratio);
   double lpg_in = mix + a->buf_prev * ramp_next(&a->out_bp);
