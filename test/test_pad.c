@@ -170,7 +170,40 @@ void test_pad(void) {
   pad_stick(&pad, 0, 32767);   CHECK(fez_reg_read(&s, REG_PITCH) == 57 * 256 + 1275 && s.mem[REG_KBGATE] == 1, "colours: right is degree 2, a just fourth above the root, played exactly");
   pad_stick(&pad, 0, 0);       CHECK(s.mem[REG_KBGATE] == 0, "and lets go at the centre");
   fez_reg_write(&s, REG_STKTYPE, 0); fez_reg_write(&s, REG_STKSCALE, 1); fez_reg_write(&s, REG_STKROOT, 15360);
-  d.layouts[3].tab[0] = TAB_DEVICES;
+  /* the D-pad on STICKS: eight directions with the diagonals, legato; R2 held makes it move through the settings instead */
+  {
+    #define DOWN(b) pad_button(&pad, b, 1)
+    #define UP(b)   pad_button(&pad, b, 0)
+    DOWN(BTN_UP);    CHECK(s.mem[REG_KBGATE] == 1 && s.mem[REG_KBNOTE] == 60 * 256, "D-pad up plays the root, C4");
+    DOWN(BTN_RIGHT); CHECK(s.mem[REG_KBNOTE] == 62 * 256 && s.mem[REG_KBGATE] == 1, "up and right together is degree 1, D4, legato");
+    UP(BTN_UP);      CHECK(s.mem[REG_KBNOTE] == 64 * 256, "then right alone is degree 2, E4");
+    d.now_ms += 2000; pad_tick(&pad); CHECK(s.mem[REG_KBNOTE] == 64 * 256, "a held direction does not repeat");
+    UP(BTN_RIGHT);   CHECK(s.mem[REG_KBGATE] == 0, "letting go of the D-pad lets go of the note");
+    DOWN(BTN_R2); int pitch0 = fez_reg_read(&s, REG_PITCH), mode0 = fez_reg_read(&s, REG_STKMODE);
+    for (int k = 0; k < 3; k++) { DOWN(BTN_DOWN); UP(BTN_DOWN); }                         /* to MODE, the fourth setting */
+    DOWN(BTN_RIGHT); UP(BTN_RIGHT);
+    CHECK(s.mem[REG_KBGATE] == 0 && fez_reg_read(&s, REG_PITCH) == pitch0 && fez_reg_read(&s, REG_STKMODE) != mode0, "with R2 held the D-pad edits the settings (here MODE to swell) and plays nothing");
+    UP(BTN_R2);
+    /* swell: the time held opens GATELEVEL over STKSWELL (default 1000 ms), and letting go closes it over the same time */
+    CHECK(fez_reg_read(&s, REG_STKSWELL) == 1000, "STKSWELL defaults to a second");
+    DOWN(BTN_LEFT);  CHECK(fez_reg_read(&s, REG_PITCH) == 71 * 256 && s.mem[REG_KBGATE] == 0, "swell: left sets B4 with no key down");
+    for (int k = 0; k < 25; k++) desk_tick(&d, 20);                                        /* half a second */
+    int half = fez_reg_read(&s, REG_GATELEVEL);
+    CHECK(half > 15000 && half < 18000, "held half the swell time: about half open");
+    DOWN(BTN_UP); UP(BTN_LEFT); CHECK(fez_reg_read(&s, REG_PITCH) == 60 * 256 && abs(fez_reg_read(&s, REG_GATELEVEL) - half) < 400, "a new direction changes the note, not the swell");
+    for (int k = 0; k < 40; k++) desk_tick(&d, 20);
+    CHECK(fez_reg_read(&s, REG_GATELEVEL) == 32767, "held longer than the swell time: fully open");
+    UP(BTN_UP); for (int k = 0; k < 25; k++) desk_tick(&d, 20);
+    CHECK(abs(fez_reg_read(&s, REG_GATELEVEL) - 16384) < 1000, "let go: it closes over the same time");
+    for (int k = 0; k < 30; k++) desk_tick(&d, 20);
+    CHECK(fez_reg_read(&s, REG_GATELEVEL) == 0, "and ends closed");
+    DOWN(BTN_UP); desk_tick(&d, 200); tap(BTN_R1); desk_tick(&d, 16);
+    CHECK(fez_reg_read(&s, REG_GATELEVEL) == 0 && d.dev.dpad == 0, "leaving the screen mid-swell closes the gate");
+    UP(BTN_UP); fez_reg_write(&s, REG_STKMODE, 0);
+    d.layouts[3].tab[0] = TAB_DEVICES;
+    #undef DOWN
+    #undef UP
+  }
   pad_stick(&pad, 9, 32767);   CHECK(fez_reg_read(&s, REG_MP2) < 18000, "a bad axis is ignored");
   fez_load_patch(&s, 2);       CHECK(fez_reg_read(&s, REG_MP0) == 1 && fez_reg_read(&s, REG_MP1) == 32767, "loading a patch leaves the pots where they were");
 

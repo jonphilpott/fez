@@ -175,6 +175,8 @@ typedef struct Desk {
     int stk_x, stk_y;                        /* STICK: the right stick, -32767..32767 each, up and right positive */
     int stk_dir, stk_note, stk_swell;        /* the direction held (0 up, clockwise to 7) or -1; the key (MIDI note) held down or -1; GATELEVEL is ours */
     int stk_pitch;                           /* the exact pitch sounding (8.8; a colour's just notes fall between keys) */
+    int dpad;                                /* STICKS: the D-pad directions held, bits 1 up, 2 right, 4 down, 8 left */
+    double dpad_level;                       /* STICKS: how far a D-pad swell has opened GATELEVEL, 0..1 */
   } dev;
   struct {                                   /* MATRIX */
     int row, cell, mode;                     /* the route under the cursor; its cell (0 source, 1 destination, 2 weight); what the keys do now */
@@ -266,5 +268,8 @@ void tab_sticks_draw(Desk *d, View *v);   void tab_sticks_key(Desk *d, int key, 
 int  desk_tab_shown(const Desk *d, int tab);   /* this machine has the tab: KEYS needs a keyboard, STICKS a gamepad (the handheld, or d->gamepads) */
 void desk_gamepad_axis(Desk *d, int axis, int raw);   /* a stick moved (SDL axis 0..3, raw -32768..32767): pots MP0..MP3, or the STICKS tab's melody */
 void desk_gamepad_button(Desk *d, int button);        /* a gamepad's A B X Y (0..3) on the desktop: pulsers P0..P3 on the STICKS tab */
+void desk_gamepad_dpad(Desk *d, int bit, int down);   /* a D-pad direction (1 up, 2 right, 4 down, 8 left) on the STICKS tab: plays like the stick */
+void tab_devices_dpad_tick(Desk *d, double dt_ms);    /* STICKS in front: move a D-pad swell on by dt_ms */
+enum { DPAD_UP = 1, DPAD_RIGHT = 2, DPAD_DOWN = 4, DPAD_LEFT = 8 };
 
 #endif

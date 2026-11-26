@@ -46,22 +46,27 @@
 
 <h3 id="stick-page">Playing tunes: the STICKS screen</h3>
 
-<p>The <b>STICKS</b> screen turns the handheld into an instrument: the left stick plays notes, and <b>A</b>, <b>B</b>, <b>X</b> and <b>Y</b> fire pulsers 0 to 3, so the right hand can set off blocks, the sequencer or grains while the left plays. A pad for each button lights up when its pulser fires. The right stick stays a pair of pots.</p>
+<p>The <b>STICKS</b> screen turns the handheld into an instrument: the left stick or the <b>D-pad</b> plays notes, and <b>A</b>, <b>B</b>, <b>X</b> and <b>Y</b> fire pulsers 0 to 3, so the right hand can set off blocks, the sequencer or grains while the left plays. A pad for each button lights up when its pulser fires. The right stick stays a pair of pots.</p>
 
-<p>The left stick's Its direction picks a note: straight up is the root, and each eighth of a turn clockwise is the next note of the scale, so the eight directions are the first eight notes. In a seven-note scale, up-left is the octave; in a five-note colour, the octave is down-left. The screen draws the eight notes in a ring (for colours, their degree numbers, 0 to 7), with the root in green and the one you are holding lit. While this screen is showing, the left stick does not modulate: <code>MP0</code> and <code>MP1</code> keep the values they had when you arrived, so anything routed from them holds steady while you play, and on another screen the stick sets them again the next time it moves.</p>
+<p>The left stick's direction picks a note: straight up is the root, and each eighth of a turn clockwise is the next note of the scale, so the eight directions are the first eight notes. In a seven-note scale, up-left is the octave; in a five-note colour, the octave is down-left. The screen draws the eight notes in a ring (for colours, their degree numbers, 0 to 7), with the root in green and the one you are holding lit. While this screen is showing, the left stick does not modulate: <code>MP0</code> and <code>MP1</code> keep the values they had when you arrived, so anything routed from them holds steady while you play, and on another screen the stick sets them again the next time it moves.</p>
 
-<p>Four settings choose the notes and how they sound. <b>Up</b> and <b>Down</b> pick one, and <b>Left</b> and <b>Right</b> change it:</p>
+<p>The <b>D-pad</b> plays the same eight notes, for a handheld without sticks: its four directions and the four diagonals between them (press two at once) are the stick's eight directions. Pressing up and right together plays the second note, and sliding round from one direction to the next plays legato, without a new attack.</p>
+
+<p>Because the D-pad plays here, it reaches the settings only while <b>R2</b> is held. Five settings choose the notes and how they sound. Holding R2, <b>Up</b> and <b>Down</b> pick one, and <b>Left</b> and <b>Right</b> change it:</p>
 
 <ul>
   <li><b>TYPE</b> (<code>STKTYPE</code>): <b>scales</b> (0), the quantiser's eight, as the word <code>SCALE</code> gives them; or <b>colours</b> (1), the sixteen five-note scales in just intonation that the word <code>COLOUR</code> gives.</li>
   <li><b>SCALE</b> (<code>STKSCALE</code>): which scale (0 to 7, major by default) or which colour (0 to 15).</li>
-  <li><b>ROOT</b> (<code>STKROOT</code>): the note straight up plays, C4 by default, as on the quantiser page. Left and right step a semitone; with Y held, a fifth.</li>
+  <li><b>ROOT</b> (<code>STKROOT</code>): the note straight up plays, C4 by default, as on the quantiser page. Left and right step a semitone.</li>
   <li><b>MODE</b> (<code>STKMODE</code>): how a note sounds, play or swell. The Menu's first tab can switch it too.</li>
+  <li><b>SWELL</b> (<code>STKSWELL</code>): for the D-pad in swell mode, how long the gate takes to open fully, and to close again, in milliseconds: 50 to 4000, one second by default.</li>
 </ul>
 
 <p>In <b>play</b> mode (0) the stick works like a key. Pushing it out plays the note with a fresh attack, moving round to another direction plays the next note, and letting the stick spring back lets go, so the release runs. Because it goes through the keyboard device, <code>KBNOTE</code>, <code>KBGATE</code> and the pulsers in <code>KBPUL</code> follow the stick as they follow keys. A colour's just notes fall between the keys: <code>KBNOTE</code> holds the nearest key, and <code>PITCH</code> the exact note.</p>
 
 <p>In <b>swell</b> mode (1) the direction only moves <code>PITCH</code>, with no attack, and how far you push sets <code>GATELEVEL</code>, which holds the gate open by hand. Push gently for a quiet note, push to the edge for full volume, and let the stick return to fade it out. Turning the stick round while it is pushed out glides through the scale without a break. Swell mode owns <code>GATELEVEL</code>: leaving the screen or switching mode sets it back to 0.</p>
+
+<p>The D-pad cannot tell how hard it is pressed, so in swell mode the time you hold it stands in for how far you push. While any direction is held the gate opens steadily, taking <code>STKSWELL</code> to open fully; let go and it closes over the same time. A tap barely opens it, a long hold blooms to full, and moving to another direction while holding changes the note without restarting the swell.</p>
 
 <p>Near the border between two directions the stick keeps the note it has until you are clearly past the border, so a note does not flicker between two.</p>
 

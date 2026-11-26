@@ -100,8 +100,9 @@ int desk_contains_nocase(const char *hay, const char *needle) {
 void desk_say(Desk *d, const char *msg) { snprintf(d->msg, sizeof d->msg, "%s", msg); d->msg_until = d->now_ms + 1600; }
 void desk_tick(Desk *d, double dt_ms) {
   d->now_ms += dt_ms; editor_watch_blocks(d); devices_watch(d);
-  if (d->layouts[d->layout].tab[d->focus] != TAB_STICKS && (d->dev.stk_dir >= 0 || d->dev.stk_note >= 0 || d->dev.stk_swell))
-    tab_devices_stick_release(d);                             /* STICKS left the front while the stick held a note: let go */
+  if (d->layouts[d->layout].tab[d->focus] != TAB_STICKS) {
+    if (d->dev.stk_dir >= 0 || d->dev.stk_note >= 0 || d->dev.stk_swell || d->dev.dpad) tab_devices_stick_release(d);   /* STICKS left the front while playing: let go */
+  } else tab_devices_dpad_tick(d, dt_ms);
 }
 /* The tab's name as the tab bar shows it ("EDITOR", "SEQ", ...). */
 const char *desk_tab_name(int tab) { return TABS[tab].name; }

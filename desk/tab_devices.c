@@ -60,7 +60,8 @@ static const Setting KB_SETTINGS[] = {
   { "OCTAVE", REG_KBOCT, 0, 8, 1, 1 }, { "PULSERS", REG_KBPUL, 0, 15, 1, 1 } };
 static const Setting STK_SETTINGS[] = {
   { "TYPE", REG_STKTYPE, 0, 1, 1, 1 }, { "SCALE", REG_STKSCALE, 0, 15, 1, 4 },      /* SCALE: 0..7 for scales, 0..15 for colours (see setting_hi) */
-  { "ROOT", REG_STKROOT, 0, 32767, 256, 1792 }, { "MODE", REG_STKMODE, 0, 1, 1, 1 } };   /* ROOT: a semitone, or a fifth with Shift */
+  { "ROOT", REG_STKROOT, 0, 32767, 256, 1792 }, { "MODE", REG_STKMODE, 0, 1, 1, 1 },     /* ROOT: a semitone, or a fifth with Shift */
+  { "SWELL", REG_STKSWELL, 50, 4000, 50, 500 } };                                       /* the D-pad's swell time, in ms */
 
 static const Setting *settings_of(int sub, int *n) {
   static const Setting *const TABLE[DEV_COUNT] = { [DEV_DELAY] = DLY_SETTINGS, [DEV_CELLULAR] = CA_SETTINGS, [DEV_LORENZ] = LZ_SETTINGS, [DEV_QUANTISER] = QT_SETTINGS, [DEV_TURING] = TM_SETTINGS, [DEV_KEYS] = KB_SETTINGS, [DEV_STICK] = STK_SETTINGS };
@@ -124,6 +125,7 @@ static void draw_settings(Desk *d, View *v, int sub, int col, int row, int width
     else if (st[i].addr == REG_STKSCALE) snprintf(extra, sizeof extra, "%s", fez_reg_read(d->synth, REG_STKTYPE) ? "colour" : fez_scale_name(val));
     else if (st[i].addr == REG_STKROOT) regview_fmt_note(extra, sizeof extra, val);
     else if (st[i].addr == REG_STKMODE) snprintf(extra, sizeof extra, "%s", val ? "swell (GATELEVEL)" : "play notes");
+    else if (st[i].addr == REG_STKSWELL) snprintf(extra, sizeof extra, "%d ms (D-pad)", val);
     else if (st[i].addr == REG_TMPUL || st[i].addr == REG_KBPUL) {
       size_t l = 0; extra[0] = '\0';
       for (int p = 0; p < NUM_PULSERS; p++) if ((val >> p) & 1) l += (size_t)snprintf(extra + l, sizeof extra - l, "%sP%d", l ? " " : "", p);
@@ -368,6 +370,7 @@ void tab_devices_stick_release(Desk *d) {
   if (d->dev.stk_note >= 0) fez_note_off(d->synth, d->dev.stk_note);
   if (d->dev.stk_swell) fez_reg_write(d->synth, REG_GATELEVEL, 0);
   d->dev.stk_note = d->dev.stk_dir = -1; d->dev.stk_swell = 0;
+  d->dev.dpad = 0; d->dev.dpad_level = 0;
 }
 
 void tab_devices_stick(Desk *d, int x, int y) {
@@ -409,6 +412,35 @@ void tab_devices_stick(Desk *d, int x, int y) {
   double open = (mag > 32767 ? 32767 : mag) - STK_DEAD;
   fez_reg_write(s, REG_GATELEVEL, open > 0 ? (int)(open * 32767 / (32767 - STK_DEAD)) : 0);
   d->dev.stk_swell = 1;
+}
+
+/* The D-pad on the STICKS tab, for a device with no sticks (or as well as them). Its eight directions, diagonals included, are
+   the stick's eight 45 degree slices, so a press is the stick pushed all the way that way. To play notes it goes through
+   tab_devices_stick as such a push. A D-pad cannot say how far it is pushed, so for a swell the time held stands in for
+   the distance: tab_devices_dpad_tick opens GATELEVEL over STKSWELL ms while a direction is held and closes it over the
+   same time once none is; changing direction meanwhile only changes the note. */
+static const signed char DPAD_DIR[16] = {      /* the bits held (1 up, 2 right, 4 down, 8 left) to a direction, -1 for none or nonsense */
+  -1, 0, 2, 1, 4, -1, 3, -1, 6, 7, -1, -1, 5, -1, -1, -1 };
+
+void desk_gamepad_dpad(Desk *d, int bit, int down) {
+  if (down) d->dev.dpad |= bit; else d->dev.dpad &= ~bit;
+  if (d->layouts[d->layout].tab[d->focus] != TAB_STICKS) return;   /* elsewhere it is only remembered (desk_tick lets go) */
+  int dir = DPAD_DIR[d->dev.dpad & 15];
+  int x = dir >= 0 ? (int)lround(32767 * sin(dir * 45.0 * PI_ / 180)) : 0, y = dir >= 0 ? (int)lround(32767 * cos(dir * 45.0 * PI_ / 180)) : 0;
+  if (fez_reg_read(d->synth, REG_STKMODE) != 1) { tab_devices_stick(d, x, y); return; }   /* play: a full push that way */
+  d->dev.stk_x = x; d->dev.stk_y = y;                              /* swell: the note now (no attack), the gate in the tick */
+  d->dev.stk_dir = dir;
+  if (dir >= 0) { fez_reg_write(d->synth, REG_PITCH, stick_pitch(d, dir)); d->dev.stk_swell = 1; }
+}
+
+/* Each frame while STICKS is in front: a D-pad swell opens or closes by the time that passed. */
+void tab_devices_dpad_tick(Desk *d, double dt_ms) {
+  if (fez_reg_read(d->synth, REG_STKMODE) != 1 || (!d->dev.dpad && d->dev.dpad_level <= 0)) return;   /* nothing of the D-pad's to move */
+  double step = dt_ms / fez_reg_read(d->synth, REG_STKSWELL);
+  d->dev.dpad_level += DPAD_DIR[d->dev.dpad & 15] >= 0 ? step : -step;
+  d->dev.dpad_level = d->dev.dpad_level < 0 ? 0 : d->dev.dpad_level > 1 ? 1 : d->dev.dpad_level;
+  fez_reg_write(d->synth, REG_GATELEVEL, (int)lround(d->dev.dpad_level * 32767));
+  d->dev.stk_swell = 1;                                            /* GATELEVEL is ours: leaving the tab puts it back to 0 */
 }
 
 /* A gamepad's sticks, the handheld's or one plugged into a computer (SDL numbers the axes 0 left X, 1 left Y, 2 right X,

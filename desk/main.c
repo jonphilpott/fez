@@ -380,6 +380,12 @@ int main(int argc, char **argv) {
         if (gc) { SDL_GameControllerClose(gc); desk.gamepads--; }
       } else if (ev.type == SDL_CONTROLLERAXISMOTION && ev.caxis.axis <= SDL_CONTROLLER_AXIS_RIGHTY) {   /* sticks: pots, or the STICKS tab's melody */
         SDL_LockAudioDevice(dev); desk_gamepad_axis(&desk, ev.caxis.axis, ev.caxis.value); SDL_UnlockAudioDevice(dev);
+      } else if ((ev.type == SDL_CONTROLLERBUTTONDOWN || ev.type == SDL_CONTROLLERBUTTONUP) &&
+                 ev.cbutton.button >= SDL_CONTROLLER_BUTTON_DPAD_UP && ev.cbutton.button <= SDL_CONTROLLER_BUTTON_DPAD_RIGHT) {   /* the D-pad: plays on STICKS */
+        static const int BIT[4] = { DPAD_UP, DPAD_DOWN, DPAD_LEFT, DPAD_RIGHT };           /* SDL's order: up, down, left, right */
+        SDL_LockAudioDevice(dev);
+        desk_gamepad_dpad(&desk, BIT[ev.cbutton.button - SDL_CONTROLLER_BUTTON_DPAD_UP], ev.type == SDL_CONTROLLERBUTTONDOWN);
+        SDL_UnlockAudioDevice(dev);
       } else if (ev.type == SDL_CONTROLLERBUTTONDOWN && ev.cbutton.button <= SDL_CONTROLLER_BUTTON_Y) {   /* A B X Y, by SDL's names (an Xbox pad's labels) */
         SDL_LockAudioDevice(dev); desk_gamepad_button(&desk, ev.cbutton.button); SDL_UnlockAudioDevice(dev);
       } else if (ev.type == SDL_KEYDOWN) {                     /* (key repeats are wanted: held arrows keep stepping) */

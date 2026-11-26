@@ -294,8 +294,8 @@ static void screen_key(Pad *p, Button b) {
     case BTN_DOWN:  desk_key(d, KEY_DOWN, shift); return;
     case BTN_LEFT:  desk_key(d, KEY_LEFT, shift); return;
     case BTN_RIGHT: desk_key(d, KEY_RIGHT, shift); return;
-    case BTN_L2:    desk_text(d, '['); return;
-    case BTN_R2:    desk_text(d, ']'); return;
+    case BTN_L2:    if (tab != TAB_STICKS) desk_text(d, '['); return;   /* STICKS has no pages: R2 is held for its settings */
+    case BTN_R2:    if (tab != TAB_STICKS) desk_text(d, ']'); return;
     default: break;
   }
   int overlay_q = tab == TAB_PATCHES && d->pat.mode != PAT_NORMAL;   /* a question (overwrite? delete?) is open: A says yes, B no */
@@ -381,14 +381,26 @@ void pad_init(Pad *p, Desk *d) {
   p->reg_rows = row + (col > 0);
 }
 
+/* On the STICKS screen, with nothing open over it and R2 not held, the D-pad plays (desk_gamepad_dpad) instead of moving. */
+static int dpad_plays(const Pad *p, Button b) {
+  if (b != BTN_UP && b != BTN_DOWN && b != BTN_LEFT && b != BTN_RIGHT) return 0;
+  return cur_tab(p) == TAB_STICKS && p->menu == MENU_CLOSED && !p->help && !p->pal && !held(p, BTN_R2);
+}
+
 /* The d-pad repeats when held; so do A and B on the Control screen, where they step a value. */
 static int repeatable(const Pad *p, Button b) {
   if (p->menu != MENU_CLOSED || p->help || p->pal) return b == BTN_UP || b == BTN_DOWN || b == BTN_LEFT || b == BTN_RIGHT;
-  if (b == BTN_UP || b == BTN_DOWN || b == BTN_LEFT || b == BTN_RIGHT) return 1;
+  if (b == BTN_UP || b == BTN_DOWN || b == BTN_LEFT || b == BTN_RIGHT) return !dpad_plays(p, b);   /* a held note does not repeat */
   return cur_tab(p) == TAB_CTRL && (b == BTN_A || b == BTN_B);
 }
 
 void pad_button(Pad *p, Button b, int down) {
+  if (dpad_plays(p, b) || (!down && cur_tab(p) == TAB_STICKS && (p->d->dev.dpad & (b == BTN_UP ? DPAD_UP : b == BTN_RIGHT ? DPAD_RIGHT : b == BTN_DOWN ? DPAD_DOWN : b == BTN_LEFT ? DPAD_LEFT : 0)))) {
+    int bit = b == BTN_UP ? DPAD_UP : b == BTN_RIGHT ? DPAD_RIGHT : b == BTN_DOWN ? DPAD_DOWN : DPAD_LEFT;
+    if (down) p->held |= 1u << b; else p->held &= ~(1u << b);
+    desk_gamepad_dpad(p->d, bit, down);                      /* (a release always reaches it, even with R2 held by then, or the note would hang) */
+    return;
+  }
   if (!down) { p->held &= ~(1u << b); return; }
   if (held(p, b)) return;                                    /* the operating system's own key repeat: ignore, we do our own */
   p->held |= 1u << b;
@@ -427,7 +439,7 @@ static const char *tab_hint(const Pad *p) {
     case TAB_PULSERS: return "A edit  X toggle  Y coarse";
     case TAB_SEQ:     return "A clock  X on/off  Y snap";
     case TAB_MATRIX:  return "A pick  B back  X delete  Y coarse";
-    case TAB_STICKS:  return "L stick plays  ABXY fire P0-P3";
+    case TAB_STICKS:  return "Dpad play R2+Dpad set ABXY P0-3";
     default:          return "Menu: more";
   }
 }
