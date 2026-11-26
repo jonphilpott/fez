@@ -26,6 +26,9 @@ void test_vm(void) {
   CHECK(run_and_read("2 1 SCALE PITCH !", REG_PITCH) == 1024, "major scale degree 2 is the third, 4 semitones up");
   CHECK(run_and_read("7 1 SCALE PITCH !", REG_PITCH) == 3072, "major scale degree 7 is an octave up");
   CHECK(run_and_read("5 4 SCALE PITCH !", REG_PITCH) == 3072, "pentatonic degree 5 is an octave up");
+  CHECK(run_and_read("1 NEG 1 SCALE 15360 + PITCH !", REG_PITCH) == 15104, "major scale degree -1 is the B below C4");
+  CHECK(run_and_read("13 0 SCALE PITCH !", REG_PITCH) == 3328, "chromatic degree 13 is an octave and a semitone up");
+  CHECK(run_and_read("3 9 SCALE PITCH !", REG_PITCH) == 1280, "scale 9 wraps to 1 (major): degree 3 is the fourth");
   /* error positions: an editor can flag the word that failed (compile errors, and the slot that halted a running block) */
   {
     const char *src = "1 2 FOO 3";

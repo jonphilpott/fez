@@ -280,7 +280,7 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
            "degree k" means "the k-th set bit". The degrees repeat every octave: index n walks past the last
            set bit into the next octave (3072 = 12 semitones in 8.8). */
         POP(a); POP(x);
-        int mask = fez_scale_mask(a), n = 0;
+        int mask = fez_scale_mask(floor_mod(a, 8)), n = 0;        /* wrap 0..7 like COLOUR wraps its col */
         for (int b2 = 0; b2 < 12; b2++) n += (mask >> b2) & 1;      /* notes per octave (never 0: every mask has bits) */
         int oct = floor_div(x, n), k = floor_mod(x, n), semi = 0;
         for (int b2 = 0; b2 < 12; b2++) if ((mask >> b2) & 1) { if (k-- == 0) { semi = b2; break; } }

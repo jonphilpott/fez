@@ -48,7 +48,7 @@ static const Setting CA_SETTINGS[] = {
 static const Setting LZ_SETTINGS[] = {
   { "RATE", REG_LZRATE, 0, 32767, 512, 4096 }, { "RHO", REG_LZRHO, 0, 32767, 512, 4096 }, { "TRIG", REG_LZTRIG, 0, 4, 1, 1 } };
 static const Setting QT_SETTINGS[] = {
-  { "ON", REG_QON, 0, 1, 1, 1 }, { "SCALE", REG_QSCALE, 0, 7, 1, 1 }, { "ROOT", REG_QROOT, 0, 32767, 256, 1792 } };   /* ROOT: a semitone, or a fifth with Shift */
+  { "ON", REG_QON, 0, 1, 1, 1 }, { "QSCALE", REG_QSCALE, 0, 7, 1, 1 }, { "ROOT", REG_QROOT, 0, 32767, 256, 1792 } };   /* ROOT: a semitone, or a fifth with Shift */
 static const Setting TM_SETTINGS[] = {
   { "CHANCE", REG_TMCHANCE, 0, 32767, 512, 4096 }, { "LEN", REG_TMLEN, 2, 16, 1, 4 }, { "PULSERS", REG_TMPUL, 0, 15, 1, 1 } };
 static const Setting DLY_SETTINGS[] = {
@@ -356,7 +356,17 @@ void tab_devices_draw(Desk *d, View *v) {
   int prows, sx, sy, swidth;
   if (compact) { prows = v->rows - 5; sx = (pane_w + v->cw - 1) / v->cw + 2; sy = 2; swidth = v->cols - sx - 1; }   /* 5 = the two header rows and the blank and two status rows below */
   else if (wide) { prows = v->rows - 2; sx = (pane_w + v->cw - 1) / v->cw + 2; sy = 2; swidth = v->cols - sx - 1; }
-  else { int n; settings_of(sub, &n); prows = v->rows - 2 - (n + (sub == DEV_DELAY ? 2 : sub == DEV_KEYS ? 6 : sub == DEV_QUANTISER ? 6 : 5)); if (prows < 3) prows = 3;      /* the settings, live values and hints need n + 5 rows under the picture */ sx = 0; sy = 2 + prows + 1; swidth = v->cols - 1; }
+  else {
+    /* Narrow (or top_only): the picture on top, then a blank row, then the text. Rows the text needs under the picture:
+       the blank row, the n settings, and each page's own lines below them (delay none; quantiser and keys their live
+       values and hints, which reach sy + 8; the others reach sy + 7). */
+    int n; settings_of(sub, &n);
+    int below = 1 + n + (sub == DEV_DELAY ? 1 : sub == DEV_QUANTISER || sub == DEV_KEYS ? 6 : 5);
+    prows = v->rows - 2 - below;
+    if (sub == DEV_QUANTISER && prows > 7) prows = 7;                        /* the piano is never taller than 7 rows: keep the text right under it */
+    if (prows < 3) prows = 3;
+    sx = 0; sy = 2 + prows + 1; swidth = v->cols - 1;
+  }
   if (prows < 3) return;
   if (sub == DEV_CELLULAR) draw_cellular(d, v, prows, cs, compact, sx, sy, swidth);
   else if (sub == DEV_LORENZ) draw_lorenz(d, v, wide ? pane_w : v->w - 2, prows, sx, sy, swidth);
