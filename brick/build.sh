@@ -1,7 +1,10 @@
 #!/bin/sh
 # Build FEZ for the TrimUI Brick and lay out the two paks to copy onto the SD card. Needs Docker (Colima is fine) running.
-#   brick/build.sh            builds dist/FEZ-probe.pak and dist/FEZ.pak
-# Copy a pak folder to the card as Tools/tg5040/<name>.pak (NextUI and MinUI list it under Tools).
+#   brick/build.sh            builds dist/FEZ-probe.pak and dist/FEZ.pak (NextUI, MinUI), and dist/knulli/ (KNULLI)
+# NextUI / MinUI: copy a pak folder to the card as Tools/tg5040/<name>.pak (they list it under Tools).
+# KNULLI: copy what is inside dist/knulli/ports/ (FEZ.sh, FEZ Probe.sh and the hidden .data folder) into roms/ports on
+# the SHARE partition (/userdata/roms/ports), then Start > Game settings > Update gamelists. Both appear under Ports.
+# The same binary serves both: it needs only libSDL2, libm and libc, and KNULLI has its own SDL2, so none is bundled.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -24,5 +27,15 @@ cp brick/probe.pak.sh dist/FEZ-probe.pak/launch.sh
 cp dist/fez dist/FEZ.pak/fez
 cp brick/fez.pak.sh dist/FEZ.pak/launch.sh
 chmod +x dist/FEZ-probe.pak/launch.sh dist/FEZ.pak/launch.sh
+# 4) the KNULLI layout: launchers in ports/, the program in ports/.data/FEZ/
+rm -rf dist/knulli
+mkdir -p dist/knulli/ports/.data/FEZ
+cp dist/fez dist/probe dist/knulli/ports/.data/FEZ/
+cp brick/knulli-fez.sh "dist/knulli/ports/FEZ.sh"
+cp brick/knulli-probe.sh "dist/knulli/ports/FEZ Probe.sh"
+chmod +x dist/knulli/ports/*.sh dist/knulli/ports/.data/FEZ/fez dist/knulli/ports/.data/FEZ/probe
+
 file dist/probe dist/fez || true
-echo "done: copy dist/FEZ-probe.pak (first) and dist/FEZ.pak to the card under Tools/tg5040/"
+echo "done:"
+echo "  NextUI / MinUI: copy dist/FEZ-probe.pak (first) and dist/FEZ.pak to the card under Tools/tg5040/"
+echo "  KNULLI: copy the contents of dist/knulli/ports/ (including .data) into roms/ports, then update gamelists"

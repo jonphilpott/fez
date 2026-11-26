@@ -61,6 +61,9 @@ brick-zip:
 	rm -f dist/FEZ-brick-v$(VERSION).zip
 	cd dist && zip -qr FEZ-brick-v$(VERSION).zip FEZ.pak
 	@echo "made dist/FEZ-brick-v$(VERSION).zip"
+	rm -f dist/FEZ-knulli-v$(VERSION).zip
+	cd dist/knulli && zip -qr ../FEZ-knulli-v$(VERSION).zip ports    # unzip at /userdata/roms: it fills ports/
+	@echo "made dist/FEZ-knulli-v$(VERSION).zip"
 
 # ---- macOS app: make mac-app, mac-zip or mac-dmg  (VERSION=0.1.0 names the release; see mac/Info.plist and mac/make_icon.py)
 # SDL2 is linked into the program, so it runs on a Mac without Homebrew. It is signed ad hoc ("-"), which is enough to run
