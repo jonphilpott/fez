@@ -1,8 +1,9 @@
 /* SDL2 front end for the desktop app (macOS, Linux). It owns the window, the audio device and the keyboard.
    Everything musical is in core/, and every screen is in desk/ (plain C that draws into a pixel array).
 
-   Threads: SDL calls audio_cb on its own thread, which calls fez_render. Anything that touches the synth from the
-   main thread (keys, drawing) holds SDL_LockAudioDevice, which pauses the callback for the moment it takes.
+   Threads: SDL calls audio_cb on its own thread, which calls fez_render. Anything that CHANGES the synth from the main
+   thread (keys, buttons, sticks, the per-frame tick) holds SDL_LockAudioDevice, which pauses the callback for the moment it
+   takes. Drawing only READS the synth and runs without the lock, so the sound never waits for the screen (see the main loop).
 
    The window is drawn pixel by pixel into `pixels` and uploaded as one texture per frame. On a high-density
    display the window is measured in points, so SDL stretches the picture by a whole number and it stays sharp.
@@ -269,7 +270,7 @@ int main(int argc, char **argv) {
   if (!dev) { fprintf(stderr, "audio: %s\n", SDL_GetError()); SDL_Quit(); return 1; }
 
   double buffer_secs = (double)have.samples / have.freq;    /* how long one audio buffer lasts (512 frames: 10.7 ms) */
-  double lock_peak = 0, lock_left = 0;                       /* the longest the frame drawing held the audio lock lately, and how long to keep it */
+  double lock_peak = 0, lock_left = 0;                       /* the longest the per-frame tick held the audio lock lately, and how long to keep it */
   uint32_t *pixels = NULL; SDL_Texture *tex = NULL; int pw = 0, ph = 0;
   if (!brick_mode) SDL_StartTextInput();                     /* printable characters arrive as SDL_TEXTINPUT (the handheld has no typing) */
   for (int i = 0; i < SDL_NumJoysticks(); i++) if (SDL_IsGameController(i)) SDL_GameControllerOpen(i);
@@ -354,21 +355,35 @@ int main(int argc, char **argv) {
       if (!pixels || !tex) { fprintf(stderr, "out of memory for a %dx%d picture\n", pw, ph); break; }
       desk_set_canvas(&desk, pixels, pw, ph);
     }
-    /* The frame is drawn with the audio locked (the screens read the synth), and while it is locked the audio callback
-       has to wait. So the meter's worst-case marker adds the longest recent lock to the callback's own worst time, both as
-       a share of how long one buffer lasts: the two together must fit in a buffer or the sound clicks. */
-    Uint64 lock_t0 = SDL_GetPerformanceCounter();
+    /* 1) Under the lock: only what changes the synth (the UI's per-frame tick: key repeats, the handheld's sticks). While the
+       lock is held the audio callback has to wait, so the meter's worst-case marker adds the longest recent lock to the
+       callback's own worst time, both as a share of how long one buffer lasts. */
     SDL_LockAudioDevice(dev);
+    Uint64 lock_t0 = SDL_GetPerformanceCounter();            /* timed from when we HOLD the lock: waiting to get it delays us, not the audio */
     desk.peak = out_peak; desk.cpu = cpu_avg; desk.cpu_peak = cpu_peak + lock_peak / buffer_secs; desk.clip = clip_left > 0;
     desk_tick(&desk, (double)(now - last_frame));
     if (brick_mode) pad_tick(&pad);
+    SDL_UnlockAudioDevice(dev);
+    /* 2) Without the lock: the drawing. It takes a millisecond or two here and much longer on a small ARM board, and with the
+       lock held the sound had to wait for it. The screens only READ the synth (nothing in desk_draw or pad_draw writes to
+       it), so the worst a race can do is show a value the audio thread is halfway through changing: one frame of the
+       picture a moment out of date. It cannot read out of bounds: every array is a fixed size, and the indices the screens
+       use are clamped where they are used. (Strictly, C calls an unlocked read during a write undefined; in practice, for
+       ints, floats and doubles on the machines FEZ runs on, it is a stale or fresh value. The scope has always worked so.) */
+    Uint64 draw_t0 = SDL_GetPerformanceCounter();
     desk_draw(&desk);
     if (brick_mode) pad_draw(&pad);
-    SDL_UnlockAudioDevice(dev);
+    double draw_secs = (double)(SDL_GetPerformanceCounter() - draw_t0) / (double)SDL_GetPerformanceFrequency();
     {                                                        /* the lock just held, kept as the worst for CPU_PEAK_HOLD seconds */
-      double held = (double)(SDL_GetPerformanceCounter() - lock_t0) / (double)SDL_GetPerformanceFrequency();
+      double held = (double)(draw_t0 - lock_t0) / (double)SDL_GetPerformanceFrequency();
       lock_left -= (now - last_frame) / 1000.0;
       if (held >= lock_peak || lock_left <= 0) { lock_peak = held; lock_left = CPU_PEAK_HOLD; }
+      static Uint32 last_log;                                 /* FEZ_LOAD_LOG=1: once a second, the two parts of the white marker */
+      if (getenv("FEZ_LOAD_LOG") && now - last_log >= 1000) {
+        last_log = now;
+        fprintf(stderr, "load: audio avg %.1f%% worst %.1f%% | lock %.2f ms (worst %.2f ms) = %.1f%% of a %.1f ms buffer | drawing %.2f ms (unlocked)\n",
+                cpu_avg * 100, cpu_peak * 100, held * 1000, lock_peak * 1000, lock_peak / buffer_secs * 100, buffer_secs * 1000, draw_secs * 1000);
+      }
     }
     last_frame = now;
     SDL_UpdateTexture(tex, NULL, pixels, pw * (int)sizeof *pixels);

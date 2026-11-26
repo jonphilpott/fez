@@ -218,7 +218,7 @@ static void draw_turing(Desk *d, View *v, int pane_w, int prows, int sx, int sy,
    (magenta) trails it by the delay time, and the shaded band between them is the echo on its way round. Wobble makes the
    read head waver, turning TIME slides it, and hiss shows as fuzz on the flat line. Frozen, the write head stops (grey),
    the frame goes amber and the picture holds still. Like the buffer page, it reads the audio side's memory directly
-   (the app holds the audio lock while drawing). */
+   (without the audio lock: see main.c). */
 static void draw_delay(Desk *d, View *v, int pane_w, int prows) {
   const Audio *a = &d->synth->audio;
   int x0 = v->x + d->scale, y0 = v->y + 2 * v->rh, w = pane_w - d->scale, h = prows * v->rh, sc = d->scale, mid = y0 + h / 2;

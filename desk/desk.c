@@ -263,8 +263,8 @@ static void draw_status(Desk *d) {
   else gfx_text(cv, hx, y + 3, d->hint_override ? d->hint_override : TABS[d->layouts[d->layout].tab[d->focus]].hint, s, gfx_colour(COL_DIM));
   gfx_unclip(cv);
   /* The load bar: how much of real time the audio callback uses. Full bar = 100 percent = the point where the audio crackles.
-     The bar is the recent average; a thin marker shows the worst reading of the last few seconds plus the time the screen
-     held the audio lock (main.c), which is what predicts a dropout. Colour: green below 70 percent, amber to 90, red above. */
+     The bar is the recent average; a thin marker shows the worst reading of the last few seconds plus the time the UI
+     held the audio lock (main.c; drawing does not hold it), which is what predicts a dropout. Colour: green below 70 percent, amber to 90, red above. */
   int mx = cv->w - meter_w - 4;
   double avg = d->cpu > 1 ? 1 : d->cpu, pk = d->cpu_peak > 1 ? 1 : d->cpu_peak;
   gfx_fill(cv, mx, y + 5, meter_w, sh - 10, gfx_colour(COL_SEL));
@@ -399,8 +399,8 @@ void desk_text(Desk *d, int ch) {
 }
 
 /* One column of a waveform picture: the smallest and largest of the samples x[i0] .. x[i1 - 1] (0 if there are none).
-   The pictures run while the audio lock is held, so they must be quick: a column of a 30 s buffer covers thousands of
-   samples, and looking at all of them every frame would eat into the audio's time. So at most 64 evenly spaced
+   The pictures must be quick, for the frame rate on a small ARM board: a column of a 30 s buffer covers thousands of
+   samples, and looking at all of them every frame is millions of reads. So at most 64 evenly spaced
    samples are looked at. ponytail: a short peak between them can be missed; keep a per-column peak if that shows. */
 void desk_wave_column(const float *x, int i0, int i1, float *lo, float *hi) {
   int step = (i1 - i0) / 64 + 1;

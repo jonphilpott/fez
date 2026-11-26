@@ -16,7 +16,7 @@
    VOICES:  Up/Down choose a voice, Left/Right move between cells (never changing a value), Enter on a value starts
             adjusting it (Left/Right, Shift coarse; Enter or Esc stops) or type a raw number then Enter; Enter or Space
             on a flag switches it. Values show in friendly units; the bottom line shows the raw register.
-   The waveform is read straight from the audio side's buffer once a frame (the app holds the audio lock while drawing). */
+   The waveform is read straight from the audio side's buffer once a frame (without the audio lock: see main.c; a frame may catch the tape mid-write, which only shows as a moment-old picture). */
 #include "desk.h"
 #include <math.h>
 #include <stdio.h>

@@ -97,7 +97,7 @@ typedef struct Desk {
   double now_ms;
   float peak;                    /* recent output level 0..1, for the scope's header (set by the platform layer) */
   float cpu, cpu_peak;           /* audio load: share of real time the callback uses, smoothed; and the worst in 3 s, with the time the
-                                    screen held the audio lock added (1.0 = at the deadline) */
+                                    UI held the audio lock added (drawing does not hold it) (1.0 = at the deadline) */
   int clip;                      /* 1 while the output has recently reached full scale */
   unsigned long nan_seen;        /* the core's NaN count when last looked at; a rise lights the NAN flag until nan_until */
   double nan_until;
