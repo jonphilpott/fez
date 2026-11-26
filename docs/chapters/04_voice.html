@@ -4,7 +4,7 @@
 
 <p>Every register holds 0 to 32767, but the things it controls are not that. A cutoff is a frequency, an attack is a time. FEZ spreads the 32768 steps <b>exponentially</b>, which is how ears hear: each equal step multiplies the frequency or the time by the same factor, instead of adding the same amount. So the bottom half of a cutoff knob is spent between 40 Hz and about 750 Hz, and the top half between 750 Hz and 14 kHz. Here is where five settings land:</p>
 
-<table class="regs"><tr><th>register value</th><td>0</td><td>8192</td><td>16384</td><td>24576</td><td>32767</td></tr><tr><th>CUTOFF, MDCUT</th><td>40 Hz</td><td>173 Hz</td><td>748 Hz</td><td>3.2 kHz</td><td>14.0 kHz</td></tr><tr><th>ATK</th><td>1 ms</td><td>5 ms</td><td>22 ms</td><td>106 ms</td><td>500 ms</td></tr><tr><th>REL</th><td>10 ms</td><td>45 ms</td><td>200 ms</td><td>895 ms</td><td>4.0 s</td></tr><tr><th>FMRATE</th><td>0.5 Hz</td><td>4 Hz</td><td>32 Hz</td><td>252 Hz</td><td>2.0 kHz</td></tr><tr><th>LFORATE</th><td>0.05 Hz</td><td>0.22 Hz</td><td>1.00 Hz</td><td>4.47 Hz</td><td>20 Hz</td></tr><tr><th>NZTONE</th><td>100 Hz</td><td>376 Hz</td><td>1.4 kHz</td><td>5.3 kHz</td><td>20.0 kHz</td></tr><tr><th>FMAMT (depth)</th><td>0 Hz</td><td>125 Hz</td><td>500 Hz</td><td>1125 Hz</td><td>2000 Hz</td></tr></table>
+<table class="regs"><tr><th>register value</th><td>0</td><td>8192</td><td>16384</td><td>24576</td><td>32767</td></tr><tr><th>CUTOFF, MDCUT</th><td>40 Hz</td><td>173 Hz</td><td>748 Hz</td><td>3.2 kHz</td><td>14.0 kHz</td></tr><tr><th>ATK</th><td>1 ms</td><td>10 ms</td><td>100 ms</td><td>1.0 s</td><td>10 s</td></tr><tr><th>REL</th><td>10 ms</td><td>45 ms</td><td>200 ms</td><td>895 ms</td><td>4.0 s</td></tr><tr><th>FMRATE</th><td>0.5 Hz</td><td>4 Hz</td><td>32 Hz</td><td>252 Hz</td><td>2.0 kHz</td></tr><tr><th>LFORATE</th><td>0.05 Hz</td><td>0.22 Hz</td><td>1.00 Hz</td><td>4.47 Hz</td><td>20 Hz</td></tr><tr><th>NZTONE</th><td>100 Hz</td><td>376 Hz</td><td>1.4 kHz</td><td>5.3 kHz</td><td>20.0 kHz</td></tr><tr><th>FMAMT (depth)</th><td>0 Hz</td><td>125 Hz</td><td>500 Hz</td><td>1125 Hz</td><td>2000 Hz</td></tr></table>
 
 <p>The CTRL tab shows the real value next to the number, so you rarely need this table. It explains one thing, though: patches with slow notes need values above 25000. A release of 12000 lasts only about 0.1 seconds, and one of 28000 about 1.7 seconds.</p>
 
@@ -35,7 +35,7 @@
 
 <h4>The mixer</h4>
 
-<p>Three things go into the mixer: the folded complex oscillator (<code>MIXCX</code>, full by default), the mod oscillator itself (<code>MIXMD</code>) and white noise (<code>MIXNZ</code>). White noise is a hiss with equal energy at every frequency. <code>NZTONE</code> is a lowpass on the noise: at the top it is open, and turning it down gives a softer rumble. The buffer's output can come back in here too, through <code>MIXBP</code>: see <a href="#devices">Devices</a>.</p>
+<p>Three things go into the mixer: the folded complex oscillator (<code>MIXCX</code>, full by default), the mod oscillator itself (<code>MIXMD</code>) and white noise (<code>MIXNZ</code>). White noise is a hiss with equal energy at every frequency. <code>NZTONE</code> is a lowpass on the noise: at the top it is open, and turning it down gives a softer rumble. The mixer has two more levels for the buffer device's output: <code>MIXBP</code> sends it into the lowpass gate, and <code>MIXBF</code> sends it to the effects, never gated. See <a href="#devices">Devices</a>.</p>
 
 <h4>The lowpass gate</h4>
 
@@ -46,7 +46,7 @@
 <ul>
   <li><code>GATE</code>: write any non-zero number and the lamp lights. <code>1 GATE !</code> plays a note.</li>
   <li><code>GATELEVEL</code>: how far the gate stays open all the time. The gate's real opening is <code>GATELEVEL</code> plus the lamp (the envelope), limited to fully open. At 0, the default, the gate is shut between notes and each <code>GATE</code> plays a note. At full the gate is always open and the voice drones, with no note needed. In between, the voice sounds softly all the time and each <code>GATE</code> lifts it. It is an ordinary register, so a matrix route (an LFO, say) can sway it, and a block can set it from code: <code>20000 GATELEVEL !</code>. It is the way to hold a note open, on the handheld too.</li>
-  <li><code>ATK</code>: how fast the gate opens, from 1 ms to 500 ms.</li>
+  <li><code>ATK</code>: how fast the gate opens, from 1 ms to 10 s.</li>
   <li><code>REL</code>: how long the tail lasts, from 10 ms to 4 s.</li>
   <li><code>CUTOFF</code>: how bright the sound is when the gate is fully open, from 40 Hz to 14 kHz. As the gate closes, the cutoff falls from here down to 40 Hz.</li>
 </ul>

@@ -22,6 +22,28 @@ static int run_and_read(const char *src, int reg) {
 }
 
 void test_vm(void) {
+  /* error positions: an editor can flag the word that failed (compile errors, and the slot that halted a running block) */
+  {
+    const char *src = "1 2 FOO 3";
+    CHECK(!compiles(src) && c.err_pos == (int)(strstr(src, "FOO") - src), "a compile error says where the bad token starts");
+    src = "\\ a comment\n10 20 +\n5 -7";
+    CHECK(!compiles(src) && c.err_pos == (int)(strstr(src, "-7") - src), "the position counts past comments and lines");
+    src = "1 2 + 3 4";
+    CHECK(compiles(src) && c.pos[0] == 0 && c.pos[2] == 4 && c.pos[4] == 8, "each slot remembers where its token starts");
+    static FezSynth s;
+    fez_init(&s, 1);
+    src = "10 0 / 5 DROP DROP DROP";                                /* a divide by zero (carries on), then a real halt */
+    vm_set_block(&s.vm, 0, src);
+    CHECK(s.vm.blocks[0].fault_slot == -1, "a fresh block has no fault slot");
+    vm_run_block(&s.vm, 0);
+    CHECK(s.vm.blocks[0].halted && s.vm.blocks[0].c.pos[s.vm.blocks[0].fault_slot] == (int)(strrchr(src, 'D') - src),
+          "a halt points at the instruction that halted, not at the earlier divide by zero");
+    vm_set_word(&s.vm, 0, "DROP");
+    vm_set_block(&s.vm, 0, "0 W");
+    vm_run_block(&s.vm, 0);
+    CHECK(s.vm.blocks[0].halted && s.vm.blocks[0].c.pos[s.vm.blocks[0].fault_slot] == 2, "a fault inside a word points at the W that called it");
+    vm_set_word(&s.vm, 0, "");
+  }
   /* a number has no sign: the sign is the word NEG, so a token is never two slots */
   CHECK(!compiles("1 -5 +"), "a negative literal is refused");
   CHECK(strstr(c.err, "5 NEG") != NULL, "the error says to write 5 NEG");

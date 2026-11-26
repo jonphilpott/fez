@@ -423,7 +423,15 @@ void tab_editor_draw(Desk *d, View *v) {
   if (cur_row < e->top) e->top = cur_row;
   if (cur_row >= e->top + vis_rows) e->top = cur_row - vis_rows + 1;
 
-  /* 3. the text, one screen row (chunk) at a time */
+  /* 3. the text, one screen row (chunk) at a time. First find the word to flag, if any: the token that will not compile, or
+        (when the text is as applied) the one that halted the block. */
+  Compiled tmp;
+  vm_compile(&tmp, t, BLOCK_SLOTS);                           /* a trial compile: nothing changes until the user applies */
+  int dirty = strcmp(t, blk->src) != 0;
+  int bad_s = -1, bad_e = -1;
+  if (!tmp.ok) bad_s = tmp.err_pos;
+  else if (blk->halted && !dirty && blk->fault_slot >= 0 && blk->fault_slot < blk->c.count) bad_s = blk->c.pos[blk->fault_slot];
+  if (bad_s >= 0) { bad_e = bad_s; while (t[bad_e] && !isspace((unsigned char)t[bad_e]) && t[bad_e] != '\\') bad_e++; }
   int sa = 0, sb = 0, has_sel = selection(d, &sa, &sb);
   int row = 0, ls = 0;
   for (;;) {
@@ -437,8 +445,10 @@ void tab_editor_draw(Desk *d, View *v) {
         for (int x = 0; x < vis_cols && cs + x < le; x++) {
           int ci = cs + x;
           if (has_sel && ci >= sa && ci < sb) view_fill(v, x, HEADER_ROWS + sr, 1, 1, COL_SEL);
+          int bad = ci >= bad_s && ci < bad_e;                 /* the flagged word: red block, dark letters */
+          if (bad) view_fill(v, x, HEADER_ROWS + sr, 1, 1, COL_RED);
           char ch[2] = { t[ci], '\0' };
-          view_text(v, x, HEADER_ROWS + sr, ch, colours[ci - ls]);
+          view_text(v, x, HEADER_ROWS + sr, ch, bad ? COL_BG : colours[ci - ls]);
         }
       if (cs + vis_cols > le) { row++; break; }               /* that was the line's last chunk */
     }
@@ -487,9 +497,6 @@ void tab_editor_draw(Desk *d, View *v) {
   }
 
   /* 6. status: size and state on one line, the problem (or a reminder) on the next */
-  Compiled tmp;
-  vm_compile(&tmp, t, BLOCK_SLOTS);                           /* a trial compile: nothing changes until the user applies */
-  int dirty = strcmp(t, blk->src) != 0;
   char line[128];
   snprintf(line, sizeof line, "B%X  %d/%d slots  %s", e->blk, tmp.ok ? tmp.count : blk->c.count, BLOCK_SLOTS, dirty ? "CHANGED" : "applied");
   gfx_fill(&d->cv, v->x, v->y + (v->rows - 2) * v->rh - 3, v->w, 1, gfx_colour(COL_LINE));

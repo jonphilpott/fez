@@ -4,7 +4,7 @@
 #ifndef FEZ_SCALES_H
 #define FEZ_SCALES_H
 
-double atk_sec(double v);          /* envelope attack: 1 ms to 500 ms */
+double atk_sec(double v);          /* envelope attack: 1 ms to 10 s */
 double rel_sec(double v);          /* envelope release: 10 ms to 4 s */
 double slew_sec(double v);         /* slew time constant: 1 ms to 5 s */
 double lfo_hz(double v);           /* 0.05 Hz to 20 Hz */

@@ -153,35 +153,42 @@ static int parse_token(const char *t, Slot out[2], char *err, size_t errsz) {
    which is never above BLOCK_SLOTS for a block). */
 void vm_compile(Compiled *c, const char *src, int max_slots) {
   memset(c, 0, sizeof *c);
+  c->err_pos = -1;
   for (int i = 0; i < 16; i++) c->labels[i] = -1;
   char err[128] = "";
   int line = 1, total = 0;                            /* total counts every slot, even past the array */
+  int over_pos = -1;                                  /* where the token that took the program past max_slots starts */
   const char *p = src;
   while (*p && !err[0]) {
     if (*p == '\n') { line++; p++; continue; }
     if (*p == '\\') { while (*p && *p != '\n') p++; continue; }       /* comment */
     if (isspace((unsigned char)*p)) { p++; continue; }
+    int tstart = (int)(p - src);                                      /* where this token starts, kept for error highlighting */
     char tok[128]; size_t n = 0;                                      /* collect one token */
     while (*p && !isspace((unsigned char)*p) && *p != '\\') { if (n < sizeof tok - 1) tok[n++] = *p; p++; }
     tok[n] = '\0';
     Slot s[2];
     char msg[96];
     int k = parse_token(tok, s, msg, sizeof msg);
-    if (k < 0) { snprintf(err, sizeof err, "line %d: %s", line, msg); break; }
-    for (int j = 0; j < k; j++) { if (total < BLOCK_SLOTS) c->slots[total] = s[j]; total++; }
+    if (k < 0) { snprintf(err, sizeof err, "line %d: %s", line, msg); c->err_pos = tstart; break; }
+    for (int j = 0; j < k; j++) {
+      if (total < BLOCK_SLOTS) { c->slots[total] = s[j]; c->pos[total] = (uint16_t)tstart; }
+      if (total == max_slots && over_pos < 0) over_pos = tstart;
+      total++;
+    }
   }
   c->count = total;
   if (!err[0] && total <= BLOCK_SLOTS) {
     for (int i = 0; i < total; i++) {                 /* find labels: "n L" marks the slot after the L */
       if (!c->slots[i].is_op || c->slots[i].value != OP_LABEL) continue;
-      if (i == 0 || c->slots[i - 1].is_op) { snprintf(err, sizeof err, "L needs a number before it"); break; }
+      if (i == 0 || c->slots[i - 1].is_op) { snprintf(err, sizeof err, "L needs a number before it"); c->err_pos = c->pos[i]; break; }
       int n = c->slots[i - 1].value;
-      if (n > 15) { snprintf(err, sizeof err, "label must be 0 to 15"); break; }
-      if (c->labels[n] >= 0) { snprintf(err, sizeof err, "duplicate label %d", n); break; }
+      if (n > 15) { snprintf(err, sizeof err, "label must be 0 to 15"); c->err_pos = c->pos[i - 1]; break; }
+      if (c->labels[n] >= 0) { snprintf(err, sizeof err, "duplicate label %d", n); c->err_pos = c->pos[i - 1]; break; }
       c->labels[n] = (int16_t)(i + 1);
     }
   }
-  if (!err[0] && total > max_slots) snprintf(err, sizeof err, "too long: %d of %d slots", total, max_slots);
+  if (!err[0] && total > max_slots) { snprintf(err, sizeof err, "too long: %d of %d slots", total, max_slots); c->err_pos = over_pos; }
   strcpy(c->err, err);
   c->ok = err[0] == '\0';
 }
@@ -191,7 +198,11 @@ void vm_compile(Compiled *c, const char *src, int max_slots) {
 enum { EXEC_END = 0, EXEC_EXIT = 1, EXEC_YIELD = 2, EXEC_HALT = -1 };
 
 /* Stop the run, recording why. Used inside exec() only. */
-#define HALT(bit) do { *vm->fault |= (bit); return EXEC_HALT; } while (0)
+#define HALT(bit) do { *vm->fault |= (bit); NOTE_FAULT(1); return EXEC_HALT; } while (0)
+/* Remember which slot of the block's own code caused a fault, for an editor to highlight. Inside a word (depth > 0) the
+   caller notes its own W instead, so the slot always points into the block. `force` is for a halt, which replaces an
+   earlier note left by a fault that did not stop the block. Uses `here` and `depth` from exec(). */
+#define NOTE_FAULT(force) do { if (depth == 0 && vm->cur && (force || vm->cur->fault_slot < 0)) vm->cur->fault_slot = here; } while (0)
 /* Pop into a variable, or halt on underflow. */
 #define POP(var) do { if (vm->sp == 0) HALT(FAULT_UNDER); (var) = vm->stack[--vm->sp]; } while (0)
 /* Push a value, or halt on overflow. */
@@ -201,6 +212,8 @@ enum { EXEC_END = 0, EXEC_EXIT = 1, EXEC_YIELD = 2, EXEC_HALT = -1 };
    stack and the step counter. Returns EXEC_END, EXEC_EXIT, EXEC_YIELD or EXEC_HALT. */
 static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
   while (ip < c->count) {
+    int here = ip;                                    /* the slot being run, for NOTE_FAULT */
+    unsigned f0 = *vm->fault;                         /* to tell whether this instruction added a fault */
     if (++vm->steps > STEP_CAP) HALT(FAULT_CAP);
     Slot s = c->slots[ip++];
     if (!s.is_op) { PUSH(s.value); continue; }
@@ -266,11 +279,14 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
         POP(a);
         if (depth > 0) HALT(FAULT_CTX);
         if (a < 0 || a >= NUM_WORDS || !vm->words[a].ok || vm->words[a].count == 0) { *vm->fault |= FAULT_WORD; break; }
-        if (exec(vm, &vm->words[a], 0, b, depth + 1) == EXEC_HALT) return EXEC_HALT;
+        int r = exec(vm, &vm->words[a], 0, b, depth + 1);
+        if (*vm->fault != f0) NOTE_FAULT(r == EXEC_HALT);      /* the fault was in the word: point at the W that called it */
+        if (r == EXEC_HALT) return EXEC_HALT;
         break;
       }
       default: break;
     }
+    if (*vm->fault != f0) NOTE_FAULT(0);              /* a fault that did not stop the block (divide by zero, bad address) */
   }
   return EXEC_END;
 }
@@ -287,7 +303,7 @@ void vm_set_block(Vm *vm, int b, const char *src) {
   strncpy(blk->src, src, BLOCK_SRC_MAX - 1);
   blk->src[BLOCK_SRC_MAX - 1] = '\0';
   vm_compile(&blk->c, src, BLOCK_SLOTS);
-  blk->halted = 0; blk->resume = -1; blk->fault = 0; blk->peak = 0;
+  blk->halted = 0; blk->resume = -1; blk->fault = 0; blk->fault_slot = -1; blk->peak = 0;
 }
 
 const char *vm_fault_name(unsigned fault) {
@@ -310,6 +326,7 @@ void vm_run_block(Vm *vm, int b) {
   Block *blk = &vm->blocks[b];
   if (blk->halted || !blk->c.ok || blk->c.count == 0) return;
   vm->fault = &blk->fault;
+  vm->cur = blk;
   vm->steps = 0; vm->sp = 0;
   int ip = 0;
   if (blk->resume >= 0) { ip = blk->resume; blk->resume = -1; }

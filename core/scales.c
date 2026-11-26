@@ -4,7 +4,7 @@
 
 #define FULL 32767.0            /* register full scale */
 
-double atk_sec(double v)   { return 0.001 * pow(500.0, v / FULL); }
+double atk_sec(double v)   { return 0.001 * pow(10000.0, v / FULL); }
 double rel_sec(double v)   { return 0.01 * pow(400.0, v / FULL); }
 double slew_sec(double v)  { return 0.001 * pow(5000.0, v / FULL); }
 double lfo_hz(double v)    { return 0.05 * pow(400.0, v / FULL); }

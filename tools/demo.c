@@ -37,7 +37,7 @@ static const char *PIECE =
   /* a soft sine: no FM, little folding, a long attack and a very long release (about 3.5 s) */
   "reg FOLD 1500\n"
   "reg CUTOFF 12000\n"
-  "reg ATK 32000\n"
+  "reg ATK 21592\n"
   "reg REL 32000\n"
   "reg LFORATE 4000\n"
   "reg FMAMT 0\n"

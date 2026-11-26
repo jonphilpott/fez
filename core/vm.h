@@ -45,6 +45,8 @@ typedef struct {
   int ok;                          /* 1 if the source compiled */
   char err[96];                    /* message if not (long tokens are cut short) */
   int count;                       /* slots used */
+  int err_pos;                     /* byte offset in the source of the token that failed to compile, or -1 (an editor can highlight it) */
+  uint16_t pos[BLOCK_SLOTS];       /* byte offset in the source of the token each slot came from (a note name makes two slots, one token) */
   Slot slots[BLOCK_SLOTS];
   int16_t labels[16];              /* slot index just after "n L", or -1 if label n is not defined */
 } Compiled;
@@ -65,6 +67,7 @@ typedef struct {
   int halted;                      /* a fault stopped it; it stays stopped until its source is set again */
   int resume;                      /* slot index to continue from after YIELD, or -1 */
   unsigned fault;                  /* all faults since the source was set */
+  int fault_slot;                  /* slot of this block's own code that caused the fault (the W call, if a word did), or -1. A halt overwrites it. */
   int steps, peak, runs;           /* slots in the last run, the most in any run, number of runs */
 } Block;
 
@@ -78,6 +81,7 @@ typedef struct {
   int stack[STACK_DEPTH], sp;
   int steps, yield_ip;
   unsigned *fault;
+  Block *cur;                      /* the block being run, so exec() can say where a fault happened */
 } Vm;
 
 void vm_compile(Compiled *c, const char *src, int max_slots);

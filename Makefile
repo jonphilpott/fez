@@ -31,7 +31,7 @@ test: test_core
 	./test_core
 
 clean:
-	rm -rf fez fez_mac demo deskshot padshot test_core render tools/manual_gen dist *.dSYM
+	rm -rf fez fez_mac demo deskshot padshot test_core render tools/manual_gen dist *.dSYM *.ppm
 
 # Cross-build for the TrimUI Brick: run inside the toolchain container (brick/build.sh does that). The container's environment
 # supplies CC (an aarch64 compiler) and pkg-config pointing at the Brick's own SDL2. Output goes to dist/, so it never overwrites
