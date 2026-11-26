@@ -69,6 +69,7 @@ const WordDef WORD_TABLE[] = {
   { "COLOUR", "( index col -- pitch )", "A note of a five-note scale in just intonation (pure ratios, not equal temperament). index walks up the scale (5 notes an octave; negative goes below the root) and col, 0 to 15, picks the flavour: bits 2 and 3 choose the second note from four, bits 0 and 1 the top note from four. The answer is the distance above the root, so add the root yourself." },
   { "?",     "( a b flag -- a or b )", "Pick one: leaves b if the flag is not 0, and a if it is 0." },
   { "SCALE", "( index scale -- pitch )", "A note of one of the quantiser's scales (0 chromatic, 1 major, 2 minor, 3 dorian, 4 major pentatonic, 5 minor pentatonic, 6 blues, 7 whole tone; other numbers wrap round, so 8 is 0 again). index is the step up the scale, counted from 0 at the root; it wraps into the next octave after the last note (negative goes below the root). The answer is the distance above the root, so add the root yourself." },
+  { "P",     "( percent -- flag )", "Chance: 1 that many times in a hundred, otherwise 0. 50 P is a coin toss, 10 P is rare, 100 P always. The same as 100 RND percent <." },
 };
 
 const int WORD_COUNT = (int)(sizeof WORD_TABLE / sizeof WORD_TABLE[0]);

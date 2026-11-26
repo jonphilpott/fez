@@ -4,7 +4,7 @@
 
 <p>Every register holds 0 to 32767, but the things it controls are not that. A cutoff is a frequency, an attack is a time. FEZ spreads the 32768 steps <b>exponentially</b>, which is how ears hear: each equal step multiplies the frequency or the time by the same factor, instead of adding the same amount. So the bottom half of a cutoff knob is spent between 40 Hz and about 750 Hz, and the top half between 750 Hz and 14 kHz. Here is where five settings land:</p>
 
-<table class="regs"><tr><th>register value</th><td>0</td><td>8192</td><td>16384</td><td>24576</td><td>32767</td></tr><tr><th>CUTOFF, MDCUT</th><td>40 Hz</td><td>173 Hz</td><td>748 Hz</td><td>3.2 kHz</td><td>14.0 kHz</td></tr><tr><th>ATK</th><td>1 ms</td><td>10 ms</td><td>100 ms</td><td>1.0 s</td><td>10 s</td></tr><tr><th>REL</th><td>10 ms</td><td>45 ms</td><td>200 ms</td><td>895 ms</td><td>4.0 s</td></tr><tr><th>FMRATE</th><td>0.5 Hz</td><td>4 Hz</td><td>32 Hz</td><td>252 Hz</td><td>2.0 kHz</td></tr><tr><th>LFORATE</th><td>0.05 Hz</td><td>0.22 Hz</td><td>1.00 Hz</td><td>4.47 Hz</td><td>20 Hz</td></tr><tr><th>NZTONE</th><td>100 Hz</td><td>376 Hz</td><td>1.4 kHz</td><td>5.3 kHz</td><td>20.0 kHz</td></tr><tr><th>FMAMT (depth)</th><td>0 Hz</td><td>125 Hz</td><td>500 Hz</td><td>1125 Hz</td><td>2000 Hz</td></tr></table>
+<table class="regs"><tr><th>register value</th><td>0</td><td>8192</td><td>16384</td><td>24576</td><td>32767</td></tr><tr><th>CUTOFF, MDCUT</th><td>40 Hz</td><td>173 Hz</td><td>748 Hz</td><td>3.2 kHz</td><td>14.0 kHz</td></tr><tr><th>ATK</th><td>1 ms</td><td>10 ms</td><td>100 ms</td><td>1.0 s</td><td>10 s</td></tr><tr><th>REL</th><td>10 ms</td><td>45 ms</td><td>200 ms</td><td>895 ms</td><td>4.0 s</td></tr><tr><th>LFORATE</th><td>0.05 Hz</td><td>0.22 Hz</td><td>1.00 Hz</td><td>4.47 Hz</td><td>20 Hz</td></tr><tr><th>NZTONE</th><td>100 Hz</td><td>376 Hz</td><td>1.4 kHz</td><td>5.3 kHz</td><td>20.0 kHz</td></tr><tr><th>FMAMT (depth)</th><td>0 Hz</td><td>125 Hz</td><td>500 Hz</td><td>1125 Hz</td><td>2000 Hz</td></tr></table>
 
 <p>The CTRL tab shows the real value next to the number, so you rarely need this table. It explains one thing, though: patches with slow notes need values above 25000. A release of 12000 lasts only about 0.1 seconds, and one of 28000 about 1.7 seconds.</p>
 
@@ -27,7 +27,7 @@
 
 <h4>Frequency modulation</h4>
 
-<p>A second oscillator, the <b>FM oscillator</b>, can push the pitch of the first up and down very fast. This is <b>frequency modulation</b> (FM). At low depth it adds a shimmer or vibrato. At high depth and audio speed it makes the clanging, bell-like tones FM is known for. Three registers set it: <code>FMRATE</code> is the speed (0.5 Hz to 2 kHz), <code>MDWAVE</code> is its wave shape (the quarters of the register give sine, triangle, square and saw), and <code>FMAMT</code> is the depth. The depth is squared, so the bottom of the register is subtle and the top is up to 2000 Hz of swing.</p>
+<p>A second oscillator, the <b>mod oscillator</b>, can push the pitch of the first up and down very fast. This is <b>frequency modulation</b> (FM). At low speed it adds a wobble or vibrato. At audio speed it makes the clanging, bell-like tones FM is known for. Three registers set it: <code>MDPITCH</code> is the speed, written as a pitch like <code>PITCH</code> (so <code>C3 MDPITCH !</code> works; the lowest is about 8 Hz), <code>MDWAVE</code> is its wave shape (the quarters of the register give sine, triangle, square and saw), and <code>FMAMT</code> is the depth. The depth is squared, so the bottom of the register is subtle and the top is up to 2000 Hz of swing. The same oscillator is the sound of the <a href="#mod-voice">mod voice</a>, so retuning one retunes the other.</p>
 
 <h4>The wavefolder</h4>
 
@@ -63,7 +63,7 @@
 
 <h3 id="mod-voice">The mod voice</h3>
 
-<p>The mod voice has its own oscillator, its own filter and its own volume, and is never gated. <code>MDPITCH</code> tunes its oscillator exactly as <code>PITCH</code> tunes the main voice: 256 to a semitone, C4 is 15360, and <code>ST</code>, <code>HZ</code> and note names all work. Its wave is <code>MDWAVE</code>, the same shape as the FM oscillator, but the two run separately: <code>FMRATE</code> no longer changes the mod voice's note. The oscillator and the noise are blended by <code>MDNZ</code> (0 is all oscillator, full is all noise). The blend goes through a <b>ladder filter</b>: a lowpass of the kind Moog made, whose steep slope gives a thick, warm roll-off. <code>MDCUT</code> sets where it starts to cut (40 Hz to 14 kHz, scaled like <code>CUTOFF</code>), and <code>MDRES</code> adds <b>resonance</b>, a boost at the cutoff that turns a noise sweep from a hush into a whistle. <code>MDLVL</code> is its volume: 0 is silent, which is why the mod voice does nothing until you raise it.</p>
+<p>The mod voice plays the mod oscillator, the same one that makes the FM, through its own filter and its own volume, and is never gated. <code>MDPITCH</code> tunes it exactly as <code>PITCH</code> tunes the main voice: 256 to a semitone, C4 is 15360, and <code>ST</code>, <code>HZ</code> and note names all work. Its wave is <code>MDWAVE</code>. The oscillator and the noise are blended by <code>MDNZ</code> (0 is all oscillator, full is all noise). The blend goes through a <b>ladder filter</b>: a lowpass of the kind Moog made, whose steep slope gives a thick, warm roll-off. <code>MDCUT</code> sets where it starts to cut (40 Hz to 14 kHz, scaled like <code>CUTOFF</code>), and <code>MDRES</code> adds <b>resonance</b>, a boost at the cutoff that turns a noise sweep from a hush into a whistle. <code>MDLVL</code> is its volume: 0 is silent, which is why the mod voice does nothing until you raise it.</p>
 
 <p>Low-passed white noise is quiet, so FEZ lifts the noise as the cutoff falls, up to six times, so a slow sweep keeps a steady loudness.</p>
 
@@ -71,7 +71,13 @@
 12000 MDCUT !
 20000 MDLVL !       \ bring the mod voice up</pre>
 
-<p>Patches saved before <code>MDPITCH</code> existed load with it set to the frequency their <code>FMRATE</code> gave, so they sound as they did.</p>
+<p>To make the mod oscillator follow the main voice, turn on <code>MDTRACK</code>. <code>MDPITCH</code> then means an interval above <code>PITCH</code> instead of a note of its own: C4 is the same note, G4 a fifth above, C5 an octave above, C3 an octave below, and CTRL shows it in semitones (<code>+7st</code>). It follows whatever the voice actually plays, glide, modulation and quantiser included, so it keeps step with the keys, the sequencer and your blocks. For FM this keeps the ratio between the two oscillators fixed, so the timbre stays the same from the bottom of the keyboard to the top; for the mod voice it is a second voice playing in parallel.</p>
+
+<pre class="fez">32767 MDTRACK !     \ follow the main voice
+C5 MDPITCH !        \ an octave above it
+5000 FMAMT !        \ FM at a 2:1 ratio: the same tone on every key</pre>
+
+<p>Older versions of FEZ set the mod oscillator's speed with a register called <code>FMRATE</code>. Patches saved by them load with <code>MDPITCH</code> at the same frequency, so they sound as they did, except that FM slower than about 8 Hz becomes 8 Hz.</p>
 
 <h3 id="level">The master level</h3>
 

@@ -52,6 +52,16 @@ void test_vm(void) {
     CHECK(vm_parse_note("CB4", NOTE_NEEDS_OCTAVE, &p) == 0, "a capital B after the letter is not a flat (the editor and compiler agree)");
     CHECK(vm_parse_note("G#9", NOTE_NEEDS_OCTAVE, &p) == -1 && !compiles("G#9"), "a note above MIDI 127 is out of range");
     CHECK(compiles("C4 Eb3 F#-1"), "note names compile"); }
+  /* P: the same as "100 RND percent <" (the same random number, so the same answer on the same seed), never at 0, always at 100 */
+  { int same = 1;
+    for (int pc = 0; pc <= 100; pc += 7) {
+      char a[40], b[40];
+      snprintf(a, sizeof a, "%d P S0 !", pc); snprintf(b, sizeof b, "100 RND %d < S0 !", pc);
+      same &= run_and_read(a, REG_S0) == run_and_read(b, REG_S0);
+    }
+    CHECK(same, "P is 100 RND percent <");
+    CHECK(run_and_read("0 P S0 !", REG_S0) == 0 && run_and_read("100 P S0 !", REG_S0) == 1, "0 P is never, 100 P always"); }
+
   /* SCALE: degree 0 is the root, degrees wrap into the next octave, negatives go below */
   CHECK(run_and_read("2 1 SCALE PITCH !", REG_PITCH) == 1024, "major scale degree 2 is the third, 4 semitones up");
   CHECK(run_and_read("7 1 SCALE PITCH !", REG_PITCH) == 3072, "major scale degree 7 is an octave up");

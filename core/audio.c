@@ -30,6 +30,20 @@ static const int SPR_LEN[SPR_TANKS] = { (int)(0.034 * FEZ_SAMPLE_RATE), (int)(0.
 static const double SPR_AP_HZ[SPR_TANKS][SPR_ALLPASS] = { { 330, 520, 780, 1100, 1500, 2100, 2800 }, { 406, 640, 960, 1353, 1845, 2583, 3444 } };
 static const double SPR_LP_HZ[SPR_TANKS] = { 3200, 3000 };
 #define SPR_CROSS 0.3
+/* SPRTONE takes the metal out in three ways, each scaled by the knob (0 is the old spring exactly):
+   1) diffusers: three short allpass delays in each loop (lengths in samples, about 2.4, 7 and 10.6 ms, no two sharing a
+      factor so their echoes never line up). Each one smears every echo into a spread of smaller ones, so the loop stops
+      repeating one clean copy of itself every 34 ms, which is what rings like a tin can.
+   2) the chirp allpasses get gentler: their Q falls from 2.5 (each one rings at its own pitch) to 0.9.
+   3) each loop's length wobbles a little (up to SPR_WOB samples, at slow rates that differ per tank), so the loop's
+      resonances keep moving instead of settling on fixed pitches.
+   The diffusers delay the sound too, so the main loop is shortened by their total: each tank's loop time stays the same. */
+static const int SPR_DIFF_LEN[SPR_TANKS][SPR_DIFF] = { { 113, 337, 509 }, { 127, 373, 563 } };
+static const double SPR_WOB_HZ[SPR_TANKS] = { 0.71, 0.93 };
+#define SPR_WOB 12.0                    /* samples (0.25 ms) at full SPRTONE: a slight drift, too little to hear as pitch */
+#define SPR_Q_METAL 2.5                 /* the chirp allpasses' Q at SPRTONE 0 ... */
+#define SPR_Q_SOFT  0.9                 /* ... and at full */
+#define SPR_DIFF_G  0.6                 /* the diffusers' gain at full: above about 0.7 they ring themselves */
 
 /* ---------------------------------------------------------------- small helpers */
 
@@ -85,7 +99,7 @@ void audio_init(Audio *a) {
     a->k_sm[i] = tau > 0 ? 1.0 - exp(-(double)CHUNK / (FEZ_SAMPLE_RATE * tau)) : 1.0;   /* tau 0: no smoothing */
   }
   for (int t = 0; t < SPR_TANKS; t++) {
-    for (int i = 0; i < SPR_ALLPASS; i++) svf_coef(&a->spr_ap_c[t][i], SPR_AP_HZ[t][i], 2.5);
+    for (int i = 0; i < SPR_ALLPASS; i++) svf_coef(&a->spr_ap_c[t][i], SPR_AP_HZ[t][i], SPR_Q_METAL);   /* until the first chunk sets SPRTONE's */
     svf_coef(&a->spr_c[t], SPR_LP_HZ[t], 0.7071);               /* Q 0.7071: flattest lowpass, gain never above 1 */
   }
   a->comp_ka = 1.0 - exp(-1.0 / (0.003 * FEZ_SAMPLE_RATE));   /* compressor attack 3 ms */
@@ -105,6 +119,7 @@ void audio_clear_fx(Audio *a) {
   memset(a->spr, 0, sizeof a->spr);                          /* both tanks */
   memset(a->spr_ap, 0, sizeof a->spr_ap);
   memset(a->spr_svf, 0, sizeof a->spr_svf);
+  memset(a->spr_dif, 0, sizeof a->spr_dif);
   a->comp_env = 0;
   memset(&a->lpg_lp, 0, sizeof a->lpg_lp);
   memset(&a->nz_svf, 0, sizeof a->nz_svf);
@@ -179,8 +194,8 @@ static void begin_chunk(FezSynth *s) {
 
   /* 2) oscillators */
   a->f_cx = pitch_hz(P(s, REG_PITCH));
-  a->f_md = fm_hz(P(s, REG_FMRATE));
-  a->f_mv = pitch_hz(P(s, REG_MDPITCH));
+  /* MDTRACK on: MDPITCH is an interval above the voice's pitch as heard (after glide, matrix and quantiser), C4 being none */
+  a->f_md = pitch_hz(P(s, REG_MDTRACK) >= 16384 ? P(s, REG_PITCH) + P(s, REG_MDPITCH) - 15360 : P(s, REG_MDPITCH));
   a->fm_depth = fm_depth_hz(P(s, REG_FMAMT));
   a->cx_shape = cx_shape(s->eff[REG_CXWAVE]);
   a->md_shape = md_shape(s->eff[REG_MDWAVE]);
@@ -234,6 +249,10 @@ static void begin_chunk(FezSynth *s) {
     a->dly_nz_g = n * n * 0.05; }                                /* at most 5 percent of full scale: audible hiss, not a wall */
   a->dly_frz_target = P(s, REG_DLYFRZ) >= 16384 ? 1.0 : 0.0;
   a->spr_fb_g = spring_fb(P(s, REG_SPRDEC));
+  a->spr_tone = P(s, REG_SPRTONE) / FULL;                          /* see SPR_DIFF_LEN: how far from the old metallic spring */
+  a->spr_dif_g = SPR_DIFF_G * a->spr_tone;
+  for (int t = 0; t < SPR_TANKS; t++)                              /* 14 filters retuned once a chunk: cheap, and the Q glides with the knob */
+    for (int i = 0; i < SPR_ALLPASS; i++) svf_coef(&a->spr_ap_c[t][i], SPR_AP_HZ[t][i], SPR_Q_METAL + (SPR_Q_SOFT - SPR_Q_METAL) * a->spr_tone);
 
   a->primed = 1;
 }
@@ -246,12 +265,10 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
 
   /* ---- sources ---- */
   double dt_md = fabs(a->f_md) / FEZ_SAMPLE_RATE;
-  double m = wave(a->md_shape, a->ph_md, dt_md);                  /* the FM oscillator (FMRATE), which moves the complex oscillator's pitch */
+  /* The mod oscillator, as on a Music Easel: one oscillator that is both the FM source (it moves the complex oscillator's
+     pitch, by FMAMT) and the mod voice's sound. MDPITCH tunes it like PITCH. */
+  double m = wave(a->md_shape, a->ph_md, dt_md);
   a->ph_md = advance_phase(a->ph_md, a->f_md);
-  /* The mod voice's own oscillator, tuned like the main voice (MDPITCH, 8.8). Same wave shape (MDWAVE) as the FM oscillator.
-     They were one oscillator until 26 Nov 2026; split so the mod voice can play notes while FM goes down to 0.5 Hz. */
-  double mv = wave(a->md_shape, a->ph_mv, a->f_mv / FEZ_SAMPLE_RATE);
-  a->ph_mv = advance_phase(a->ph_mv, a->f_mv);
   double zraw = white(a);
   double nz = svf_lowpass(&a->nz_svf, &a->nz_c, zraw * 0.7);       /* noise through its tone control (0.7: a level set by ear) */
 
@@ -296,7 +313,7 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
   double vca = onepole_run(&a->lpg_lp, onepole_coef(gate_hz), lpg_in) * y;
 
   /* ---- mod voice: oscillator and noise through a Moog ladder, its own VCA ---- */
-  double md_src = mv * ramp_next(&a->md_osc_g) + zraw * ramp_next(&a->md_nz_g);
+  double md_src = m * ramp_next(&a->md_osc_g) + zraw * ramp_next(&a->md_nz_g);
   double md = ladder_run(&a->md_ladder, &a->md_c, md_src) * ramp_next(&a->md_vca);
 
   /* ---- buffer device. Its input is chosen by BWSRC; its output returns one sample late. ---- */
@@ -364,7 +381,26 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
      different reverb. Steps: (a) read both tanks, (b) write both loops, (c) blend the two outputs by the width control. */
   double tank[SPR_TANKS];
   for (int t = 0; t < SPR_TANKS; t++) {                                       /* (a) */
-    double x = a->spr[t][(a->spr_w - SPR_LEN[t] + SPR_SAMPLES) % SPR_SAMPLES];
+    /* read the loop SPR_LEN back, less what the diffusers add, plus the slow wobble (between two samples, so it glides) */
+    a->ph_spr[t] = advance_phase(a->ph_spr[t], SPR_WOB_HZ[t]);
+    double back = SPR_LEN[t] - SPR_DIFF_LEN[t][0] - SPR_DIFF_LEN[t][1] - SPR_DIFF_LEN[t][2]
+                + SPR_WOB * a->spr_tone * (1.0 + sin(TWO_PI * a->ph_spr[t]));          /* 0 to 2 x SPR_WOB: never reads ahead */
+    double rp = a->spr_w - back;
+    if (rp < 0) rp += SPR_SAMPLES;
+    int i0 = (int)rp; double fr = rp - i0;
+    if (i0 >= SPR_SAMPLES) i0 -= SPR_SAMPLES;
+    int i1 = i0 + 1 >= SPR_SAMPLES ? 0 : i0 + 1;
+    double x = a->spr[t][i0] * (1 - fr) + a->spr[t][i1] * fr;
+    /* the diffusers: Schroeder allpasses. Each delays by its length D and mixes in -g of its input and +g of its own
+       output, which spreads an echo out without colouring it (every frequency passes at the same level). At g 0 each is a
+       plain delay of D, which is why the read above is shortened by the three D: at SPRTONE 0 the loop is the old one. */
+    for (int k = 0; k < SPR_DIFF; k++) {
+      float *ring = a->spr_dif[t][k];
+      double delayed = ring[(a->spr_dif_w - SPR_DIFF_LEN[t][k] + SPR_DIFF_MAX) % SPR_DIFF_MAX];
+      double y = delayed - a->spr_dif_g * x;
+      ring[a->spr_dif_w] = (float)flush_denormal(x + a->spr_dif_g * y);
+      x = y;
+    }
     for (int i = 0; i < SPR_ALLPASS; i++) x = svf_allpass(&a->spr_ap[t][i], &a->spr_ap_c[t][i], x);
     tank[t] = svf_lowpass(&a->spr_svf[t], &a->spr_c[t], x);
   }
@@ -373,6 +409,7 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
     a->spr[t][a->spr_w] = (float)flush_denormal(stage1 + tanh(fed * a->spr_fb_g));
   }
   if (++a->spr_w >= SPR_SAMPLES) a->spr_w = 0;
+  if (++a->spr_dif_w >= SPR_DIFF_MAX) a->spr_dif_w = 0;
   /* (c) width by mid and side: mid is what the tanks share, side is how they differ. Width 0 keeps only the mid, so both ears
      hear the same signal (mono); full width gives each ear its own tank. This changes smoothly, with no retuning clicks. */
   double wet_g = ramp_next(&a->spr_wet), wid = ramp_next(&a->spr_wid);

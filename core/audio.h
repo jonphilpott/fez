@@ -14,6 +14,8 @@
 #define SPR_SAMPLES  2048               /* each spring tank's loop is 34 or 41 ms (1632 and 1968 samples) */
 #define SPR_ALLPASS  7
 #define SPR_TANKS    2                  /* the spring is a stereo pair: tank 0 feeds the left ear, tank 1 the right */
+#define SPR_DIFF     3                  /* diffusers in each tank's loop (SPRTONE) */
+#define SPR_DIFF_MAX 1024               /* samples in each diffuser's ring; the longest diffuser is 563 */
 
 /* A gain that moves linearly from where it is to a new target over one chunk, so a parameter change never
    makes a step (a step in gain is a click). */
@@ -27,9 +29,9 @@ typedef struct {
   int chunk_pos, chunks_to_tick;        /* position in the current chunk; chunks until the next control tick */
 
   /* ---- oscillators ---- */
-  double ph_cx, ph_md, ph_mv;           /* phases, 0..1: the complex oscillator, the FM oscillator, the mod voice's oscillator */
+  double ph_cx, ph_md;                  /* phases, 0..1: the complex oscillator, the mod oscillator */
   uint32_t nz_state;                    /* white-noise generator (separate from the synth's, which must stay deterministic) */
-  double f_cx, f_md, f_mv, fm_depth;    /* frequencies in Hz (PITCH, FMRATE, MDPITCH), FM depth in Hz (per chunk) */
+  double f_cx, f_md, fm_depth;          /* frequencies in Hz (PITCH, MDPITCH), FM depth in Hz (per chunk) */
   int cx_shape, md_shape;
 
   /* ---- gains (ramped) ---- */
@@ -57,6 +59,9 @@ typedef struct {
   float spr[SPR_TANKS][SPR_SAMPLES]; int spr_w;               /* the two spring tanks' rings, and the one write index they share */
   Svf spr_ap[SPR_TANKS][SPR_ALLPASS]; SvfCoef spr_ap_c[SPR_TANKS][SPR_ALLPASS];
   Svf spr_svf[SPR_TANKS]; SvfCoef spr_c[SPR_TANKS];
+  float spr_dif[SPR_TANKS][SPR_DIFF][SPR_DIFF_MAX]; int spr_dif_w;   /* the diffusers' rings, one write index shared */
+  double spr_tone, spr_dif_g;            /* per chunk: SPRTONE as 0..1, and the diffusers' gain */
+  double ph_spr[SPR_TANKS];              /* each tank's slow length wobble (SPRTONE) */
   double comp_env, comp_ka, comp_kr;    /* compressor level follower and its attack/release coefficients (one detector for both ears) */
 
   /* ---- buffer device ---- */

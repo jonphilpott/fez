@@ -76,11 +76,24 @@ void test_patchfile(void) {
   /* damaged and foreign files */
   CHECK(patchfile_read(&copy, "hello", &back, err, sizeof err) == -1, "not a patch file");
   CHECK(patchfile_read(&copy, "FEZ PATCH 99\n", &back, err, sizeof err) == -1, "a newer version is refused");
-  /* MDPITCH: a version 1 file (before it existed) keeps its mod voice at the FMRATE frequency; a version 2 file means what it says */
-  patchfile_read(&copy, "FEZ PATCH 1\nreg FMRATE 21300\n", &back, err, sizeof err);
-  CHECK(abs(copy.mem[REG_MDPITCH] - 11512) <= 2, "version 1: FMRATE 21300 (109.8 Hz) becomes MDPITCH just under A2");
+  /* FMRATE (gone in version 3): older files keep the mod oscillator's frequency, as MDPITCH */
+  int bad0 = patchfile_read(&copy, "FEZ PATCH 1\nreg FMRATE 21300\n", &back, err, sizeof err);
+  CHECK(bad0 == 0 && abs(copy.mem[REG_MDPITCH] - 11512) <= 2, "version 1: FMRATE 21300 (109.8 Hz) becomes MDPITCH just under A2, quietly");
+  patchfile_read(&copy, "FEZ PATCH 2\nreg FMRATE 21300\nreg FMAMT 4000\n", &back, err, sizeof err);
+  CHECK(abs(copy.mem[REG_MDPITCH] - 11512) <= 2, "version 2, FM heard and the mod voice silent: the FM speed wins");
+  patchfile_read(&copy, "FEZ PATCH 2\nreg FMRATE 21300\nreg FMAMT 4000\nreg MDLVL 9000\nreg MDPITCH 9000\n", &back, err, sizeof err);
+  CHECK(copy.mem[REG_MDPITCH] == 9000, "version 2, mod voice heard: it keeps its pitch");
   patchfile_read(&copy, "FEZ PATCH 2\nreg FMRATE 21300\n", &back, err, sizeof err);
-  CHECK(copy.mem[REG_MDPITCH] == 15360, "version 2: no MDPITCH line is the default, C4");
+  CHECK(copy.mem[REG_MDPITCH] == 15360, "version 2, no FM: MDPITCH as written (here the default, C4)");
+  /* DLYMIX: a file before version 3 that left it out had the old default, 9000; from version 3 the default is dry */
+  CHECK(copy.mem[REG_DLYMIX] == 9000 && copy.mem[REG_SPRMIX] == 8000, "version 2: no DLYMIX or SPRMIX line is the old default");
+  patchfile_read(&copy, "FEZ PATCH 2\nreg DLYMIX 100\n", &back, err, sizeof err);
+  CHECK(copy.mem[REG_DLYMIX] == 100, "version 2: a DLYMIX line still wins");
+  patchfile_read(&copy, "FEZ PATCH 3\n", &back, err, sizeof err);
+  CHECK(copy.mem[REG_DLYMIX] == 0 && copy.mem[REG_SPRMIX] == 0, "version 3: no DLYMIX or SPRMIX line is dry");
+  CHECK(copy.mem[REG_SPRTONE] == 16384, "version 3: no SPRTONE line is the default, halfway");
+  patchfile_read(&copy, "FEZ PATCH 2\n", &back, err, sizeof err);
+  CHECK(copy.mem[REG_SPRTONE] == 0, "version 2: the old, metallic spring");
   int bad = patchfile_read(&copy, "FEZ PATCH 1\nname X\nreg NOSUCH 5\nreg CUTOFF 123\nbogus line\n", &back, err, sizeof err);
   CHECK(bad == 2 && copy.mem[REG_CUTOFF] == 123 && !strncmp(err, "line 3", 6), "bad lines are skipped and counted, good ones still load");
   CHECK(patchfile_write(&orig, &info, text1, 20) == -1, "a buffer that is too small is reported");

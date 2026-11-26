@@ -20,7 +20,7 @@ typedef struct { const char *name; const char *const *items; int n; } PalTab;
 static const char *const P_STK[] = { "DUP", "DROP", "SWAP", "OVER", "ROT", "?" };
 static const char *const P_MTH[] = { "+", "-", "*", "F*", "/", "*/", "NEG", "ABS", "MIN", "MAX", "MOD", "ST", "HZ", "COLOUR", "SCALE" };
 static const char *const P_LOG[] = { "AND", "OR", "XOR", "NOT", "SHL", "SHR", "ROL", "ROR", "=", "<", ">", "U<" };
-static const char *const P_MEM[] = { "@", "!", "TRIG", "ROUTE", "W", "RND" };
+static const char *const P_MEM[] = { "@", "!", "TRIG", "ROUTE", "W", "RND", "P" };
 static const char *const P_FLW[] = { "L", "JMP", "JZ", "JNZ", "SKIP", "EXIT", "YIELD" };
 static const char *const P_NUM[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "ENT", "100", "1000", "4096", "16384", "32767" };
 static const char *const P_PLS[] = { "P0", "P1", "P2", "P3" };
@@ -98,7 +98,7 @@ enum { MENU_CLOSED = -1, MENU_MAIN = 0, MENU_GOTO = 1, MENU_ACTIONS = 2 };
 
 /* What a tab can do that a plain button does not reach: each is a key the desktop tab already understands. */
 typedef struct { const char *label; int key, mods, text, check; } Action;   /* text: send the key as typed text, not a key press. check: a checkbox for "this block runs on pulser (key - '1')": it shows its state, and the menu stays open after A */
-static const Action A_EDITOR[]  = { { "Run block once", 'r', MOD_CTRL, 0, 0 }, { "Undo", 'z', MOD_CTRL, 0, 0 }, { "Redo", 'y', MOD_CTRL, 0, 0 },
+static const Action A_EDITOR[]  = { { "Apply and run", 'r', MOD_CTRL, 0, 0 }, { "Undo", 'z', MOD_CTRL, 0, 0 }, { "Redo", 'y', MOD_CTRL, 0, 0 },
   { "Copy", 'c', MOD_CTRL, 0, 0 }, { "Cut", 'x', MOD_CTRL, 0, 0 }, { "Paste", 'v', MOD_CTRL, 0, 0 }, { "Clear block", 0, 0, 0, 0 },
   { "Runs on P0", '1', MOD_CTRL, 0, 1 }, { "Runs on P1", '2', MOD_CTRL, 0, 1 }, { "Runs on P2", '3', MOD_CTRL, 0, 1 }, { "Runs on P3", '4', MOD_CTRL, 0, 1 } };
 static const Action A_PATCHES[] = { { "Save patch", 's', MOD_CTRL, 0, 0 }, { "Delete patch", 'd', MOD_CTRL, 0, 0 }, { "New blank patch", 'n', MOD_CTRL, 0, 0 }, { "Other list", '[', 0, 1, 0 } };

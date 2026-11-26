@@ -19,6 +19,12 @@
 static int list_rows(const View *v) { return v->rows - 1 - HELP_ROWS; }
 
 /* Keep the selected row near the middle of the list, as far as the ends allow. */
+/* A parameter's value in its units. MDPITCH reads as an interval while MDTRACK is on, which only the synth knows. */
+static void fmt_value(Desk *d, char *buf, size_t n, int a, int v) {
+  if (a == REG_MDPITCH && d->synth->mem[REG_MDTRACK] >= 16384) regview_fmt_interval(buf, n, v);
+  else regview_fmt_param(buf, n, a, v);
+}
+
 static void scroll_to_selection(ValueList *l, int n, int vis) {
   l->top = fez_clamp(l->sel - vis / 2, 0, n > vis ? n - vis : 0);
 }
@@ -127,11 +133,11 @@ void tab_ctrl_draw(Desk *d, View *v) {
     if (e->wo) view_text_right(v, val_col, valw, row, "-", COL_FG);
     else if (sel && l->in.editing) { entry_text(l, buf, sizeof buf); view_text_right(v, val_col, valw, row, buf, COL_AMB); }
     else {
-      if (par && !d->ctl_raw) regview_fmt_param(buf, sizeof buf, a, base); else snprintf(buf, sizeof buf, "%d", base);
+      if (par && !d->ctl_raw) fmt_value(d, buf, sizeof buf, a, base); else snprintf(buf, sizeof buf, "%d", base);
       view_text_right(v, val_col, valw, row, buf, sel ? COL_AMB : COL_FG);
     }
     if (show_now && par && eff != base) {
-      if (!d->ctl_raw) regview_fmt_param(buf, sizeof buf, a, eff); else snprintf(buf, sizeof buf, "%d", eff);
+      if (!d->ctl_raw) fmt_value(d, buf, sizeof buf, a, eff); else snprintf(buf, sizeof buf, "%d", eff);
       view_text_right(v, now_col, valw, row, buf, COL_MAG);
     }
     if (locked(e) || e->wo) view_text(v, mark_col, row, e->wo ? "wo" : "ro", COL_DIM);

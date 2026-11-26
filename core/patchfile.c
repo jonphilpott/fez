@@ -110,10 +110,16 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
 
   /* 1) start from a blank patch: a file lists only what differs from it */
   fez_load_blank(s);
+  int version = atoi(text + 10);
+  /* A file lists only what differs from the defaults, so one written before version 3 left out a delay mix of 9000 and a
+     spring mix of 8000 (the defaults then; both are 0 now). Put them back first; a line in the file still wins. */
+  if (version < 3) { fez_reg_write(s, REG_DLYMIX, 9000); fez_reg_write(s, REG_SPRMIX, 8000); }
+  if (version < 3) fez_reg_write(s, REG_SPRTONE, 0);              /* SPRTONE came in version 3: 0 is the spring they were made with */
   info->name[0] = info->desc[0] = info->listen[0] = '\0';
 
   /* 2) one line at a time */
   int bad = 0, lineno = 0;
+  int fmrate = 8000;                                           /* FMRATE, which files before version 3 may hold (8000 was its default) */
   int kind = 0, index = 0;                                     /* source being collected: 1 block, 2 word */
   char src[BLOCK_SRC_MAX];
   size_t srclen = 0;
@@ -159,6 +165,7 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
     else if (!strcmp(word, "pulser") && sscanf(rest, "%d on %d rate %d", &a, &b, &c) == 3 && a >= 0 && a < NUM_PULSERS) {
       s->pulsers[a].on = b != 0; s->pulsers[a].rate = fez_clamp(c, 10, 600);
     }
+    else if (!strcmp(word, "reg") && sscanf(rest, "%31s %d", nm, &a) == 2 && !strcmp(nm, "FMRATE")) fmrate = a;   /* gone: see step 3 */
     else if (!strcmp(word, "reg") && sscanf(rest, "%31s %d", nm, &a) == 2) {
       int addr = addr_of(nm);
       if (addr < 0) complain(err, errcap, &bad, lineno, "unknown register", nm);
@@ -192,10 +199,14 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
   }
   if (kind) { if (kind == 1) vm_set_block(&s->vm, index, src); else vm_set_word(&s->vm, index, src); }
 
-  /* 3) a version 1 file was made when the mod voice played at the FM rate: keep it at that frequency, as a pitch (8.8 is
-        MIDI note x 256; 69 is A at 440 Hz). Below about 8 Hz the pitch bottoms out at 0. */
-  if (atoi(text + 10) < 2) {
-    double hz = fm_hz(s->mem[REG_FMRATE]);
+  /* 3) FMRATE, the mod oscillator's speed on its own log scale, is gone (version 3); MDPITCH tunes that oscillator now. An
+        older file keeps the frequency it had, as a pitch (8.8 is MIDI note x 256; 69 is A at 440 Hz; below about 8 Hz the
+        pitch bottoms out at 0):
+        - version 1: one oscillator, set by FMRATE, so always;
+        - version 2 (FEZ 0.4.1, when FM and the mod voice had separate oscillators): only if the FM is heard (FMAMT above 0)
+          and the mod voice is not (MDLVL 0). If both are heard the mod voice keeps its pitch and the FM moves with it. */
+  if (version < 2 || (version == 2 && s->mem[REG_FMAMT] > 0 && s->mem[REG_MDLVL] == 0)) {
+    double hz = fm_hz(fmrate);
     fez_reg_write(s, REG_MDPITCH, (int)lround((69.0 + 12.0 * log2(hz / 440.0)) * 256.0));
   }
 

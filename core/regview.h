@@ -26,6 +26,7 @@ const char *regview_param_name(const FezSynth *s, int addr);
 void regview_fmt_param(char *out, size_t n, int addr, int value);
 void regview_fmt_pct(char *out, size_t n, int value);
 void regview_fmt_note(char *out, size_t n, int pitch);
+void regview_fmt_interval(char *out, size_t n, int pitch);   /* MDPITCH with MDTRACK on: semitones from C4 (+7st) */
 
 /* One line of help (49 characters at most) for a register name; handles families such as CV# for CV0..CV3. */
 const char *regview_help(const char *name);

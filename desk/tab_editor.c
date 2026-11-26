@@ -11,7 +11,7 @@
      Ctrl+C X V        copy, cut, paste (system clipboard)   Ctrl+Z   undo      Ctrl+Y or Ctrl+Shift+Z   redo
      Ctrl+/            comment or uncomment the line (a backslash starts a comment)
      Tab               complete the word (press again for the next choice); else two spaces
-     Ctrl+Enter        apply the block        Ctrl+R   run it once now
+     Ctrl+Enter        apply the block        Ctrl+R   apply it and run it once now
      [  ]  (plain)     previous / next block (also Ctrl+, and Ctrl+.)   Ctrl+1 to 4   toggle which pulsers run this block
      Note: [ and ] are not typed in the editor. They are the "previous / next page" keys of every tab, and no block needs them. */
 #include "desk.h"
@@ -317,7 +317,10 @@ void tab_editor_key(Desk *d, int key, int mods) {
       }
       case '/': toggle_comment(d); break;
       case KEY_ENTER: apply_block(d); break;
-      case 'r': vm_run_block(&d->synth->vm, e->blk); desk_say(d, "RAN ONCE"); break;
+      case 'r':                                               /* apply, then run once: one key to hear what you typed */
+        apply_block(d);
+        if (d->synth->vm.blocks[e->blk].c.ok) { vm_run_block(&d->synth->vm, e->blk); desk_say(d, "APPLIED AND RAN"); }
+        break;                                                /* a compile error: apply_block has shown it, and nothing runs */
       case ',': switch_block(d, -1); break;
       case '.': switch_block(d, 1); break;
       case '1': case '2': case '3': case '4':
@@ -544,5 +547,5 @@ void tab_editor_draw(Desk *d, View *v) {
   else if (!tmp.ok) { snprintf(line, sizeof line, "ERR %.100s", tmp.err); view_text(v, 0, v->rows - 1, line, COL_RED); }
   else if (why[0] && !dirty) view_text(v, 0, v->rows - 1, why, COL_AMB);   /* it ran on, but something went wrong (until re-applied) */
   else if (word_help(t, e->cursor, line, sizeof line)) view_text(v, 0, v->rows - 1, line, COL_CYN);   /* what the word under the cursor does */
-  else view_text(v, 0, v->rows - 1, d->handheld ? (dirty ? "X applies this block" : "Menu: run it once") : dirty ? "Ctrl+Enter applies this block" : "Ctrl+R runs it once", COL_DIM);
+  else view_text(v, 0, v->rows - 1, d->handheld ? (dirty ? "X applies this block" : "Menu: apply and run") : dirty ? "Ctrl+Enter applies, Ctrl+R applies and runs" : "Ctrl+R runs it once", COL_DIM);
 }

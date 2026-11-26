@@ -14,7 +14,7 @@ const char *const OP_NAMES[OP_COUNT] = {
   "DUP", "DROP", "SWAP", "OVER", "ROT", "+", "-", "*", "F*", "/", "*/", "NEG", "ABS", "MIN",
   "MAX", "MOD", "AND", "OR", "XOR", "NOT", "SHL", "SHR", "ROL", "ROR", "=", "<", ">", "U<", "@", "!",
   "L", "JMP", "JZ", "JNZ", "SKIP", "EXIT", "YIELD", "TRIG", "ROUTE", "W", "RND", "ST", "HZ",
-  "COLOUR", "?", "SCALE"
+  "COLOUR", "?", "SCALE", "P"
 };
 
 /* ---------------------------------------------------------------- small integer helpers */
@@ -284,6 +284,8 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
         PUSH(sat(fez_colour_degree(floor_mod(a, 16), x)));
         break;
       }
+      case OP_P:      /* ( percent -- flag ): 1 that many times in a hundred. Exactly "100 RND percent <": one random number */
+        POP(a); PUSH((int)floor(vm->host.rnd(vm->host.ctx) * 100) < a); break;
       case OP_SCALE: {                                /* ( index scale -- pitch above the root, 8.8 semitones ) */
         POP(a); POP(x);
         PUSH(sat(fez_scale_degree(floor_mod(a, 8), x)));         /* wrap 0..7 like COLOUR wraps its col */

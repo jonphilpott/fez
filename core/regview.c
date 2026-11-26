@@ -61,6 +61,12 @@ void regview_fmt_note(char *o, size_t n, int p) {
   if (cents == 0) snprintf(o, n, "%s%d", NN[idx], oct); else snprintf(o, n, "%s%d%s%d", NN[idx], oct, cents > 0 ? "+" : "", cents);
 }
 
+/* MDPITCH while MDTRACK is on: an interval above the main voice, C4 (15360) being none. Shown in semitones, e.g. +7st or -12st. */
+void regview_fmt_interval(char *o, size_t n, int p) {
+  double st = (p - 15360) / 256.0;
+  if (fabs(st - floor(st + 0.5)) < 0.005) snprintf(o, n, "%+dst", (int)floor(st + 0.5)); else snprintf(o, n, "%+.2fst", st);
+}
+
 void regview_fmt_param(char *o, size_t n, int a, int v) {
   static const char *CX[3] = { "TRI", "SQR", "SAW" }, *MD[4] = { "SIN", "TRI", "SQR", "SAW" };
   switch (a) {
@@ -69,7 +75,6 @@ void regview_fmt_param(char *o, size_t n, int a, int v) {
     case REG_ATK: fmt_sec(o, n, atk_sec(v)); break;
     case REG_REL: fmt_sec(o, n, rel_sec(v)); break;
     case REG_LFORATE: fmt_hz(o, n, lfo_hz(v)); break;
-    case REG_FMRATE: fmt_hz(o, n, fm_hz(v)); break;
     case REG_FMAMT: snprintf(o, n, "%.0fHz", floor(fm_depth_hz(v) + 0.5)); break;
     case REG_NZTONE: fmt_hz(o, n, fmin(nz_hz(v), 20000)); break;
     case REG_CXWAVE: snprintf(o, n, "%s", CX[cx_shape(v)]); break;
@@ -78,6 +83,7 @@ void regview_fmt_param(char *o, size_t n, int a, int v) {
     case REG_DLYFB: snprintf(o, n, "%.0f%%", floor(dly_fb(v) * 100 + 0.5)); break;
     case REG_DLYLP: fmt_hz(o, n, dly_lp_hz(v)); break;
     case REG_DLYFRZ: snprintf(o, n, "%s", v >= 16384 ? "FROZEN" : "off"); break;
+    case REG_MDTRACK: snprintf(o, n, "%s", v >= 16384 ? "on" : "off"); break;
     default: regview_fmt_pct(o, n, v);
   }
 }
@@ -118,10 +124,10 @@ void regview_pset(FezSynth *s, int a, int v) {
   if (a == REG_LEVEL) s->level_pot = v; else s->mem[a] = (int16_t)v;
 }
 
-/* A register that selects one of a few shapes (CXWAVE: 3, MDWAVE: 4) is a switch, not a knob: the value is cut into equal bands
+/* A register that selects one of a few shapes (CXWAVE: 3, MDWAVE: 4; MDTRACK: off or on) is a switch, not a knob: the value is cut into equal bands
    (cx_shape and md_shape in scales.c do the cutting). One step moves to the next shape, so a press never lands inside the same band.
    Returns the number of choices, or 0 for an ordinary register. */
-static int switch_choices(int a) { return a == REG_CXWAVE ? 3 : a == REG_MDWAVE ? 4 : 0; }
+static int switch_choices(int a) { return a == REG_CXWAVE ? 3 : a == REG_MDWAVE ? 4 : a == REG_MDTRACK ? 2 : 0; }
 
 void regview_pstep(FezSynth *s, int a, int dir, int coarse) {
   int n = switch_choices(a);

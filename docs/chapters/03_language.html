@@ -122,6 +122,11 @@ S0 @ 4 < 1 JNZ         \ if S0 is below 4, go back to label 1</pre>
 
 <p>For the commonest small decision there is <code>?</code>, which picks one of two numbers: <code>( a b flag -- a or b )</code> leaves b if the flag is not zero and a if it is. And <code>SKIP</code> takes a flag and, if it is 0, skips the very next token.</p>
 
+<p>For chance there is <code>P</code>, <code>( percent -- flag )</code>: it leaves 1 that many times in a hundred and 0 otherwise, so <code>50 P</code> is a coin toss. With <code>?</code> it makes a melody that mostly stays put and sometimes leaps:</p>
+
+<pre class="fez">C4 G4 30 P ? PITCH !   \ C4, but G4 three times in ten
+1 GATE !</pre>
+
 <p>Two words stop a block early or in pieces. <code>EXIT</code> stops it for now. <code>YIELD</code> stops it and, the next time the block runs, carries on from that point, not from the top. That makes a step-by-step block simple to write:</p>
 
 <pre class="fez">S0 @ 1 + S0 !          \ first run: add one, then pause

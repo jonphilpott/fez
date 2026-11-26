@@ -47,7 +47,7 @@
 
 <p>Read it aloud as "C4, into PITCH; 1, into GATE". The first line sets the note, and the second opens the gate. The <code>!</code> means "store this number in that register". The next chapter explains why the order is value first, register second.</p>
 
-<p>Typing changes nothing yet. This is deliberate: a half-typed line never alters the sound. Press <b>Ctrl+Enter</b> to <b>apply</b> the block (the editor compiles it and swaps it in), then <b>Ctrl+R</b> to run it once. You should hear a C. Change <code>C4</code> to <code>E4</code>, apply, run again, and the note moves up four semitones.</p>
+<p>Typing changes nothing yet. This is deliberate: a half-typed line never alters the sound. Press <b>Ctrl+Enter</b> to <b>apply</b> the block (the editor compiles it and swaps it in), or <b>Ctrl+R</b> to apply it and run it once. Press <b>Ctrl+R</b>: you should hear a C. Change <code>C4</code> to <code>E4</code>, press <b>Ctrl+R</b> again, and the note moves up four semitones.</p>
 
 <p>If the block has a mistake, the editor says what and where, in red, and keeps the old version running. Try typing <code>-5</code>: it refuses with <code>no negative numbers: write 5 NEG</code>. The <a href="#language">language chapter</a> explains why.</p>
 

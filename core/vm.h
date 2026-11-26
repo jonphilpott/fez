@@ -35,7 +35,7 @@ enum {
   OP_DUP, OP_DROP, OP_SWAP, OP_OVER, OP_ROT, OP_ADD, OP_SUB, OP_MUL, OP_FMUL, OP_DIV, OP_MULDIV, OP_NEG, OP_ABS, OP_MIN,
   OP_MAX, OP_MOD, OP_AND, OP_OR, OP_XOR, OP_NOT, OP_SHL, OP_SHR, OP_ROL, OP_ROR, OP_EQ, OP_LT, OP_GT, OP_ULT, OP_FETCH, OP_STORE,
   OP_LABEL, OP_JMP, OP_JZ, OP_JNZ, OP_SKIP, OP_EXIT, OP_YIELD, OP_TRIG, OP_ROUTE, OP_WORD, OP_RND, OP_ST, OP_HZ,
-  OP_COLOUR, OP_SELECT, OP_SCALE, OP_COUNT
+  OP_COLOUR, OP_SELECT, OP_SCALE, OP_P, OP_COUNT
 };
 #define NOTE_NEEDS_OCTAVE (-100)    /* for vm_parse_note: the octave must be written */
 int vm_parse_note(const char *text, int default_octave, int *pitch);   /* 1 note (pitch set), 0 not a note, -1 out of range; see vm.c */

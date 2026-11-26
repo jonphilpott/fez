@@ -9,7 +9,7 @@
 <ul>
   <li><code>DLYTIME</code>: the length of the loop, from 0 to 12 seconds. The scale is a straight line, 0.37 ms for each step of the register, so 19930 is 7.3 seconds. The default, 814, is 0.3 seconds.</li>
   <li><code>DLYFB</code>: <b>feedback</b>, how much of the loop is fed back into itself. 0 gives one echo, and values near the top give echoes that go on for minutes. There is no cap: at the maximum a sound should neither die nor grow. Inside the loop, loud sounds are gently squashed so that it cannot run away.</li>
-  <li><code>DLYMIX</code>: the balance of dry and wet. At 0 you hear only the dry sound. As you raise it the dry fades as the echoes rise, and at full you hear only the loop.</li>
+  <li><code>DLYMIX</code>: the balance of dry and wet. At 0, where a blank patch starts, you hear only the dry sound. As you raise it the dry fades as the echoes rise, and at full you hear only the loop.</li>
   <li><code>DLYIN</code>: how much of the new sound is written onto the loop. Full is the default. Lower values let new notes lie gently over the old ones instead of drowning them, and 0 closes the loop so that nothing new goes in. The scale is squared, so there is plenty of room at the quiet end.</li>
   <li><code>DLYLP</code>: a lowpass filter in the loop, 300 Hz to 12 kHz. Each trip round takes off more treble, so old sound fades to a murmur.</li>
   <li><code>DLYWOB</code>: wow and flutter, the slow and fast wavering of a tape's speed. It bends the pitch of the echoes a little.</li>
@@ -30,9 +30,10 @@
 <p>A reverb adds the sense of a room. A <b>spring</b> reverb was originally a coiled spring in a guitar amplifier, and has a bright, springy, slightly metallic ring. FEZ's is made of two short loops, one for each ear, tuned apart so that the left and right sounds differ.</p>
 
 <ul>
-  <li><code>SPRMIX</code>: how much of the reverb you hear.</li>
+  <li><code>SPRMIX</code>: how much of the reverb you hear. A blank patch starts at 0, dry.</li>
   <li><code>SPRDEC</code>: how long it takes to die away.</li>
   <li><code>SPRWID</code>: the stereo width. At 0 both ears hear the same, and at full the two sides are as different as they can be, which makes the room seem wide.</li>
+  <li><code>SPRTONE</code>: how metallic it is. At 0 each loop repeats one clean copy of the sound every few hundredths of a second, which rings like a tin can: the classic, boingy spring. Raising it smears each repeat into a spread of smaller ones, softens the pitches the spring rings at, and lets the loops drift a little so those pitches never settle. At full it is a soft wash. A blank patch starts halfway; patches saved before <code>SPRTONE</code> existed load at 0, the spring they were made with.</li>
 </ul>
 
 <h3 id="compressor">The compressor</h3>

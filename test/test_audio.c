@@ -5,6 +5,8 @@
 #include <string.h>
 #include "fez.h"
 #include "test.h"
+#include "regview.h"
+#include "scales.h"
 
 static FezSynth s;
 static float lr[2 * 4800];
@@ -59,6 +61,22 @@ static double gate_peak_from(int level, int fire, int blocks, int from) {
 void test_audio(void) {
   double diff, peak; int bad;
 
+  /* MDTRACK: off, MDPITCH is the mod oscillator's own pitch; on, an interval above PITCH (C4 none, G4 a fifth) */
+  { static float buf[2 * 4800];
+    fez_init(&s, 1); fez_load_blank(&s);
+    fez_reg_write(&s, REG_PITCH, 69 * 256); fez_reg_write(&s, REG_MDPITCH, 67 * 256);       /* A4; G4 */
+    fez_render_stereo(&s, buf, 4800);
+    CHECK(fabs(s.audio.f_md - pitch_hz(67 * 256)) < 0.01, "MDTRACK off: the mod oscillator plays MDPITCH itself (G4)");
+    fez_reg_write(&s, REG_MDTRACK, 32767);
+    for (int i = 0; i < 10; i++) fez_render_stereo(&s, buf, 4800);
+    CHECK(fabs(s.audio.f_md - pitch_hz((69 + 7) * 256)) < 0.01, "MDTRACK on: G4 means a fifth above PITCH (A4 to E5)");
+    fez_reg_write(&s, REG_PITCH, 57 * 256);                                                  /* A3: the mod oscillator follows */
+    for (int i = 0; i < 20; i++) fez_render_stereo(&s, buf, 4800);
+    CHECK(fabs(s.audio.f_md - pitch_hz((57 + 7) * 256)) < 0.05, "MDTRACK on: it follows PITCH (A3 to E4)");
+    char t[16]; regview_fmt_interval(t, sizeof t, 67 * 256);
+    char u[16]; regview_fmt_interval(u, sizeof u, 48 * 256);
+    CHECK(!strcmp(t, "+7st") && !strcmp(u, "-12st"), "the interval reads +7st for G4 and -12st for C3"); }
+
   spring_patch(0, 16000, 32767);                                   /* spring off: the two ears carry the very same signal */
   run(8, &diff, &peak, &bad);
   CHECK(diff == 0 && peak > 0.01, "with the spring off, left equals right");
@@ -85,6 +103,12 @@ void test_audio(void) {
   fez_reg_write(&s, REG_MIXCX, 32767);
   run(100, &diff, &peak, &bad);                                    /* 10 seconds */
   CHECK(!bad && peak <= 1.0, "spring at maximum settings stays finite and within full scale");
+  for (int tone = 0; tone <= 32767; tone += 32767) {               /* both ends of SPRTONE: the old spring, and full diffusion */
+    spring_patch(32767, 32767, 32767);
+    fez_reg_write(&s, REG_MIXCX, 32767); fez_reg_write(&s, REG_SPRTONE, tone);
+    run(100, &diff, &peak, &bad);
+    CHECK(!bad && peak <= 1.0, tone ? "full SPRTONE at maximum feedback stays finite and within full scale" : "SPRTONE 0 at maximum feedback likewise");
+  }
 
   /* a patch load empties the spring tails in both tanks. A short release means the voice itself is silent soon after the note
      ends, so anything still heard before the load is the spring ringing, and anything heard after it would be a tail left behind. */

@@ -58,7 +58,7 @@ static const HelpLine RIGHT[] = {
   { "", "" },
   { NULL, "THE EDITOR" },
   { "Ctrl+Enter",    "apply the code" },
-  { "Ctrl+R",        "run this block once" },
+  { "Ctrl+R",        "apply this block and run it once" },
   { "Tab",           "complete the word" },
   { "[  ]",          "previous / next block" },
   { "Ctrl+Z  Ctrl+Y", "undo / redo" },

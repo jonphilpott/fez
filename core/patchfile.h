@@ -32,7 +32,7 @@
 #include <stddef.h>
 #include "fez.h"
 
-#define PATCH_FILE_VERSION 2     /* 2: MDPITCH exists (26 Nov 2026); a version 1 file takes it from FMRATE */
+#define PATCH_FILE_VERSION 3     /* 2: MDPITCH exists, a version 1 file takes it from FMRATE; 3: DLYMIX and SPRMIX default to 0, not 9000 and 8000, SPRTONE arrives (older files get 0, the old spring), and FMRATE is gone (MDPITCH again tunes the one mod oscillator); all 26 Nov 2026 */
 #define PATCH_NAME_MAX 48
 #define PATCH_TEXT_MAX 256
 

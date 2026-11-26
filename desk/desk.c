@@ -16,7 +16,7 @@ typedef struct {
 } TabDef;
 
 static const TabDef TABS[TAB_COUNT] = {
-  { "EDITOR",  tab_editor_draw,  tab_editor_key,  tab_editor_text,  "Ctrl+Enter apply  Ctrl+R run  [ ] block  Tab complete" },
+  { "EDITOR",  tab_editor_draw,  tab_editor_key,  tab_editor_text,  "Ctrl+Enter apply  Ctrl+R apply+run  [ ] block  Tab complete" },
   { "PATCHES", tab_patches_draw, tab_patches_key, tab_patches_text, "Up/Down pick  [ ] mine/examples  Enter load  Ctrl+S save  Ctrl+D delete  type to filter" },
   { "CTRL",    tab_ctrl_draw,    tab_ctrl_key,    tab_ctrl_text,    "Up/Down pick  Left/Right change (Shift: coarse)  type a number, Enter  Tab units/raw" },
   { "DEVICES", tab_devices_draw, tab_devices_key, tab_devices_text, "[ ] device  Up/Down setting  Left/Right change  Space step/reseed/freeze" },
