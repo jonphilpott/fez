@@ -387,7 +387,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <h3 id="faults">When something goes wrong</h3>
 
-<p>A <b>fault</b> is a mistake caught while a block runs: taking from an empty stack, a bad address, a jump to a label that is not there, a loop that reaches the step limit. The block <b>halts</b>, and the editor shows <code>HALTED</code> with the reason in red and marks the word that caused it with a red block. If the fault happened inside a word you defined, the mark is on the <code>W</code> that called it. The rest of FEZ carries on. Press <b>Ctrl+Enter</b> to apply the block again, which clears the fault and restarts it.</p>
+<p>A <b>fault</b> is a mistake caught while a block runs. Some stop the block: taking from an empty stack, a jump to a label that is not there, a loop that reaches the step limit. The block <b>halts</b>, and the editor shows <code>HALTED</code> in red with one line on what went wrong, such as <code>! needs 2, stack had 1</code>, and marks the word that caused it with a red block. If the fault happened inside a word you defined, the line starts <code>in a word:</code> and the mark is on the <code>W</code> that called it. Others let the block run on, because a sensible answer exists: dividing by zero gives 0, and writing to a register that cannot be written does nothing. These show the same kind of line in amber, such as <code>! to KBGATE: cannot be written</code>. The rest of FEZ carries on either way. Press <b>Ctrl+Enter</b> to apply the block again, which clears the fault and restarts it.</p>
 
 <p>Division by zero is the one gentle fault. <code>1 0 /</code> leaves 0, notes the fault, and the block carries on.</p>
 

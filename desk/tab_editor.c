@@ -533,8 +533,16 @@ void tab_editor_draw(Desk *d, View *v) {
     char lab[3] = { 'P', (char)('0' + p), '\0' };
     view_cell(v, v->cols - 4 * NUM_PULSERS - 1 + 4 * p, v->rows - 2, 3, lab, runs ? COL_BG : COL_DIM, runs ? COL_MAG : COL_PNL, 0);
   }
-  if (blk->halted) { snprintf(line, sizeof line, "HALTED: %s (apply to restart)", vm_fault_name(blk->fault)); view_text(v, 0, v->rows - 1, line, COL_RED); }
+  /* the second line, most important first: a halt, a compile error, a fault that did not stop the block, then help */
+  char why[80];
+  vm_fault_text(blk, why, sizeof why);                       /* e.g. "! needs 2, stack had 1" */
+  if (blk->halted) {
+    snprintf(line, sizeof line, "HALTED: %s", why[0] ? why : vm_fault_name(blk->fault));
+    if ((int)strlen(line) + 19 <= v->cols) strcat(line, " (apply to restart)");   /* only where it fits (not on the handheld) */
+    view_text(v, 0, v->rows - 1, line, COL_RED);
+  }
   else if (!tmp.ok) { snprintf(line, sizeof line, "ERR %.100s", tmp.err); view_text(v, 0, v->rows - 1, line, COL_RED); }
+  else if (why[0] && !dirty) view_text(v, 0, v->rows - 1, why, COL_AMB);   /* it ran on, but something went wrong (until re-applied) */
   else if (word_help(t, e->cursor, line, sizeof line)) view_text(v, 0, v->rows - 1, line, COL_CYN);   /* what the word under the cursor does */
   else view_text(v, 0, v->rows - 1, d->handheld ? (dirty ? "X applies this block" : "Menu: run it once") : dirty ? "Ctrl+Enter applies this block" : "Ctrl+R runs it once", COL_DIM);
 }

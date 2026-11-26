@@ -2,7 +2,8 @@
    It began as a line-by-line port of a JavaScript prototype (retired), so some comments mention "the JS". */
 #include "vm.h"
 #include "tables.h"
-#include "fez.h"      /* fez_scale_mask: SCALE uses the quantiser's scale table */
+#include "fez.h"
+#include "words.h"      /* the stack pictures, for "needs 2" in vm_fault_text */      /* fez_scale_mask: SCALE uses the quantiser's scale table */
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -202,7 +203,12 @@ void vm_compile(Compiled *c, const char *src, int max_slots) {
 enum { EXEC_END = 0, EXEC_EXIT = 1, EXEC_YIELD = 2, EXEC_HALT = -1 };
 
 /* Stop the run, recording why. Used inside exec() only. */
-#define HALT(bit) do { *vm->fault |= (bit); NOTE_FAULT(1); return EXEC_HALT; } while (0)
+#define HALT(bit) do { *vm->fault |= (bit); NOTE_FAULT(1); NOTE_WHY(1, bit); return EXEC_HALT; } while (0)
+/* Remember what went wrong (see FaultWhy in vm.h): the operation, the stack depth when it started, and the value it was given.
+   Uses `op`, `sp0`, `a` and `depth` from exec(). Unlike NOTE_FAULT this is kept at any depth, so a fault inside a word names
+   the word's own operation, not the W that called it. */
+#define NOTE_WHY(force, fbit) do { if (vm->cur && ((force) || vm->cur->why.bit == 0)) { \
+    FaultWhy w_ = { (fbit), op, sp0, a, depth > 0 }; vm->cur->why = w_; } } while (0)
 /* Remember which slot of the block's own code caused a fault, for an editor to highlight. Inside a word (depth > 0) the
    caller notes its own W instead, so the slot always points into the block. `force` is for a halt, which replaces an
    earlier note left by a fault that did not stop the block. Uses `here` and `depth` from exec(). */
@@ -218,10 +224,12 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
   while (ip < c->count) {
     int here = ip;                                    /* the slot being run, for NOTE_FAULT */
     unsigned f0 = *vm->fault;                         /* to tell whether this instruction added a fault */
+    int op = -1, sp0 = vm->sp;                        /* for NOTE_WHY: the operation (-1: a number) and the stack depth before it */
+    int a = 0, x, d;                                  /* a = top of stack, x = next, d = third */
     if (++vm->steps > STEP_CAP) HALT(FAULT_CAP);
     Slot s = c->slots[ip++];
     if (!s.is_op) { PUSH(s.value); continue; }
-    int a, x, d;                                      /* a = top of stack, x = next, d = third */
+    op = s.value;
     switch (s.value) {
       case OP_DUP:  POP(a); PUSH(a); PUSH(a); break;
       case OP_DROP: POP(a); break;
@@ -298,11 +306,15 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
         int r = exec(vm, &vm->words[a], 0, b, depth + 1);
         if (*vm->fault != f0) NOTE_FAULT(r == EXEC_HALT);      /* the fault was in the word: point at the W that called it */
         if (r == EXEC_HALT) return EXEC_HALT;
-        break;
+        continue;                                             /* the word recorded its own NOTE_WHY; do not overwrite it with W */
       }
       default: break;
     }
-    if (*vm->fault != f0) NOTE_FAULT(0);              /* a fault that did not stop the block (divide by zero, bad address) */
+    if (*vm->fault != f0) {                           /* a fault that did not stop the block (divide by zero, bad address) */
+      unsigned added = *vm->fault & ~f0;
+      NOTE_FAULT(0);
+      NOTE_WHY(0, added & (~added + 1));              /* the lowest new bit: x & -x, written for unsigned */
+    }
   }
   return EXEC_END;
 }
@@ -320,6 +332,7 @@ void vm_set_block(Vm *vm, int b, const char *src) {
   blk->src[BLOCK_SRC_MAX - 1] = '\0';
   vm_compile(&blk->c, blk->src, BLOCK_SLOTS);      /* compile what was kept, so the code that runs is the code a save writes */
   blk->halted = 0; blk->resume = -1; blk->fault = 0; blk->fault_slot = -1; blk->peak = 0;
+  memset(&blk->why, 0, sizeof blk->why);
 }
 
 const char *vm_fault_name(unsigned fault) {
@@ -352,4 +365,49 @@ void vm_run_block(Vm *vm, int b) {
   blk->steps = vm->steps;
   if (vm->steps > blk->peak) blk->peak = vm->steps;
   blk->runs++;
+}
+
+/* How many values an operation takes, read from its stack picture in words.c: the items between "(" and "--".
+   "( a b -- c )" takes 2. One definition, so the message can never disagree with the manual. */
+static int takes(int op) {
+  const char *p = strchr(WORD_TABLE[op].stack, '('), *end = strstr(WORD_TABLE[op].stack, "--");
+  int n = 0;
+  if (!p || !end) return 0;
+  for (p++; p < end; p++) if (!isspace((unsigned char)*p) && (p[-1] == '(' || isspace((unsigned char)p[-1]))) n++;
+  return n;
+}
+
+/* A register's name, or its number if it has none. */
+static void reg_text(int addr, char *out, int cap) {
+  for (int i = 0; i < NAME_COUNT; i++) if (NAME_TABLE[i].addr == addr) { snprintf(out, (size_t)cap, "%s", NAME_TABLE[i].name); return; }
+  snprintf(out, (size_t)cap, "%d", addr);
+}
+
+/* One short line on why the block faulted, made to fit the handheld's status line (about 50 characters). It says the one
+   fact that points at the mistake: what the operation needed and what it had, or the address it was given. */
+void vm_fault_text(const Block *blk, char *out, int cap) {
+  const FaultWhy *w = &blk->why;
+  char reg[24], body[80];
+  const char *name = w->op >= 0 ? OP_NAMES[w->op] : "a number";
+  out[0] = '\0';
+  if (!w->bit) return;
+  reg_text(w->arg, reg, sizeof reg);
+  switch (w->bit) {
+    case FAULT_UNDER: snprintf(body, sizeof body, "%s needs %d, stack had %d", name, w->op >= 0 ? takes(w->op) : 0, w->had); break;
+    case FAULT_OVER:  snprintf(body, sizeof body, "%s: stack full (%d deep)", name, STACK_DEPTH); break;
+    case FAULT_DIV0:  snprintf(body, sizeof body, "%s by zero (gave 0)", name); break;
+    case FAULT_LABEL: snprintf(body, sizeof body, "%s to label %d: no such label", name, w->arg); break;
+    case FAULT_CAP:   snprintf(body, sizeof body, "over %d steps: a loop that never ends?", STEP_CAP); break;
+    case FAULT_WORD:  snprintf(body, sizeof body, "W %d: no such word, or it is empty", w->arg); break;
+    case FAULT_CTX:   snprintf(body, sizeof body, "%s is not allowed inside a word", name); break;
+    case FAULT_ADDR:
+      if (w->op == OP_FETCH)      snprintf(body, sizeof body, "@ from %s: cannot be read", reg);
+      else if (w->op == OP_STORE) snprintf(body, sizeof body, "! to %s: cannot be written", reg);
+      else if (w->op == OP_TRIG)  snprintf(body, sizeof body, "TRIG %d: pulsers are 0 to 3", w->arg);
+      else if (w->op == OP_ROUTE) snprintf(body, sizeof body, "ROUTE: bad source or destination, or matrix full");
+      else snprintf(body, sizeof body, "%s: bad address", name);
+      break;
+    default: snprintf(body, sizeof body, "%s", vm_fault_name(w->bit)); break;
+  }
+  snprintf(out, (size_t)cap, "%s%s", w->in_word ? "in a word: " : "", body);
 }

@@ -21,7 +21,29 @@ static int run_and_read(const char *src, int reg) {
   return fez_reg_read(&s, reg);
 }
 
+/* Run source as block 0 once and return the one-line fault message (vm_fault_text). Word 0 holds `word`. */
+static const char *why_of(const char *src, const char *word) {
+  static FezSynth s; static char out[80];
+  fez_init(&s, 1);
+  vm_set_word(&s.vm, 0, word);
+  vm_set_block(&s.vm, 0, src);
+  vm_run_block(&s.vm, 0);
+  vm_fault_text(&s.vm.blocks[0], out, sizeof out);
+  return out;
+}
+
 void test_vm(void) {
+  /* fault messages: one line that names the mistake */
+  CHECK(!strcmp(why_of("5 !", ""), "! needs 2, stack had 1"), "underflow says what the word needs and what it had");
+  CHECK(!strcmp(why_of("5 KBGATE !", ""), "! to KBGATE: cannot be written"), "a bad write names the register");
+  CHECK(!strcmp(why_of("9999 @ DROP", ""), "@ from 9999: cannot be read"), "a bad read gives the address");
+  CHECK(!strcmp(why_of("3 JMP", ""), "JMP to label 3: no such label"), "a missing label is named");
+  CHECK(!strcmp(why_of("5 0 / DROP", ""), "/ by zero (gave 0)"), "divide by zero is named, and the block runs on");
+  CHECK(!strcmp(why_of("0 W", "+"), "in a word: + needs 2, stack had 0"), "a fault inside a word names the word's own operation");
+  CHECK(!strcmp(why_of("1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17", ""), "a number: stack full (16 deep)"), "overflow says the stack is full");
+  CHECK(!strcmp(why_of("1 2 +", ""), ""), "no fault, no message");
+  CHECK(!strcmp(why_of("5 0 / DROP 1 !", ""), "! needs 2, stack had 1"), "a halt replaces an earlier fault that did not stop the block");
+
   /* note names: one reader for the compiler, the editor's colours and the sequencer */
   { int p;
     CHECK(vm_parse_note("C4", NOTE_NEEDS_OCTAVE, &p) == 1 && p == 15360, "C4 is 15360");

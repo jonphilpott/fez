@@ -63,6 +63,16 @@ typedef struct {
   double (*rnd)(void *ctx);        /* uniform in [0, 1) */
 } VmHost;
 
+/* Why a block faulted, kept so an editor can say it in one line (vm_fault_text). Recorded with the fault; a halt replaces an
+   earlier record left by a fault that did not stop the block, as fault_slot does. */
+typedef struct {
+  unsigned bit;                    /* the fault (one FAULT_ bit), or 0 if there has been none */
+  int op;                          /* the operation that faulted (OP_...), or -1 for a number being pushed */
+  int had;                         /* how many values were on the stack when it started */
+  int arg;                         /* the value it was given, where that is the problem: an address, a label, a pulser, a word */
+  int in_word;                     /* 1 if it happened inside a word (W) */
+} FaultWhy;
+
 typedef struct {
   char src[BLOCK_SRC_MAX];         /* the source text, kept so an editor can show it and a patch can be saved */
   Compiled c;
@@ -70,6 +80,7 @@ typedef struct {
   int resume;                      /* slot index to continue from after YIELD, or -1 */
   unsigned fault;                  /* all faults since the source was set */
   int fault_slot;                  /* slot of this block's own code that caused the fault (the W call, if a word did), or -1. A halt overwrites it. */
+  FaultWhy why;                    /* what went wrong, in detail */
   int steps, peak, runs;           /* slots in the last run, the most in any run, number of runs */
 } Block;
 
@@ -93,6 +104,7 @@ void vm_set_word(Vm *vm, int w, const char *src);
 void vm_run_block(Vm *vm, int b);
 
 const char *vm_fault_name(unsigned fault);   /* plain-English name of the first fault bit set, or "" */
+void vm_fault_text(const Block *blk, char *out, int cap);   /* one line on what went wrong, e.g. "! needs 2, stack had 1" ("" if nothing) */
 int hz_to_pitch(int tenths_of_hz);   /* the HZ word: 4400 gives A4 (15360 + 9*256 = 17664) */
 
 #endif
