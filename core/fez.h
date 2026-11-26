@@ -111,6 +111,7 @@ int  fez_pop_gate_event(FezSynth *s, GateEvent *out);
 int  fez_read(FezSynth *s, int addr, int block, unsigned *fault);
 void fez_write(FezSynth *s, int addr, int value, int block, unsigned *fault);
 void fez_set_route(FezSynth *s, int src, int dst, int w, unsigned *fault);
+int  fez_source_index(const char *name);                /* a matrix source's number from its name (any case), or -1 */
 void fez_compute_eff(FezSynth *s);
 int  fez_matrix_source(const FezSynth *s, int src);     /* a matrix source's current value, -32768..32767 */
 void fez_fire_gate(FezSynth *s);

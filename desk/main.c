@@ -268,6 +268,8 @@ int main(int argc, char **argv) {
   dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);       /* 0: SDL converts if the hardware differs from our request */
   if (!dev) { fprintf(stderr, "audio: %s\n", SDL_GetError()); SDL_Quit(); return 1; }
 
+  double buffer_secs = (double)have.samples / have.freq;    /* how long one audio buffer lasts (512 frames: 10.7 ms) */
+  double lock_peak = 0, lock_left = 0;                       /* the longest the frame drawing held the audio lock lately, and how long to keep it */
   uint32_t *pixels = NULL; SDL_Texture *tex = NULL; int pw = 0, ph = 0;
   if (!brick_mode) SDL_StartTextInput();                     /* printable characters arrive as SDL_TEXTINPUT (the handheld has no typing) */
   for (int i = 0; i < SDL_NumJoysticks(); i++) if (SDL_IsGameController(i)) SDL_GameControllerOpen(i);
@@ -352,13 +354,22 @@ int main(int argc, char **argv) {
       if (!pixels || !tex) { fprintf(stderr, "out of memory for a %dx%d picture\n", pw, ph); break; }
       desk_set_canvas(&desk, pixels, pw, ph);
     }
+    /* The frame is drawn with the audio locked (the screens read the synth), and while it is locked the audio callback
+       has to wait. So the meter's worst-case marker adds the longest recent lock to the callback's own worst time, both as
+       a share of how long one buffer lasts: the two together must fit in a buffer or the sound clicks. */
+    Uint64 lock_t0 = SDL_GetPerformanceCounter();
     SDL_LockAudioDevice(dev);
-    desk.peak = out_peak; desk.cpu = cpu_avg; desk.cpu_peak = cpu_peak; desk.clip = clip_left > 0;
+    desk.peak = out_peak; desk.cpu = cpu_avg; desk.cpu_peak = cpu_peak + lock_peak / buffer_secs; desk.clip = clip_left > 0;
     desk_tick(&desk, (double)(now - last_frame));
     if (brick_mode) pad_tick(&pad);
     desk_draw(&desk);
     if (brick_mode) pad_draw(&pad);
     SDL_UnlockAudioDevice(dev);
+    {                                                        /* the lock just held, kept as the worst for CPU_PEAK_HOLD seconds */
+      double held = (double)(SDL_GetPerformanceCounter() - lock_t0) / (double)SDL_GetPerformanceFrequency();
+      lock_left -= (now - last_frame) / 1000.0;
+      if (held >= lock_peak || lock_left <= 0) { lock_peak = held; lock_left = CPU_PEAK_HOLD; }
+    }
     last_frame = now;
     SDL_UpdateTexture(tex, NULL, pixels, pw * (int)sizeof *pixels);
     SDL_RenderClear(ren);

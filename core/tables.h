@@ -10,7 +10,8 @@ typedef struct { const char *name; int addr; } NameDef;
 typedef struct { const char *name; const char *text; } HelpDef;
 typedef struct { int addr; int value; } Preset;
 typedef struct { int on; int rate; int block; } PulserDef;   /* rate: pulses per minute; block 0..15, 16 = sequencer, 17 = grain */
-typedef struct { int src; int dst; int w; } RouteDef;
+typedef struct { int src; int dst; int w; } RouteDef;       /* a live route: src is a row of SRC_TABLE */
+typedef struct { const char *src; int dst; int w; } RouteSpec;   /* a route in an example patch: the source by NAME, so moving a source cannot change it */
 typedef struct { int rule; int row; int tap; int trig; } CaDef;
 typedef struct { int rate; int rho; int trig; } LzDef;
 
@@ -22,7 +23,7 @@ typedef struct {
   const char *blocks[16];   /* source text of each block ("" = empty) */
   const char *words[16];
   PulserDef pulsers[4];
-  int nroutes;   RouteDef routes[PATCH_MAX_ROUTES];
+  int nroutes;   RouteSpec routes[PATCH_MAX_ROUTES];
   int nsetup;    int setup[8];   /* blocks to run once at load */
   CaDef ca;
   LzDef lz;

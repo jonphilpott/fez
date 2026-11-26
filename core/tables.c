@@ -364,7 +364,7 @@ const int HELP_COUNT = (int)(sizeof HELP_TABLE / sizeof HELP_TABLE[0]);
 
 /* The modulation matrix sources, in number order: a route stores the number (the row here), a patch file stores the name,
    and the ROUTE word names a source by this register address. The one list of sources: the matrix, ROUTE, the patch files
-   and the MATRIX tab all read it. Built-in example patches below hold source NUMBERS, so add new sources at the end. */
+   and the MATRIX tab all read it. Example patches name their sources, so a source can be added anywhere. */
 const NameDef SRC_TABLE[] = {
   { "", 0 },
   { "LFO0", REG_LFO0 },
@@ -427,7 +427,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,50,0}, {1,10,1}, {0,120,0}, {0,120,0} },
-    3, { {2,REG_FOLD,12000}, {2,REG_FMAMT,14000}, {1,REG_CUTOFF,3000} },
+    3, { {"ENV", REG_FOLD, 12000}, {"ENV", REG_FMAMT, 14000}, {"LFO0", REG_CUTOFF, 3000} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
     16384, 0
@@ -455,7 +455,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,450,0}, {1,20,1}, {0,120,0}, {0,120,0} },
-    2, { {2,REG_CUTOFF,20000}, {2,REG_FOLD,12000} },
+    2, { {"ENV", REG_CUTOFF, 20000}, {"ENV", REG_FOLD, 12000} },
     1, { 9 },
     {30,10836,0,4}, {8000,15300,4},
     16384, 0
@@ -483,7 +483,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,240,0}, {0,120,1}, {0,120,0}, {0,120,0} },
-    4, { {2,REG_CUTOFF,8000}, {23,REG_CUTOFF,12000}, {23,REG_FOLD,6000}, {2,REG_MIXNZ,9000} },
+    4, { {"ENV", REG_CUTOFF, 8000}, {"CADENS", REG_CUTOFF, 12000}, {"CADENS", REG_FOLD, 6000}, {"ENV", REG_MIXNZ, 9000} },
     1, { 9 },
     {30,256,3,1}, {8000,15300,4},
     16384, 0
@@ -511,7 +511,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,240,0}, {1,15,1}, {0,120,0}, {0,120,0} },
-    2, { {2,REG_CUTOFF,18000}, {1,REG_DLYTIME,52} },
+    2, { {"ENV", REG_CUTOFF, 18000}, {"LFO0", REG_DLYTIME, 52} },
     1, { 9 },
     {30,10836,0,4}, {8000,15300,4},
     16384, 0
@@ -539,7 +539,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {0,120,0}, {0,120,0}, {0,120,0}, {0,120,0} },
-    4, { {28,REG_CUTOFF,9000}, {29,REG_FOLD,6000}, {2,REG_CUTOFF,8000}, {2,REG_MIXNZ,5000} },
+    4, { {"LZX", REG_CUTOFF, 9000}, {"LZY", REG_FOLD, 6000}, {"ENV", REG_CUTOFF, 8000}, {"ENV", REG_MIXNZ, 5000} },
     0, { 0 },
     {30,10836,0,4}, {11500,15300,0},
     16384, 0
@@ -567,7 +567,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,360,0}, {1,270,1}, {1,215,2}, {1,155,3} },
-    3, { {24,REG_FOLD,14000}, {24,REG_CUTOFF,8000}, {2,REG_CUTOFF,12000} },
+    3, { {"SLO0", REG_FOLD, 14000}, {"SLO0", REG_CUTOFF, 8000}, {"ENV", REG_CUTOFF, 12000} },
     1, { 9 },
     {30,10836,0,4}, {8000,15300,4},
     16384, 0
@@ -595,7 +595,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,40,0}, {0,120,0}, {0,120,0}, {0,120,0} },
-    3, { {1,REG_MDCUT,7000}, {28,REG_MDCUT,9000}, {23,REG_MDLVL,5000} },
+    3, { {"LFO0", REG_MDCUT, 7000}, {"LZX", REG_MDCUT, 9000}, {"CADENS", REG_MDLVL, 5000} },
     0, { 0 },
     {30,10836,0,4}, {9000,15300,4},
     16384, 0
@@ -623,7 +623,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,300,16}, {1,20,0}, {0,120,0}, {0,120,0} },
-    2, { {2,REG_CUTOFF,12000}, {31,REG_CUTOFF,4000} },
+    2, { {"ENV", REG_CUTOFF, 12000}, {"SQ", REG_CUTOFF, 4000} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
     16384, 0
@@ -651,7 +651,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,70,0}, {0,120,0}, {0,120,0}, {0,120,0} },
-    2, { {2,REG_FOLD,8000}, {1,REG_GPOS0,200} },
+    2, { {"ENV", REG_FOLD, 8000}, {"LFO0", REG_GPOS0, 200} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
     16384, 0
@@ -679,7 +679,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,45,0}, {1,540,17}, {1,600,1}, {0,120,0} },
-    1, { {2,REG_FOLD,6000} },
+    1, { {"ENV", REG_FOLD, 6000} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
     16384, 0
@@ -707,7 +707,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,36,0}, {0,120,0}, {0,120,0}, {0,120,0} },
-    3, { {1,REG_MDCUT,12000}, {28,REG_MDCUT,6000}, {30,REG_MDLVL,4000} },
+    3, { {"LFO0", REG_MDCUT, 12000}, {"LZX", REG_MDCUT, 6000}, {"LZZ", REG_MDLVL, 4000} },
     0, { 0 },
     {30,10836,0,4}, {7000,15300,4},
     16384, 0
@@ -735,7 +735,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,10,0}, {1,13,1}, {1,11,2}, {0,120,0} },
-    2, { {2,REG_CUTOFF,7000}, {1,REG_MDCUT,8000} },
+    2, { {"ENV", REG_CUTOFF, 7000}, {"LFO0", REG_MDCUT, 8000} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
     16384, 0
@@ -763,7 +763,7 @@ const PatchDef PATCH_TABLE[] = {
       "" },
     { "8 SHL S3 @ +   \\ semitones to a pitch (times 256), plus the base", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
     { {1,10,0}, {1,13,1}, {1,11,2}, {0,120,0} },
-    1, { {2,REG_CUTOFF,6000} },
+    1, { {"ENV", REG_CUTOFF, 6000} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
     24000, 0

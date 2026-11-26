@@ -3,6 +3,7 @@
    envelope, SQCLK clocks the sequencer, CASTEP steps the automaton) and a few are read-only.
    The address map is core/reg_names.h; names and defaults come from the tables in tables.c. */
 #include "fez.h"
+#include <ctype.h>
 #include <math.h>
 
 int fez_clamp(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
@@ -139,6 +140,17 @@ void fez_set_route(FezSynth *s, int sr, int d, int w, unsigned *fault) {
     if (s->routes[i].src == src && s->routes[i].dst == d) { s->routes[i].w = w; return; }   /* same pair: update the weight */
   if (s->nroutes < MAX_ROUTES) { s->routes[s->nroutes].src = src; s->routes[s->nroutes].dst = d; s->routes[s->nroutes].w = w; s->nroutes++; }
   else *fault |= FAULT_ADDR;                                      /* matrix full */
+}
+
+/* A matrix source by name (any case), as SRC_TABLE spells it. Returns its number (its row), or -1. Patch files and the
+   example patches hold names, never numbers, so adding or moving a source cannot change what a saved route means. */
+int fez_source_index(const char *name) {
+  for (int i = 1; i < SRC_COUNT; i++) {
+    const char *n = SRC_TABLE[i].name, *w = name;
+    while (*n && *w && toupper((unsigned char)*n) == toupper((unsigned char)*w)) { n++; w++; }
+    if (!*n && !*w) return i;
+  }
+  return -1;
 }
 
 /* ---------------------------------------------------------------- public register access (UI, MIDI, tests) */

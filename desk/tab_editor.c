@@ -15,9 +15,11 @@
      [  ]  (plain)     previous / next block (also Ctrl+, and Ctrl+.)   Ctrl+1 to 4   toggle which pulsers run this block
      Note: [ and ] are not typed in the editor. They are the "previous / next page" keys of every tab, and no block needs them. */
 #include "desk.h"
+#include "words.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>          /* strcasecmp: POSIX, and glibc hides it from <string.h> under -std=c99 */
 
 #define MAX_CAND   64
 #define POPUP_ROWS 6
@@ -380,6 +382,31 @@ static void colour_line(const char *t, int ls, int le, unsigned char *out, int m
   }
 }
 
+/* The word the cursor is in (or just after), copied into out. Returns 0 if the cursor is on a space, or in a comment
+   (a backslash earlier on the same line starts one). */
+static int word_under_cursor(const char *t, int c, char *out, int cap) {
+  int ls = line_start(t, c);
+  for (int i = ls; i < c; i++) if (t[i] == '\\') return 0;
+  int a = c, b = c;
+  while (a > ls && !isspace((unsigned char)t[a - 1])) a--;
+  while (t[b] && !isspace((unsigned char)t[b])) b++;
+  if (a == b || b - a >= cap) return 0;
+  memcpy(out, t + a, (size_t)(b - a)); out[b - a] = '\0';
+  return 1;
+}
+
+/* A line about the word under the cursor, for the status line: an operation's stack picture ("SCALE ( index scale --
+   pitch )", from core/words.c) or a register's one-line help (from tables.c). Returns 0 if it is neither. */
+static int word_help(const char *t, int c, char *out, int cap) {
+  char w[32];
+  if (!word_under_cursor(t, c, w, sizeof w)) return 0;
+  for (int i = 0; i < WORD_COUNT; i++)
+    if (!strcasecmp(w, WORD_TABLE[i].name)) { snprintf(out, (size_t)cap, "%s %s", WORD_TABLE[i].name, WORD_TABLE[i].stack); return 1; }
+  for (int i = 0; i < NAME_COUNT; i++)
+    if (!strcasecmp(w, NAME_TABLE[i].name)) { snprintf(out, (size_t)cap, "%s: %s", NAME_TABLE[i].name, regview_help(NAME_TABLE[i].name)); return 1; }
+  return 0;
+}
+
 void tab_editor_draw(Desk *d, View *v) {
   Editor *e = ed(d);
   const char *t = txt(d);
@@ -508,5 +535,6 @@ void tab_editor_draw(Desk *d, View *v) {
   }
   if (blk->halted) { snprintf(line, sizeof line, "HALTED: %s (apply to restart)", vm_fault_name(blk->fault)); view_text(v, 0, v->rows - 1, line, COL_RED); }
   else if (!tmp.ok) { snprintf(line, sizeof line, "ERR %.100s", tmp.err); view_text(v, 0, v->rows - 1, line, COL_RED); }
+  else if (word_help(t, e->cursor, line, sizeof line)) view_text(v, 0, v->rows - 1, line, COL_CYN);   /* what the word under the cursor does */
   else view_text(v, 0, v->rows - 1, d->handheld ? (dirty ? "X applies this block" : "Menu: run it once") : dirty ? "Ctrl+Enter applies this block" : "Ctrl+R runs it once", COL_DIM);
 }

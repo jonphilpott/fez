@@ -43,6 +43,10 @@ void test_tables(void) {
       if (!list[i].wo) { fez_read(&t, list[i].addr, 0, &f); if (f) { ok = 0; printf("  %s cannot be read but is not marked write-only\n", list[i].name); } }
     }
     CHECK(ok, "read-only and write-only marks match the register file"); }
+  { int ok = 1;                                                     /* every example route names a real source */
+    for (int p = 0; p < PATCH_COUNT; p++) for (int i = 0; i < PATCH_TABLE[p].nroutes; i++)
+      if (fez_source_index(PATCH_TABLE[p].routes[i].src) < 1) { ok = 0; printf("  %s: unknown source %s\n", PATCH_TABLE[p].name, PATCH_TABLE[p].routes[i].src); }
+    CHECK(ok, "every example patch route names a real matrix source"); }
   CHECK(PARAM_COUNT <= PARAM_MAX, "every parameter has a smoothing slot in the audio side (PARAM_MAX in audio.h)");
   CHECK(WORD_COUNT == OP_COUNT, "the word table has one entry per operation");
   for (int i = 0; i < WORD_COUNT && i < OP_COUNT; i++) {

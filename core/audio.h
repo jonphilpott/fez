@@ -33,7 +33,7 @@ typedef struct {
   int cx_shape, md_shape;
 
   /* ---- gains (ramped) ---- */
-  Ramp g_sine, g_shape, pre, mix_cx, mix_md, mix_nz, md_osc_g, md_nz_g, md_vca, master, out_bf, out_bp, dly_wet, spr_wet, spr_wid, dly_in;
+  Ramp g_sine, g_shape, pre, mix_cx, mix_md, mix_nz, md_osc_g, md_nz_g, md_vca, master, out_bf, out_bp, dly_dry, dly_wet, spr_wet, spr_wid, dly_in;
   double dly_fb_g, spr_fb_g;            /* feedback gains (per chunk) */
 
   /* ---- noise tone, mod-voice ladder, lowpass gate ---- */

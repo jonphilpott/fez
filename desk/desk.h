@@ -96,8 +96,11 @@ typedef struct Desk {
   char msg[160]; double msg_until;
   double now_ms;
   float peak;                    /* recent output level 0..1, for the scope's header (set by the platform layer) */
-  float cpu, cpu_peak;           /* audio load: share of real time the callback uses, smoothed and worst-in-3-s (1.0 = at the deadline) */
+  float cpu, cpu_peak;           /* audio load: share of real time the callback uses, smoothed; and the worst in 3 s, with the time the
+                                    screen held the audio lock added (1.0 = at the deadline) */
   int clip;                      /* 1 while the output has recently reached full scale */
+  unsigned long nan_seen;        /* the core's NaN count when last looked at; a rise lights the NAN flag until nan_until */
+  double nan_until;
   int pulsers_on;                /* whether the pulsers run (Ctrl+P) */
   int help, help_top;            /* the F1 help page is open; how far it is scrolled (narrow windows only) */
   int rec_toggle;                /* Ctrl+T sets this; main.c starts or stops the recording (it owns the file) and clears it */

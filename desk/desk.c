@@ -249,13 +249,18 @@ static void draw_status(Desk *d) {
 
   int meter_w = (d->handheld ? 9 : 14) * GFX_CELL_W * s;                     /* the load meter sits at the right edge, the CLIP flag just left of it */
   int clip_w = 6 * GFX_CELL_W * s;
-  gfx_clip(cv, hx, y, cv->w - hx - meter_w - clip_w - 8, sh);
+  /* NAN: the sound went bad (a number that is not a number) and the core silenced it. That is a bug in the synth or a
+     runaway patch, never normal, so it is flagged in red for 3 s after each new one. The core counts them; we watch the count. */
+  if (d->synth->audio.nan_count != d->nan_seen) { d->nan_seen = d->synth->audio.nan_count; d->nan_until = d->now_ms + 3000; }
+  int nan = d->nan_until > d->now_ms;
+  int flags_w = (nan && d->clip ? 2 : 1) * (clip_w + 4);                    /* room for CLIP; for NAN too only while both show (the handheld is narrow) */
+  gfx_clip(cv, hx, y, cv->w - hx - meter_w - flags_w - 4, sh);
   if (d->msg_until > d->now_ms) gfx_text(cv, hx, y + 3, d->msg, s, gfx_colour(COL_AMB));
   else gfx_text(cv, hx, y + 3, d->hint_override ? d->hint_override : TABS[d->layouts[d->layout].tab[d->focus]].hint, s, gfx_colour(COL_DIM));
   gfx_unclip(cv);
   /* The load bar: how much of real time the audio callback uses. Full bar = 100 percent = the point where the audio crackles.
-     The bar is the recent average; a thin marker shows the worst reading of the last few seconds, which is what predicts a
-     dropout. Colour: green below 70 percent, amber to 90, red above. */
+     The bar is the recent average; a thin marker shows the worst reading of the last few seconds plus the time the screen
+     held the audio lock (main.c), which is what predicts a dropout. Colour: green below 70 percent, amber to 90, red above. */
   int mx = cv->w - meter_w - 4;
   double avg = d->cpu > 1 ? 1 : d->cpu, pk = d->cpu_peak > 1 ? 1 : d->cpu_peak;
   gfx_fill(cv, mx, y + 5, meter_w, sh - 10, gfx_colour(COL_SEL));
@@ -272,6 +277,11 @@ static void draw_status(Desk *d) {
     int cx = mx - clip_w - 4;
     gfx_fill(cv, cx, y + 1, clip_w, sh - 2, gfx_colour(COL_RED));
     gfx_text(cv, cx + GFX_CELL_W * s / 2 + s, y + 3, "CLIP", s, gfx_colour(COL_BG));
+  }
+  if (nan) {                                               /* NAN takes CLIP's place, or sits left of it when both show */
+    int nx = mx - (d->clip ? 2 : 1) * (clip_w + 4);
+    gfx_fill(cv, nx, y + 1, clip_w, sh - 2, gfx_colour(COL_RED));
+    gfx_text(cv, nx + GFX_CELL_W * s, y + 3, "NAN", s, gfx_colour(COL_BG));
   }
 }
 

@@ -208,7 +208,8 @@ static void begin_chunk(FezSynth *s) {
     { &a->master,  pow(P(s, REG_LEVEL) / FULL, 1.5) * 1.8 },        /* master level */
     { &a->out_bf,  P(s, REG_MIXBF) / FULL },                        /* buffer out: to the bus ... */
     { &a->out_bp,  P(s, REG_MIXBP) / FULL },                        /* ... and to the gate */
-    { &a->dly_wet, P(s, REG_DLYMIX) / FULL },                       /* delay wet */
+    { &a->dly_dry, cos(P(s, REG_DLYMIX) / FULL * HALF_PI) },        /* delay mix, equal power: dry ... */
+    { &a->dly_wet, sin(P(s, REG_DLYMIX) / FULL * HALF_PI) },        /* ... and wet, so the level holds across the knob */
     { &a->spr_wet, P(s, REG_SPRMIX) / FULL * 1.7 },                 /* spring wet */
     { &a->spr_wid, P(s, REG_SPRWID) / FULL },                       /* spring stereo width: 0 mono, 1 wide */
     { &a->dly_in,  pow(P(s, REG_DLYIN) / FULL, 2.0) },              /* sound written into the delay loop: squared, so the quiet end has room */
@@ -348,10 +349,9 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
   a->dly[a->dly_w] = (float)flush_denormal(dry * ramp_next(&a->dly_in) * (1.0 - frz) + hiss + loop);   /* DLYIN scales only what is written into the loop */
   if (++a->dly_w >= DLY_SAMPLES) a->dly_w = 0;
   /* DLYMIX is a true dry/wet crossfade: 0 is the dry sound alone, 1 is the loop alone, so with the loop's input
-     closed (DLYIN 0) and MIX at full you hear only what the tape holds.
-     ponytail: a linear crossfade dips about 3 dB near half; an equal-power curve would hold the level if that bothers. */
-  double wet = ramp_next(&a->dly_wet);
-  double stage1 = dry * (1.0 - wet) + damped * wet;
+     closed (DLYIN 0) and MIX at full you hear only what the tape holds. The two gains are cos and sin of the same angle
+     (an "equal power" crossfade), so halfway is not 3 dB quieter than either end, as a straight-line crossfade would be. */
+  double stage1 = dry * ramp_next(&a->dly_dry) + damped * ramp_next(&a->dly_wet);
 
   /* 2) SPRING, as a stereo pair. Each tank is a short loop with a chain of allpass filters, which delay low frequencies more
      than high ones, so each echo is a "chirp" like a real spring tank. Both tanks are fed by the delay stage's output, but

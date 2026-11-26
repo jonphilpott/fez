@@ -111,8 +111,12 @@ void fez_load_patch(FezSynth *s, int index) {
   }
 
   /* 4) matrix, knobs, devices */
-  s->nroutes = p->nroutes;
-  for (int i = 0; i < p->nroutes; i++) s->routes[i] = p->routes[i];
+  s->nroutes = 0;
+  for (int i = 0; i < p->nroutes; i++) {                       /* sources are named in the table; the live matrix holds their numbers */
+    int src = fez_source_index(p->routes[i].src);
+    if (src < 1) continue;                                      /* a misspelt name: test_core catches it, so this never happens */
+    s->routes[s->nroutes].src = src; s->routes[s->nroutes].dst = p->routes[i].dst; s->routes[s->nroutes].w = p->routes[i].w; s->nroutes++;
+  }
   s->level_pot = p->level; s->cutoff_add = p->cutoff;
   s->ca.rule = p->ca.rule; s->ca.row = p->ca.row; s->ca.tap = p->ca.tap; s->ca.trig = p->ca.trig;
   s->lz.rate = p->lz.rate; s->lz.rho = p->lz.rho; s->lz.trig = p->lz.trig;

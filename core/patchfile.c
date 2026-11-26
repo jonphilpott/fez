@@ -27,16 +27,6 @@ static int addr_of(const char *word) {
   return -1;
 }
 
-/* A matrix source by name (any case), as SRC_TABLE spells it. Returns its number, or -1. Files hold names, never numbers,
-   so adding or moving a source cannot change what a saved route means. */
-static int src_of(const char *word) {
-  for (int i = 1; i < SRC_COUNT; i++) {
-    const char *n = SRC_TABLE[i].name, *w = word;
-    while (*n && *w && toupper((unsigned char)*n) == toupper((unsigned char)*w)) { n++; w++; }
-    if (!*n && !*w) return i;
-  }
-  return -1;
-}
 
 /* ---------------------------------------------------------------- writing */
 
@@ -180,7 +170,7 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
     }
     else if (!strcmp(word, "route") && sscanf(rest, "%31s %31s %d", sn, nm, &b) == 3) {
       int dst = addr_of(nm);
-      a = src_of(sn);
+      a = fez_source_index(sn);
       if (dst < 0 || a < 1 || s->nroutes >= MAX_ROUTES || s->param_index[dst] < 0) complain(err, errcap, &bad, lineno, "bad route", rest);
       else { s->routes[s->nroutes].src = a; s->routes[s->nroutes].dst = dst; s->routes[s->nroutes].w = fez_clamp(b, -32768, 32767); s->nroutes++; }
     }
