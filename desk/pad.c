@@ -32,7 +32,7 @@ static int held(const Pad *p, Button b) { return (p->held >> b) & 1; }
 typedef struct { const char *name; const char *const *items; int n; } PalTab;
 #define LIST(a) a, (int)(sizeof a / sizeof *a)
 static const char *const P_STK[] = { "DUP", "DROP", "SWAP", "OVER", "ROT", "?" };
-static const char *const P_MTH[] = { "+", "-", "*", "F*", "/", "*/", "NEG", "ABS", "MIN", "MAX", "MOD", "ST", "HZ", "COLOUR" };
+static const char *const P_MTH[] = { "+", "-", "*", "F*", "/", "*/", "NEG", "ABS", "MIN", "MAX", "MOD", "ST", "HZ", "COLOUR", "SCALE" };
 static const char *const P_LOG[] = { "AND", "OR", "XOR", "NOT", "SHL", "SHR", "ROL", "ROR", "=", "<", ">", "U<" };
 static const char *const P_MEM[] = { "@", "!", "TRIG", "ROUTE", "W", "RND" };
 static const char *const P_FLW[] = { "L", "JMP", "JZ", "JNZ", "SKIP", "EXIT", "YIELD" };

@@ -2,6 +2,7 @@
    It began as a line-by-line port of a JavaScript prototype (retired), so some comments mention "the JS". */
 #include "vm.h"
 #include "tables.h"
+#include "fez.h"      /* fez_scale_mask: SCALE uses the quantiser's scale table */
 #include <ctype.h>
 #include <math.h>
 #include <stdio.h>
@@ -12,7 +13,7 @@ const char *const OP_NAMES[OP_COUNT] = {
   "DUP", "DROP", "SWAP", "OVER", "ROT", "+", "-", "*", "F*", "/", "*/", "NEG", "ABS", "MIN",
   "MAX", "MOD", "AND", "OR", "XOR", "NOT", "SHL", "SHR", "ROL", "ROR", "=", "<", ">", "U<", "@", "!",
   "L", "JMP", "JZ", "JNZ", "SKIP", "EXIT", "YIELD", "TRIG", "ROUTE", "W", "RND", "ST", "HZ",
-  "COLOUR", "?"
+  "COLOUR", "?", "SCALE"
 };
 
 /* ---------------------------------------------------------------- small integer helpers */
@@ -272,6 +273,18 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
         int col = floor_mod(a, 16), n = floor_mod(x, 5), oct = floor_div(x, 5);
         int j = n == 0 ? 0 : n == 1 ? (col >> 2) + 1 : n == 2 ? 5 : n == 3 ? 7 : (col & 3) + 8;
         PUSH(sat(oct * 3072 + JUST88[j]));
+        break;
+      }
+      case OP_SCALE: {                                /* ( index scale -- pitch above the root, 8.8 semitones ) */
+        /* The scale number is the quantiser's SCALE (0 to 7). Its mask has one bit per allowed semitone, so
+           "degree k" means "the k-th set bit". The degrees repeat every octave: index n walks past the last
+           set bit into the next octave (3072 = 12 semitones in 8.8). */
+        POP(a); POP(x);
+        int mask = fez_scale_mask(a), n = 0;
+        for (int b2 = 0; b2 < 12; b2++) n += (mask >> b2) & 1;      /* notes per octave (never 0: every mask has bits) */
+        int oct = floor_div(x, n), k = floor_mod(x, n), semi = 0;
+        for (int b2 = 0; b2 < 12; b2++) if ((mask >> b2) & 1) { if (k-- == 0) { semi = b2; break; } }
+        PUSH(sat(oct * 3072 + semi * 256));
         break;
       }
       case OP_RND:  POP(a); PUSH(a > 0 ? (int)floor(vm->host.rnd(vm->host.ctx) * a) : 0); break;

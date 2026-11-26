@@ -345,7 +345,7 @@ void tab_devices_draw(Desk *d, View *v) {
   }
 
   /* Wide tiles: the picture on the left, the settings beside it. Narrow tiles: the settings go under the picture. */
-  int top_only = sub == DEV_DELAY || sub == DEV_KEYS;                        /* these pictures are always on top, full width */
+  int top_only = sub == DEV_DELAY || sub == DEV_KEYS || sub == DEV_QUANTISER;   /* these pictures are always on top, full width, the text always below */
   int pane_w = 16 * v->rh, wide = v->w >= pane_w + 26 * v->cw && !top_only;
   /* The cellular page on a small screen (the Brick's 256x192): shrink the picture's cells until the settings fit beside it. */
   int cs = v->rh, compact = 0;
@@ -356,7 +356,7 @@ void tab_devices_draw(Desk *d, View *v) {
   int prows, sx, sy, swidth;
   if (compact) { prows = v->rows - 5; sx = (pane_w + v->cw - 1) / v->cw + 2; sy = 2; swidth = v->cols - sx - 1; }   /* 5 = the two header rows and the blank and two status rows below */
   else if (wide) { prows = v->rows - 2; sx = (pane_w + v->cw - 1) / v->cw + 2; sy = 2; swidth = v->cols - sx - 1; }
-  else { int n; settings_of(sub, &n); prows = v->rows - 2 - (n + (sub == DEV_DELAY ? 2 : sub == DEV_KEYS ? 6 : 5)); if (prows < 3) prows = 3;      /* the settings, live values and hints need n + 5 rows under the picture */ sx = 0; sy = 2 + prows + 1; swidth = v->cols - 1; }
+  else { int n; settings_of(sub, &n); prows = v->rows - 2 - (n + (sub == DEV_DELAY ? 2 : sub == DEV_KEYS ? 6 : sub == DEV_QUANTISER ? 6 : 5)); if (prows < 3) prows = 3;      /* the settings, live values and hints need n + 5 rows under the picture */ sx = 0; sy = 2 + prows + 1; swidth = v->cols - 1; }
   if (prows < 3) return;
   if (sub == DEV_CELLULAR) draw_cellular(d, v, prows, cs, compact, sx, sy, swidth);
   else if (sub == DEV_LORENZ) draw_lorenz(d, v, wide ? pane_w : v->w - 2, prows, sx, sy, swidth);

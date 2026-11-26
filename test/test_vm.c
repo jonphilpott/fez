@@ -22,6 +22,10 @@ static int run_and_read(const char *src, int reg) {
 }
 
 void test_vm(void) {
+  /* SCALE: degree 0 is the root, degrees wrap into the next octave, negatives go below */
+  CHECK(run_and_read("2 1 SCALE PITCH !", REG_PITCH) == 1024, "major scale degree 2 is the third, 4 semitones up");
+  CHECK(run_and_read("7 1 SCALE PITCH !", REG_PITCH) == 3072, "major scale degree 7 is an octave up");
+  CHECK(run_and_read("5 4 SCALE PITCH !", REG_PITCH) == 3072, "pentatonic degree 5 is an octave up");
   /* error positions: an editor can flag the word that failed (compile errors, and the slot that halted a running block) */
   {
     const char *src = "1 2 FOO 3";
