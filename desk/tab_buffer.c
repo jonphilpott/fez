@@ -1,6 +1,6 @@
 /* The BUFFER tab: the tape and its eight voices.
 
-   The buffer device is a circular tape of up to 8 seconds. One write head records into it (what it records, and how
+   The buffer device is a circular tape of up to 30 seconds (BUF_MAX_SECONDS). One write head records into it (what it records, and how
    much of the voices' own output is fed back, are settings). Eight read voices play it back: a continuous voice is a
    delay tap or a free-running loop; a voice with a length is a grain, a short windowed snippet played once or looped.
 
@@ -93,8 +93,8 @@ static void draw_wave(Desk *d, int x0, int y0, int w, int h) {
     int i0 = (int)((long long)col * len / w), i1 = (int)((long long)(col + 1) * len / w);
     if (i1 <= i0) i1 = i0 + 1;
     if (i1 > len) i1 = len;
-    float lo = 0, hi = 0;
-    for (int i = i0; i < i1; i++) { float x = b->buf[i]; if (x < lo) lo = x; if (x > hi) hi = x; }
+    float lo, hi;
+    desk_wave_column(b->buf, i0, i1, &lo, &hi);
     /* full scale (plus or minus 1) reaches the edge of the picture */
     int y_top = mid - (int)(fminf(hi, 1) * (h / 2 - 1)), y_bot = mid - (int)(fmaxf(lo, -1) * (h / 2 - 1));
     gfx_fill(&d->cv, x0 + col, y_top, 1, y_bot - y_top + 1, gfx_colour(COL_CYN));
@@ -188,7 +188,7 @@ static void draw_voices_page(Desk *d, View *v) {
     }
   }
   /* the bottom lines: the raw register under the cursor, and what the flags mean */
-  int a = d->bf.cell < 4 ? voice_addr(COLS[d->bf.cell].base, d->bf.voice) : 490 + d->bf.voice;
+  int a = d->bf.cell < 4 ? voice_addr(COLS[d->bf.cell].base, d->bf.voice) : REG_GFLG0 + d->bf.voice;
   const char *name = NULL;
   for (int i = 0; i < NAME_COUNT; i++) if (NAME_TABLE[i].addr == a) { name = NAME_TABLE[i].name; break; }
   if (name && d->handheld) view_text(v, 0, v->rows - 2, regview_help(name), COL_DIM);          /* no room for "NAME = value" beside the help on 49 columns */
@@ -231,7 +231,7 @@ static void change(Desk *d, int dir, int coarse) {
 }
 
 static void toggle_flag(Desk *d) {
-  int a = 490 + d->bf.voice;
+  int a = REG_GFLG0 + d->bf.voice;
   fez_reg_write(d->synth, a, d->synth->mem[a] ^ (1 << (d->bf.cell - 4)));
 }
 

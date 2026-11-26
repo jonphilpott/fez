@@ -75,7 +75,7 @@ enum { DEV_DELAY, DEV_CELLULAR, DEV_LORENZ, DEV_QUANTISER, DEV_TURING, DEV_KEYS,
 enum { MTX_NORMAL, MTX_PICK_SRC, MTX_PICK_DST, MTX_ADJUST, MTX_TYPE };   /* the MATRIX tab's modes */
 enum { SUB_MINE, SUB_EXAMPLES };               /* the Patches tab's two lists, in tab order */
 enum { PAT_NORMAL, PAT_NAMING, PAT_CONFIRM_DELETE, PAT_CONFIRM_OVERWRITE, PAT_CONFIRM_NEW };
-#define MAX_USER_PATCHES 128
+#define MAX_USER_PATCHES 512
 
 typedef struct Desk {
   FezSynth *synth;
@@ -112,7 +112,7 @@ typedef struct Desk {
     int sub;                                 /* SUB_MINE or SUB_EXAMPLES */
     int sel[2];                              /* selected row in each list (index into the filtered list) */
     char filter[32]; int flen;               /* typed letters that narrow the list */
-    int mode;                                /* PAT_NORMAL, PAT_NAMING, PAT_CONFIRM_DELETE, PAT_CONFIRM_OVERWRITE */
+    int mode;                                /* PAT_NORMAL, PAT_NAMING, PAT_CONFIRM_DELETE, PAT_CONFIRM_OVERWRITE, PAT_CONFIRM_NEW */
     char name[PATCH_NAME_MAX]; int nlen;     /* the name being typed for a save */
     char dir[512];                           /* where user patches live ("" = nowhere: saving is off) */
     char names[MAX_USER_PATCHES][PATCH_NAME_MAX]; int nuser;
@@ -167,6 +167,7 @@ void desk_init(Desk *d, FezSynth *synth);
 void desk_set_canvas(Desk *d, uint32_t *pixels, int w, int h);   /* (re)size: call at start and whenever the window changes */
 void desk_set_handheld(Desk *d);                                   /* one full-screen tile, for the handheld; call after desk_init */
 void desk_set_scale(Desk *d, int scale);                          /* 0 = automatic */
+void desk_wave_column(const float *x, int i0, int i1, float *lo, float *hi);   /* smallest and largest sample of one column of a waveform picture */
 void desk_key(Desk *d, int key, int mods);
 void desk_text(Desk *d, int ch);                                  /* a typed printable character */
 void desk_tick(Desk *d, double dt_ms);
@@ -174,14 +175,14 @@ void desk_draw(Desk *d);
 void desk_say(Desk *d, const char *msg);
 void desk_fire_gate(Desk *d);
 void desk_toggle_pulsers(Desk *d);
-void desk_reload_editor(Desk *d);
+void desk_reload_editor(Desk *d);            /* after a patch load: take every block's source from the synth */
 void desk_patches_refresh(Desk *d);          /* re-read the user patch folder */
 void desk_patches_begin_save(Desk *d);       /* Ctrl+S: ask for a name */
-void desk_patches_begin_new(Desk *d);
-const char *desk_tab_name(int tab);        /* Ctrl+N: ask whether to throw this patch away and start a blank one */
+void desk_patches_begin_new(Desk *d);        /* Ctrl+N: ask whether to throw this patch away and start a blank one */
+const char *desk_tab_name(int tab);
 void desk_patches_loaded_blank(Desk *d);     /* start from a blank patch */
 void desk_patches_loaded_example(Desk *d, int index);   /* load an example patch into the synth and the UI */
-void editor_watch_blocks(Desk *d);           /* once per frame: note which blocks have run since the last frame */            /* after a patch load: take every block's source from the synth */
+void editor_watch_blocks(Desk *d);           /* once per frame: note which blocks have run since the last frame */
 
 /* drawing helpers in character cells (desk.c) */
 void view_text(View *v, int col, int row, const char *s, int colour);

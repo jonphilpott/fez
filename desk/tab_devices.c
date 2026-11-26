@@ -1,4 +1,4 @@
-/* The DEVICES tab: the virtual machines that make things happen on their own. One page per device, switched with Tab.
+/* The DEVICES tab: the virtual machines that make things happen on their own. One page per device, switched with [ and ].
 
    CELLULAR  16 cells in a ring. Each generation a cell becomes 0 or 1 from itself and its two neighbours, by the bits of
              RULE. The picture is the history: the newest generation at the bottom, older ones above it. The automaton
@@ -216,7 +216,7 @@ static void draw_turing(Desk *d, View *v, int pane_w, int prows, int sx, int sy,
   if (!d->handheld && sy + 8 < v->rows) view_text(v, sx, sy + 8, "n: random bits", COL_DIM);
 }
 
-/* The tape loop, live. The delay line is a ring of 1.5 s of audio; the picture is that ring, drawn left to right, so what
+/* The tape loop, live. The delay line is a ring of 12 s of audio (DLY_SAMPLES); the picture is that ring, drawn left to right, so what
    you see is what the loop holds right now. The write head (amber) sweeps across laying down new sound; the read head
    (magenta) trails it by the delay time, and the shaded band between them is the echo on its way round. Wobble makes the
    read head waver, turning TIME slides it, and hiss shows as fuzz on the flat line. Frozen, the write head stops (grey),
@@ -235,8 +235,8 @@ static void draw_delay(Desk *d, View *v, int pane_w, int prows) {
   gfx_fill(&d->cv, x0, mid, w, 1, gfx_colour(COL_LINE));
   for (int col = 0; col < w; col++) {
     int i0 = (int)((long long)col * DLY_SAMPLES / w), i1 = (int)((long long)(col + 1) * DLY_SAMPLES / w);
-    float lo = 0, hi = 0;
-    for (int i = i0; i < i1 && i < DLY_SAMPLES; i++) { float x = a->dly[i]; if (x < lo) lo = x; if (x > hi) hi = x; }
+    float lo, hi;
+    desk_wave_column(a->dly, i0, i1 < DLY_SAMPLES ? i1 : DLY_SAMPLES, &lo, &hi);
     int y_top = mid - (int)(fminf(hi, 1) * (h / 2 - 1)), y_bot = mid - (int)(fmaxf(lo, -1) * (h / 2 - 1));
     gfx_fill(&d->cv, x0 + col, y_top, 1, y_bot - y_top + 1, gfx_colour(COL_CYN));
   }

@@ -25,7 +25,7 @@
 #endif
 #include <time.h>
 
-static FezSynth synth;                    /* ~2 MB (the buffer device alone is 1.5 MB), so static rather than on the stack */
+static FezSynth synth;                    /* about 8 MB (the buffer device is 5.8 MB, the delay 2.3 MB), so static rather than on the stack */
 static Desk desk;
 static Pad pad;
 static int brick_mode;                    /* --brick: the handheld UI at 256x192, driven by buttons */

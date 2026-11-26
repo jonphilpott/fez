@@ -21,6 +21,7 @@ static void draw_lane(Desk *d, int px, int py, int pw, int ph, int ch, unsigned 
   int sc = d->scale;
   uint32_t core = gfx_mix(gfx_colour(colour), gfx_colour(COL_FG), 0.12);       /* the beam: bright, a touch toward white */
   uint32_t glow = gfx_mix(gfx_colour(COL_BG), gfx_colour(colour), 0.45);       /* the halo around it */
+  Canvas tile = *cv;                                                           /* remember the tile's clip, to put it back after */
   gfx_clip(cv, px, py, pw, ph);                                                /* a tall wave must not spill into the other lane */
   for (int pass = 0; pass < 2; pass++) {
     int reach = pass == 0 ? sc : sc / 2;                                       /* glow: wide, core: narrow */
@@ -34,7 +35,7 @@ static void draw_lane(Desk *d, int px, int py, int pw, int ph, int ch, unsigned 
       prev_x = x; prev_y = y;
     }
   }
-  gfx_unclip(cv);
+  cv->clip_x0 = tile.clip_x0; cv->clip_y0 = tile.clip_y0; cv->clip_x1 = tile.clip_x1; cv->clip_y1 = tile.clip_y1;   /* back to the tile's clip, not the whole window */
   gfx_text(cv, px + 2, py + 1, ch ? "R" : "L", sc, gfx_colour(colour));
 }
 

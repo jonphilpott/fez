@@ -37,6 +37,7 @@ static int visible_rows(const Desk *d, int *rows, int max) {
 
 void desk_patches_refresh(Desk *d) {
   d->pat.nuser = userpatch_list(d->pat.dir, d->pat.names, MAX_USER_PATCHES);
+  if (d->pat.nuser == MAX_USER_PATCHES) desk_say(d, "TOO MANY PATCHES: SOME ARE NOT LISTED");
   d->pat.shown[0] = '\0';                                      /* forget the cached header: the file may have changed */
 }
 
@@ -96,8 +97,13 @@ static void do_save(Desk *d) {
 void desk_patches_begin_save(Desk *d) {
   if (!d->pat.dir[0]) { desk_say(d, "NO SAVE FOLDER"); return; }
   d->pat.mode = PAT_NAMING;
-  snprintf(d->pat.name, sizeof d->pat.name, "%s", d->loaded_name);     /* pre-filled: Enter alone re-saves; or retype */
-  d->pat.nlen = (int)strlen(d->pat.name);
+  /* pre-filled with the loaded name: Enter alone re-saves; or retype. Only the characters a file name may hold are kept,
+     so a blank patch, "(blank)", starts as "blank" and Enter saves it instead of failing. */
+  int k = 0;
+  for (const char *c = d->loaded_name; *c && k < (int)sizeof d->pat.name - 1; c++)
+    if (userpatch_name_char_ok((unsigned char)*c)) d->pat.name[k++] = *c;
+  d->pat.name[k] = '\0';
+  d->pat.nlen = k;
 }
 
 /* Ctrl+N: nothing is thrown away until the user says yes (Enter), because there is no autosave. The question is drawn by the

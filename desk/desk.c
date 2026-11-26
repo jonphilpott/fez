@@ -366,7 +366,7 @@ void desk_key(Desk *d, int key, int mods) {
         desk_say(d, d->layouts[d->layout].name);
         return;
       case '=': case '+': desk_set_scale(d, d->scale + 1); return;
-      case '-': desk_set_scale(d, d->scale - 1); return;
+      case '-': desk_set_scale(d, d->scale > 1 ? d->scale - 1 : 1); return;     /* never 0: desk_set_scale reads 0 as "automatic" */
       case 't': d->rec_toggle = 1; return;                      /* record a take of the output: main.c does the work (Ctrl+R is the editor's run) */
       case 'g': desk_fire_gate(d); return;
       case 'p': desk_toggle_pulsers(d); return;
@@ -382,4 +382,14 @@ void desk_key(Desk *d, int key, int mods) {
 void desk_text(Desk *d, int ch) {
   if (d->help) return;                                          /* the help page is open: typing does nothing */
   TABS[d->layouts[d->layout].tab[d->focus]].text(d, ch);
+}
+
+/* One column of a waveform picture: the smallest and largest of the samples x[i0] .. x[i1 - 1] (0 if there are none).
+   The pictures run while the audio lock is held, so they must be quick: a column of a 30 s buffer covers thousands of
+   samples, and looking at all of them every frame would eat into the audio's time. So at most 64 evenly spaced
+   samples are looked at. ponytail: a short peak between them can be missed; keep a per-column peak if that shows. */
+void desk_wave_column(const float *x, int i0, int i1, float *lo, float *hi) {
+  int step = (i1 - i0) / 64 + 1;
+  *lo = 0; *hi = 0;
+  for (int i = i0; i < i1; i += step) { if (x[i] < *lo) *lo = x[i]; if (x[i] > *hi) *hi = x[i]; }
 }

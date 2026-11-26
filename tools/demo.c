@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "desk.h"
+#include "wavrec.h"
 
 #define W 1080
 #define H 1920
@@ -127,21 +128,6 @@ static void draw_caption(double t) {
   }
 }
 
-static void wav_write(const char *path, const float *a, int frames, float gain) {
-  FILE *f = fopen(path, "wb");
-  if (!f) { perror(path); exit(1); }
-  unsigned data = (unsigned)frames * 4, rate = FEZ_SAMPLE_RATE;
-  unsigned char h[44] = { 'R','I','F','F',0,0,0,0,'W','A','V','E','f','m','t',' ',16,0,0,0,1,0,2,0,0,0,0,0,0,0,0,0,4,0,16,0,'d','a','t','a',0,0,0,0 };
-  unsigned riff = 36 + data, br = rate * 4;
-  memcpy(h + 4, &riff, 4); memcpy(h + 24, &rate, 4); memcpy(h + 28, &br, 4); memcpy(h + 40, &data, 4);
-  fwrite(h, 1, 44, f);
-  for (int i = 0; i < frames * 2; i++) {
-    float v = a[i] * gain; if (v > 1) v = 1; if (v < -1) v = -1;
-    short s = (short)lrintf(v * 32767.0f); fwrite(&s, 2, 1, f);
-  }
-  fclose(f);
-}
-
 int main(int argc, char **argv) {
   if (argc < 2) { fprintf(stderr, "usage: demo OUT_DIR [audio]\n"); return 1; }
   const char *dir = argv[1]; int audio_only = argc > 2 && !strcmp(argv[2], "audio");
@@ -235,7 +221,7 @@ int main(int argc, char **argv) {
   }
   if (vid) pclose(vid);
 
-  /* ---- the sound: fade the last 1.5 s, scale the peak to about -1 dB, write the file, and join ---- */
+  /* ---- the sound: fade the last 1.5 s, set the loudness, write the file, and join ---- */
   int total = SPF * FRAMES, fade = FEZ_SAMPLE_RATE * 3 / 2;
   for (int i = 0; i < fade; i++) { float g = (float)i / fade; g = 1 - g; for (int c = 0; c < 2; c++) audio[2 * (total - fade + i) + c] *= g; }
   /* loudness: phones are small and Instagram is loud, so aim for an overall RMS of 0.14 (about -17 dB) and let a soft clip
@@ -244,10 +230,10 @@ int main(int argc, char **argv) {
   for (int i = FEZ_SAMPLE_RATE * 2 * 3; i < total * 2; i++) { sum += (double)audio[i] * audio[i]; cnt++; }
   float gain = (float)(0.14 / sqrt(sum / cnt));
   for (int i = 0; i < total * 2; i++) audio[i] = tanhf(audio[i] * gain);
-  gain = 1;
-  printf("rms gain %.2f\n", 0.14 / sqrt(sum / cnt));
+  printf("rms gain %.2f\n", gain);
   snprintf(path, sizeof path, "%s/audio.wav", dir);
-  wav_write(path, audio, total, gain);
+  WavRec wr;                                                   /* the app's own WAV writer (24-bit stereo) */
+  if (wavrec_start(&wr, path, FEZ_SAMPLE_RATE) != 0 || wavrec_write(&wr, audio, total) != 0 || wavrec_stop(&wr) != 0) { perror(path); exit(1); }
   if (!audio_only) {
     snprintf(path, sizeof path, "ffmpeg -y -loglevel error -i %s/video.mp4 -i %s/audio.wav -c:v copy -c:a aac -b:a 192k -shortest %s/demo.mp4", dir, dir, dir);
     if (system(path) != 0) return 1;

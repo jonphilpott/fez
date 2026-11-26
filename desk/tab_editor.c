@@ -233,19 +233,20 @@ static void paste(Desk *d) {
 static void toggle_comment(Desk *d) {
   Editor *e = ed(d);
   const char *t = txt(d);
-  int ls = line_start(t, e->cursor), p = ls;
+  int ls = line_start(t, e->cursor), p = ls, c = e->cursor;     /* c: where the cursor was, to put it back after the edit */
   while (t[p] == ' ') p++;
   begin_edit(d, 0);
+  e->anchor = -1;                       /* acts on the cursor's line only: drop any selection, or insert_raw would replace it */
   if (t[p] == '\\') {
     int n = t[p + 1] == ' ' ? 2 : 1;
-    delete_range(d, p, p + n);
-    e->cursor = e->cursor > p ? imax(p, e->cursor - n) : e->cursor;
+    delete_range(d, p, p + n);          /* (this moves the cursor to p) */
+    e->cursor = c > p ? imax(p, c - n) : c;
   } else {
-    int c = e->cursor;
+    int len = txt_len(d);
     e->cursor = p; insert_raw(d, "\\ ", 2);
-    e->cursor = c >= p ? c + 2 : c;
+    int added = txt_len(d) - len;       /* 2, or 0 if the block was full and insert_raw refused */
+    e->cursor = c >= p ? c + added : c;
   }
-  e->anchor = -1;
 }
 
 /* ---------------------------------------------------------------- keys */
@@ -269,7 +270,7 @@ static void move_vertical(Desk *d, int dir, int mods) {
     else if (ls == 0) target = 0;                                      /* already on the first row */
     else {                                                             /* the last chunk of the previous line */
       int pe = ls - 1, pcs = chunk_start(t, pe, width);
-            target = pcs + imin(want, pe - pcs);
+      target = pcs + imin(want, pe - pcs);
     }
   } else {
     if (cs + width <= le) target = cs + width + imin(want, le - (cs + width));   /* the chunk below, in the same line */
@@ -325,7 +326,6 @@ void tab_editor_key(Desk *d, int key, int mods) {
     return;
   }
 
-  const char *t = txt(d);
   int c = e->cursor, len = txt_len(d);
   switch (key) {
     case KEY_LEFT:  move_to(d, c > 0 ? c - 1 : 0, mods, 0); break;
@@ -346,7 +346,6 @@ void tab_editor_key(Desk *d, int key, int mods) {
     case KEY_ESC: e->anchor = -1; break;
     default: break;
   }
-  (void)t;
 }
 
 void tab_editor_text(Desk *d, int ch) {

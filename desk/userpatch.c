@@ -62,10 +62,11 @@ int userpatch_write(const char *dir, const char *name, const char *text) {
   size_t len = strlen(text);
   int ok = fwrite(text, 1, len, f) == len;
   ok = fclose(f) == 0 && ok;
+  if (!ok) { remove(tmp); return -1; }      /* the write failed: leave the old copy alone */
 #ifdef _WIN32
   remove(path);                    /* Windows' rename will not replace an existing file. ponytail: a crash between the two calls loses the old copy; MoveFileEx would be atomic */
 #endif
-  if (!ok || rename(tmp, path) != 0) { remove(tmp); return -1; }
+  if (rename(tmp, path) != 0) { remove(tmp); return -1; }
   return 0;
 }
 

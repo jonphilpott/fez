@@ -32,6 +32,17 @@ void test_pad(void) {
   pad_init(&pad, &d);
   d.layouts[3].tab[0] = TAB_EDITOR;
 
+  /* the editor's Ctrl+/ with a selection comments the line and keeps the text (it once deleted the selection and left the
+     cursor past the end, so the next key moved memory with a negative length) */
+  { Editor *e = &d.ed;
+    snprintf(e->text[e->blk], BLOCK_SRC_MAX, "100 PITCH !");
+    e->cursor = 11; e->anchor = 6;                                             /* "ITCH !" selected */
+    tab_editor_key(&d, '/', MOD_CTRL);
+    CHECK(!strcmp(e->text[e->blk], "\\ 100 PITCH !") && e->cursor == 13 && e->anchor == -1, "Ctrl+/ with a selection comments the line and keeps the text");
+    tab_editor_key(&d, '/', MOD_CTRL);
+    CHECK(!strcmp(e->text[e->blk], "100 PITCH !") && e->cursor == 11, "Ctrl+/ again takes the comment off and the cursor stays put");
+    e->text[e->blk][0] = '\0'; e->cursor = 0; }
+
   /* L1 and R1 walk through every screen and wrap round */
   int seen[TAB_COUNT] = { 0 };
   for (int i = 0; i < TAB_COUNT; i++) { seen[tab()] = 1; tap(BTN_R1); }
