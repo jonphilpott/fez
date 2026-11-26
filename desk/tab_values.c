@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 #define HELP_ROWS 2
 
@@ -21,7 +20,7 @@ static int list_rows(const View *v) { return v->rows - 1 - HELP_ROWS; }
 
 /* Keep the selected row near the middle of the list, as far as the ends allow. */
 static void scroll_to_selection(ValueList *l, int n, int vis) {
-  l->top = clampi(l->sel - vis / 2, 0, n > vis ? n - vis : 0);
+  l->top = fez_clamp(l->sel - vis / 2, 0, n > vis ? n - vis : 0);
 }
 
 static void draw_help(View *v, const char *name) {
@@ -33,16 +32,11 @@ static void draw_help(View *v, const char *name) {
 
 /* Typed characters: digits (and a leading minus, for signed registers) build the entry. */
 static void type_char(ValueList *l, int ch, int allow_minus) {
-  if (ch >= '0' && ch <= '9') { if (l->len < 6) { l->buf[l->len++] = (char)ch; l->buf[l->len] = '\0'; l->editing = 1; } }
-  else if (ch == '-' && allow_minus && l->len == 0) { l->buf[l->len++] = '-'; l->buf[l->len] = '\0'; l->editing = 1; }
+  if ((ch >= '0' && ch <= '9') || (ch == '-' && allow_minus && l->in.len == 0)) entry_add(&l->in, ch, 6);   /* 6 characters: -32768 */
 }
 
-static void backspace(ValueList *l) {
-  if (l->len > 0) l->buf[--l->len] = '\0';
-  if (l->len == 0) l->editing = 0;
-}
 
-static void entry_text(const ValueList *l, char *out, size_t n) { snprintf(out, n, "%s_", l->buf); }
+static void entry_text(const ValueList *l, char *out, size_t n) { snprintf(out, n, "%s_", l->in.buf); }
 
 /* ---------------------------------------------------------------- the rows: registers under group headings */
 
@@ -75,12 +69,12 @@ void ctrl_build_rows(Desk *d) {
 static void move_selection(Desk *d, int dir, int mods) {
   ValueList *l = &d->vl;
   int n = d->ncrow, sel = l->sel;
-  l->editing = 0; l->len = 0;
-  if (mods & MOD_SHIFT) sel = clampi(sel + dir * 10, 0, n - 1);
+  entry_clear(&l->in);
+  if (mods & MOD_SHIFT) sel = fez_clamp(sel + dir * 10, 0, n - 1);
   else sel = (sel + dir + n) % n;
   while (is_heading(d, sel)) {
     sel += dir;
-    if (mods & MOD_SHIFT) { if (sel < 0 || sel >= n) { sel = clampi(sel, 0, n - 1); dir = -dir; } }   /* Shift stops at an end: turn round */
+    if (mods & MOD_SHIFT) { if (sel < 0 || sel >= n) { sel = fez_clamp(sel, 0, n - 1); dir = -dir; } }   /* Shift stops at an end: turn round */
     else sel = (sel + n) % n;                                                                       /* a plain step wraps */
   }
   l->sel = sel;
@@ -131,7 +125,7 @@ void tab_ctrl_draw(Desk *d, View *v) {
       gfx_fill(&d->cv, x, v->y + row * v->rh + 1, 2, v->rh - 2, gfx_colour(COL_MAG));
     }
     if (e->wo) view_text_right(v, val_col, valw, row, "-", COL_FG);
-    else if (sel && l->editing) { entry_text(l, buf, sizeof buf); view_text_right(v, val_col, valw, row, buf, COL_AMB); }
+    else if (sel && l->in.editing) { entry_text(l, buf, sizeof buf); view_text_right(v, val_col, valw, row, buf, COL_AMB); }
     else {
       if (par && !d->ctl_raw) regview_fmt_param(buf, sizeof buf, a, base); else snprintf(buf, sizeof buf, "%d", base);
       view_text_right(v, val_col, valw, row, buf, sel ? COL_AMB : COL_FG);
@@ -156,21 +150,21 @@ void tab_ctrl_key(Desk *d, int key, int mods) {
     case KEY_TAB:  d->ctl_raw = !d->ctl_raw; break;
     case KEY_LEFT: case KEY_RIGHT: {
       int dir = key == KEY_RIGHT ? 1 : -1;
-      l->editing = 0; l->len = 0;
+      entry_clear(&l->in);
       if (locked(e) || e->wo) break;
       if (is_param(d->synth, a) && !d->ctl_raw) regview_pstep(d->synth, a, dir, mods & MOD_SHIFT);     /* a musical step */
-      else regview_write(d->synth, a, clampi(regview_read(d->synth, a) + dir * (mods & MOD_SHIFT ? 256 : 1), -32768, 32767));
+      else regview_write(d->synth, a, fez_clamp(regview_read(d->synth, a) + dir * (mods & MOD_SHIFT ? 256 : 1), -32768, 32767));
       break;
     }
     case KEY_ENTER:
-      if (l->editing) {
+      if (l->in.editing) {
         if (locked(e)) desk_say(d, "READ ONLY");
-        else regview_write(d->synth, a, clampi(atoi(l->buf), -32768, 32767));
-        l->editing = 0; l->len = 0;
+        else regview_write(d->synth, a, fez_clamp(atoi(l->in.buf), -32768, 32767));
+        entry_clear(&l->in);
       } else if (e->wo) regview_write(d->synth, a, 1);          /* a write-only register: Enter pokes a 1 (fires it) */
       break;
-    case KEY_ESC: l->editing = 0; l->len = 0; break;
-    case KEY_BACKSPACE: backspace(l); break;
+    case KEY_ESC: entry_clear(&l->in); break;
+    case KEY_BACKSPACE: entry_backspace(&l->in); break;
     default: break;
   }
 }

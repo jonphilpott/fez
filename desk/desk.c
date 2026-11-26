@@ -393,3 +393,31 @@ void desk_wave_column(const float *x, int i0, int i1, float *lo, float *hi) {
   *lo = 0; *hi = 0;
   for (int i = i0; i < i1; i += step) { if (x[i] < *lo) *lo = x[i]; if (x[i] > *hi) *hi = x[i]; }
 }
+
+/* ---------------------------------------------------------------- typed entries (see Entry in desk.h) */
+
+void entry_clear(Entry *e) { e->len = 0; e->buf[0] = '\0'; e->editing = 0; }
+
+/* max is the longest entry the cell takes, e.g. 5 for 0..32767 or 6 for -32768. It is capped by the buffer's size. */
+void entry_add(Entry *e, int ch, int max) {
+  if (max > (int)sizeof e->buf - 1) max = (int)sizeof e->buf - 1;
+  if (e->len >= max) return;
+  e->buf[e->len++] = (char)ch; e->buf[e->len] = '\0';
+  e->editing = 1;
+}
+
+void entry_backspace(Entry *e) {
+  if (e->len > 0) e->buf[--e->len] = '\0';
+  if (e->len == 0) e->editing = 0;
+}
+
+/* The names of a tab's pages along its top row, the one showing lit in amber. */
+void view_pages(View *v, const char *const names[], int n, int showing) {
+  int col = 0;
+  for (int i = 0; i < n; i++) {
+    int len = (int)strlen(names[i]);
+    if (i == showing) view_fill(v, col, 0, len + 1, 1, COL_AMBD);
+    view_text(v, col, 0, names[i], i == showing ? COL_AMB : COL_DIM);
+    col += len + 2;
+  }
+}

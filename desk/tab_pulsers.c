@@ -24,9 +24,8 @@ enum { F_ON, F_RATE, F_SEQ, F_GRN, F_BLOCK0, FIELD_COUNT = F_BLOCK0 + NUM_BLOCKS
 #define RATE_MAX 600
 #define FIRE_LIGHT_TICKS 40          /* the firing light stays lit for 40 ticks of 5 ms: 200 ms */
 
-static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
 
-static void set_rate(Desk *d, int row, int rate) { d->synth->pulsers[row].rate = clampi(rate, RATE_MIN, RATE_MAX); }
+static void set_rate(Desk *d, int row, int rate) { d->synth->pulsers[row].rate = fez_clamp(rate, RATE_MIN, RATE_MAX); }
 
 /* ---------------------------------------------------------------- drawing */
 
@@ -35,7 +34,7 @@ void tab_pulsers_draw(Desk *d, View *v) {
   int visible = (v->rows - 2) / 3;                            /* cards that fit: three rows each, under a header row */
   if (visible < 1) return;
   if (visible > NUM_PULSERS) visible = NUM_PULSERS;
-  int first = clampi(d->pul.row - visible / 2, 0, NUM_PULSERS - visible);
+  int first = fez_clamp(d->pul.row - visible / 2, 0, NUM_PULSERS - visible);
 
   view_text(v, 0, 0, "PULSERS", COL_AMB);
   view_text_right(v, 10, v->cols - 10, 0, d->handheld ? (d->pulsers_on ? "all on" : "all OFF") : d->pulsers_on ? "all on (Ctrl+P)" : "all OFF (Ctrl+P)", d->pulsers_on ? COL_DIM : COL_RED);
@@ -70,8 +69,8 @@ void tab_pulsers_draw(Desk *d, View *v) {
       gfx_fill(&d->cv, bx, by, (int)(frac * bw), 2 * sc, gfx_colour(adjusting ? COL_GRN : on ? COL_AMB : COL_DIM)); /* filled up to the value */
       gfx_fill(&d->cv, bx + (int)(frac * (bw - 3 * sc)), by - 3 * sc, 3 * sc, 8 * sc, gfx_colour(cur_field == F_RATE ? COL_AMB : COL_FG));   /* the handle */
     }
-    if (sel && d->pul.editing) snprintf(buf, sizeof buf, "%s_", d->pul.buf); else snprintf(buf, sizeof buf, "%d BPM", rate);
-    view_text_right(v, 20, 7, r0, buf, sel && d->pul.editing ? COL_AMB : COL_FG);
+    if (sel && d->pul.in.editing) snprintf(buf, sizeof buf, "%s_", d->pul.in.buf); else snprintf(buf, sizeof buf, "%d BPM", rate);
+    view_text_right(v, 20, 7, r0, buf, sel && d->pul.in.editing ? COL_AMB : COL_FG);
     int sq = (s->mem[REG_SQPUL] >> p) & 1, gr = (s->mem[REG_GRPUL] >> p) & 1;
     view_cell(v, 29, r0, 4, "SEQ", sq ? COL_GRN : COL_DIM, cur_field == F_SEQ ? COL_AMBD : COL_PNL, cur_field == F_SEQ);
     view_cell(v, 34, r0, 4, "GRN", gr ? COL_GRN : COL_DIM, cur_field == F_GRN ? COL_AMBD : COL_PNL, cur_field == F_GRN);
@@ -112,7 +111,7 @@ static void step_rate(Desk *d, int dir, int coarse) {
   set_rate(d, p, (int)(d->synth->pulsers[p].rate + 0.5) + dir * (coarse ? 40 : 5));
 }
 
-static void stop_entry(Desk *d) { d->pul.editing = 0; d->pul.len = 0; d->pul.adjusting = 0; }
+static void stop_entry(Desk *d) { entry_clear(&d->pul.in); d->pul.adjusting = 0; }
 
 static void move_field(Desk *d, int dir) {
   d->pul.field = (d->pul.field + dir + FIELD_COUNT) % FIELD_COUNT;
@@ -132,7 +131,7 @@ void tab_pulsers_key(Desk *d, int key, int mods) {
     }
     case KEY_TAB: move_field(d, mods & MOD_SHIFT ? -1 : 1); break;
     case KEY_ENTER:
-      if (d->pul.editing) { set_rate(d, p, atoi(d->pul.buf)); stop_entry(d); }                 /* store a typed rate */
+      if (d->pul.in.editing) { set_rate(d, p, atoi(d->pul.in.buf)); stop_entry(d); }                 /* store a typed rate */
       else if (d->pul.field == F_RATE) {                                                     /* start or stop adjusting the slider */
         d->pul.adjusting = !d->pul.adjusting;
         desk_say(d, d->pul.adjusting ? (d->handheld ? "ADJUSTING: Left/Right, A when done" : "ADJUSTING: Left/Right change, Enter when done") : "SLIDER RELEASED");
@@ -140,8 +139,7 @@ void tab_pulsers_key(Desk *d, int key, int mods) {
       break;
     case KEY_ESC: stop_entry(d); break;
     case KEY_BACKSPACE:
-      if (d->pul.len > 0) d->pul.buf[--d->pul.len] = '\0';
-      if (d->pul.len == 0) d->pul.editing = 0;
+      entry_backspace(&d->pul.in);
       break;
     default: break;
   }
@@ -150,9 +148,9 @@ void tab_pulsers_key(Desk *d, int key, int mods) {
 void tab_pulsers_text(Desk *d, int ch) {
   int p = d->pul.row;
   if (ch >= '0' && ch <= '9') {                               /* typing a number goes to the rate, wherever the cursor is */
-    if (d->pul.len < 3) { d->pul.buf[d->pul.len++] = (char)ch; d->pul.buf[d->pul.len] = '\0'; d->pul.editing = 1; d->pul.adjusting = 0; d->pul.field = F_RATE; }
+    entry_add(&d->pul.in, ch, 3); d->pul.adjusting = 0; d->pul.field = F_RATE;   /* 3 characters: rates run 10..600 */
   } else if (ch == ' ') {
-    if (d->pul.editing) return;                               /* the space key does not end an entry; Enter does */
+    if (d->pul.in.editing) return;                               /* the space key does not end an entry; Enter does */
     toggle_field(d);
   } else if (ch == '+' || ch == '=') step_rate(d, 1, 0);
   else if (ch == '-' || ch == '_') step_rate(d, -1, 0);

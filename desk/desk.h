@@ -63,8 +63,15 @@ typedef struct {
   double flash_at[NUM_BLOCKS];   /* when each block last ran (now_ms), for the flash in the block grid */
 } Editor;
 
-/* A scrolling list of numbers you can step with Left/Right or type into (used by the parameter and register tabs). */
-typedef struct { int sel, top; int editing; char buf[12]; int len; } ValueList;
+/* A number (or a note name) being typed into a cell, shared by every tab that takes typed values. `editing` is 1 from the
+   first character until Enter, Esc or a move ends it. See entry_add and friends in desk.c. */
+typedef struct { char buf[8]; int len, editing; } Entry;
+
+/* One setting on a device or buffer page: its label, register, range, and the step for a key press (coarse with Shift). */
+typedef struct { const char *name; int addr, lo, hi, step, coarse; } Setting;
+
+/* A scrolling list of numbers you can step with Left/Right or type into (the CTRL tab). */
+typedef struct { int sel, top; Entry in; } ValueList;
 
 enum { BFP_TAPE, BFP_VOICES, BFP_COUNT };                      /* the BUFFER tab's pages */
 enum { BFM_NORMAL, BFM_ADJUST, BFM_TYPE };                      /* what the keys do on a voice cell */
@@ -125,17 +132,17 @@ typedef struct Desk {
   int crow[MAX_LIST + 32]; int ncrow;        /* CTRL's rows: a register index, or a group heading as -(n+1) */
   int ctl_raw;                               /* CTRL shows raw numbers (1) or friendly units (0) */
   Editor ed;
-  struct { int sel; int editing; char buf[8]; int len; } seq;            /* SEQ: the selected step, and a note being typed */
+  struct { int sel; Entry in; } seq;                                     /* SEQ: the selected step, and a note being typed */
   struct {                                   /* BUFFER */
     int page;                                /* BFP_TAPE or BFP_VOICES */
     int set;                                 /* TAPE: the setting under the cursor */
     int voice, cell;                         /* VOICES: the row, and the cell in it (0 pos, 1 rate, 2 length, 3 level, 4 to 7 the flags) */
-    int mode; char buf[8]; int len;          /* adjusting a value, or typing one */
+    int mode; Entry in;                      /* adjusting a value, or typing one */
   } bf;
   struct {                                   /* DEVICES */
     int sub;                                 /* which device page */
     int sel[DEV_COUNT];                      /* the setting under the cursor on each page */
-    int editing; char buf[8]; int len;       /* a value being typed */
+    Entry in;                                /* a value being typed */
     uint16_t ca_hist[CA_HIST]; int ca_n;     /* the automaton's rows as they were seen, oldest first */
     uint16_t tm_hist[CA_HIST]; int tm_n;     /* the same for the Turing machine's bits */
     int lz_x[LZ_HIST], lz_z[LZ_HIST]; int lz_n, lz_head;   /* the Lorenz trace: a ring of (X, Z) register values */
@@ -145,9 +152,9 @@ typedef struct Desk {
     int row, cell, mode;                     /* the route under the cursor; its cell (0 source, 1 destination, 2 weight); what the keys do now */
     int adding;                              /* a new route is being built: Esc while picking removes it */
     char filter[24]; int flen, psel;         /* pick lists: typed filter, and the highlighted row of the filtered list */
-    char buf[8]; int len;                    /* a weight being typed */
+    Entry in;                                /* a weight being typed */
   } mtx;
-  struct { int row, field; int editing; char buf[8]; int len; int adjusting; } pul;   /* PULSERS: the cell under the cursor, and a rate being typed */
+  struct { int row, field; Entry in; int adjusting; } pul;   /* PULSERS: the cell under the cursor, and a rate being typed */
 
   /* the system clipboard, supplied by the platform layer (may be NULL) */
   void (*clip_set)(const char *text);
@@ -167,6 +174,9 @@ void desk_init(Desk *d, FezSynth *synth);
 void desk_set_canvas(Desk *d, uint32_t *pixels, int w, int h);   /* (re)size: call at start and whenever the window changes */
 void desk_set_handheld(Desk *d);                                   /* one full-screen tile, for the handheld; call after desk_init */
 void desk_set_scale(Desk *d, int scale);                          /* 0 = automatic */
+void entry_clear(Entry *e);                                       /* stop typing and forget what was typed */
+void entry_add(Entry *e, int ch, int max);                        /* add a character if fewer than max are there; typing starts */
+void entry_backspace(Entry *e);                                   /* drop the last character; with none left, typing stops */
 void desk_wave_column(const float *x, int i0, int i1, float *lo, float *hi);   /* smallest and largest sample of one column of a waveform picture */
 void desk_key(Desk *d, int key, int mods);
 void desk_text(Desk *d, int ch);                                  /* a typed printable character */
@@ -188,6 +198,7 @@ void editor_watch_blocks(Desk *d);           /* once per frame: note which block
 void view_text(View *v, int col, int row, const char *s, int colour);
 void view_text_right(View *v, int col, int width, int row, const char *s, int colour);
 void view_cell(View *v, int col, int row, int cols, const char *label, int text_colour, int fill_colour, int cursor);
+void view_pages(View *v, const char *const names[], int n, int showing);   /* the page names along a tab's top row, the showing one lit */
 void view_fill(View *v, int col, int row, int cols, int rows, int colour);
 void view_bar(View *v, int col, int row, int cols, double value, int fg, int bg);
 void view_scrollbar(View *v, int top, int visible, int total, int row, int rows);

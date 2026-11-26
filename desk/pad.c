@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
 static int cur_tab(const Pad *p) { return p->d->layouts[p->d->layout].tab[p->d->focus]; }
 /* ---------------------------------------------------------------- the analogue sticks */
 
@@ -280,8 +279,8 @@ static const char *const HELP_LINES[] = {
 #define HELP_ROWS 15
 
 static void help_key(Pad *p, Button b) {
-  if (b == BTN_UP) p->help_top = clampi(p->help_top - 1, 0, HELP_N - HELP_ROWS);
-  else if (b == BTN_DOWN) p->help_top = clampi(p->help_top + 1, 0, HELP_N - HELP_ROWS);
+  if (b == BTN_UP) p->help_top = fez_clamp(p->help_top - 1, 0, HELP_N - HELP_ROWS);
+  else if (b == BTN_DOWN) p->help_top = fez_clamp(p->help_top + 1, 0, HELP_N - HELP_ROWS);
   else if (b == BTN_B || b == BTN_MENU || b == BTN_A || b == BTN_START) p->help = 0;
 }
 
@@ -348,7 +347,7 @@ static void press(Pad *p, Button b) {
   if (b == BTN_MENU) { p->menu = ACTIONS[cur_tab(p)].n ? MENU_ACTIONS : MENU_MAIN; p->msel = 0; return; }     /* opens on this screen's actions, if it has any */
   if (b == BTN_SELECT) { d->muted = !d->muted; return; }
   if (b == BTN_VOLU || b == BTN_VOLD) {
-    d->synth->level_pot = clampi(d->synth->level_pot + (b == BTN_VOLU ? 1 : -1) * 1500, 0, 32767);
+    d->synth->level_pot = fez_clamp(d->synth->level_pot + (b == BTN_VOLU ? 1 : -1) * 1500, 0, 32767);
     say_volume(p);
     return;
   }
@@ -450,7 +449,7 @@ static void panel(Desk *d, int x, int y, int w, int h) {
 static void draw_menu(Pad *p) {
   Desk *d = p->d; Canvas *cv = &d->cv;
   int n = menu_rows(p), vis = n < 12 ? n : 12, rh = 10, w = 150, h = vis * rh + 16, x = (cv->w - w) / 2, y = 8;
-  p->menu_top = clampi(p->msel - vis / 2, 0, n - vis);
+  p->menu_top = fez_clamp(p->msel - vis / 2, 0, n - vis);
   panel(d, x, y, w, h);
   if (p->menu == MENU_GOTO) gfx_text(cv, x + 6, y + 4, "GO TO SCREEN", 1, gfx_colour(COL_MAG));
   else {                                                                  /* two tabs; the open one is lit */

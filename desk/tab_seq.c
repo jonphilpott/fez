@@ -26,15 +26,14 @@
 #define DISPLAY_LOW  36          /* the bars span notes 36 to 84 */
 #define DISPLAY_SPAN 48
 
-static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
 
-static void cancel_entry(Desk *d) { d->seq.editing = 0; d->seq.len = 0; d->seq.buf[0] = '\0'; }
+static void cancel_entry(Desk *d) { entry_clear(&d->seq.in); }
 
 /* ---------------------------------------------------------------- drawing */
 
 void tab_seq_draw(Desk *d, View *v) {
   FezSynth *s = d->synth;
-  int en = s->mem[REG_SQEN], len = clampi(s->mem[REG_SQLEN], 1, NSTEPS), drv = s->mem[REG_SQDRV];
+  int en = s->mem[REG_SQEN], len = fez_clamp(s->mem[REG_SQLEN], 1, NSTEPS), drv = s->mem[REG_SQDRV];
   int sc = d->scale;
   char buf[96];
 
@@ -70,7 +69,7 @@ void tab_seq_draw(Desk *d, View *v) {
     gfx_text(&d->cv, cx + (cw - (int)strlen(label) * GFX_CELL_W * sc) / 2, cy + (v->rh - 8 * sc) / 2, label, sc, gfx_colour(dim ? COL_DIM : on ? COL_BG : COL_DIM));
 
     /* the note (or the one being typed) */
-    if (sel && d->seq.editing) { snprintf(buf, sizeof buf, "%s_", d->seq.buf); gfx_text(&d->cv, x + COL_NOTE * v->cw, ty, buf, sc, gfx_colour(COL_AMB)); }
+    if (sel && d->seq.in.editing) { snprintf(buf, sizeof buf, "%s_", d->seq.in.buf); gfx_text(&d->cv, x + COL_NOTE * v->cw, ty, buf, sc, gfx_colour(COL_AMB)); }
     else {
       char name[24];
       regview_fmt_note(name, sizeof name, value);
@@ -109,13 +108,13 @@ static void nudge_step(Desk *d, int dir, int snap) {
     int semis = v / 256, rest = v % 256;                       /* whole semitones, and how far past them (never negative: v >= 0) */
     v = dir > 0 ? (semis + 1) * 256 : (rest ? semis : semis - 1) * 256;
   } else v += dir * FINE_STEP;
-  d->synth->mem[STEP0 + i] = (int16_t)clampi(v, PITCH_MIN, PITCH_MAX);
+  d->synth->mem[STEP0 + i] = (int16_t)fez_clamp(v, PITCH_MIN, PITCH_MAX);
 }
 
 static void commit_entry(Desk *d) {
   int i = d->seq.sel, pitch;
   int cur_octave = d->synth->mem[STEP0 + i] / 3072 - 1;       /* 3072 = an octave in 8.8 semitones; C4 = 15360 -> octave 4 */
-  if (vm_parse_note(d->seq.buf, cur_octave, &pitch) == 1) d->synth->mem[STEP0 + i] = (int16_t)clampi(pitch, PITCH_MIN, PITCH_MAX);
+  if (vm_parse_note(d->seq.in.buf, cur_octave, &pitch) == 1) d->synth->mem[STEP0 + i] = (int16_t)fez_clamp(pitch, PITCH_MIN, PITCH_MAX);
   else desk_say(d, "NOT A NOTE (try c#3)");
   cancel_entry(d);
 }
@@ -128,12 +127,11 @@ void tab_seq_key(Desk *d, int key, int mods) {
     case KEY_LEFT:  cancel_entry(d); nudge_step(d, -1, mods & MOD_SHIFT); break;    /* Shift: snap to a note */
     case KEY_RIGHT: cancel_entry(d); nudge_step(d, 1, mods & MOD_SHIFT); break;
     case KEY_ENTER:
-      if (d->seq.editing) commit_entry(d); else fez_seq_clock(s);
+      if (d->seq.in.editing) commit_entry(d); else fez_seq_clock(s);
       break;
     case KEY_ESC: cancel_entry(d); break;
     case KEY_BACKSPACE:
-      if (d->seq.len > 0) d->seq.buf[--d->seq.len] = '\0';
-      if (d->seq.len == 0) d->seq.editing = 0;
+      entry_backspace(&d->seq.in);
       break;
     default: break;
   }
@@ -141,16 +139,16 @@ void tab_seq_key(Desk *d, int key, int mods) {
 
 void tab_seq_text(Desk *d, int ch) {
   FezSynth *s = d->synth;
-  if (d->seq.editing) {                                        /* while typing a note, letters belong to the note */
-    if (d->seq.len < 5 && (isalnum(ch) || ch == '#' || ch == '-')) { d->seq.buf[d->seq.len++] = (char)ch; d->seq.buf[d->seq.len] = '\0'; }
+  if (d->seq.in.editing) {                                        /* while typing a note, letters belong to the note */
+    if (isalnum(ch) || ch == '#' || ch == '-') entry_add(&d->seq.in, ch, 5);   /* 5 characters: a note such as "Bb-1" */
     return;
   }
   int lower = tolower(ch);
-  if (lower >= 'a' && lower <= 'g') { d->seq.editing = 1; d->seq.buf[0] = (char)lower; d->seq.buf[1] = '\0'; d->seq.len = 1; return; }
+  if (lower >= 'a' && lower <= 'g') { entry_clear(&d->seq.in); entry_add(&d->seq.in, lower, 5); return; }
   switch (lower) {
     case ' ': s->mem[REG_SQEN] ^= (int16_t)(1 << d->seq.sel); break;
-    case '+': case '=': s->mem[REG_SQLEN] = (int16_t)clampi(s->mem[REG_SQLEN] + 1, 1, NSTEPS); break;
-    case '-': case '_': s->mem[REG_SQLEN] = (int16_t)clampi(s->mem[REG_SQLEN] - 1, 1, NSTEPS); break;
+    case '+': case '=': s->mem[REG_SQLEN] = (int16_t)fez_clamp(s->mem[REG_SQLEN] + 1, 1, NSTEPS); break;
+    case '-': case '_': s->mem[REG_SQLEN] = (int16_t)fez_clamp(s->mem[REG_SQLEN] - 1, 1, NSTEPS); break;
     case 'p': s->mem[REG_SQDRV] ^= 1; break;
     case 't': s->mem[REG_SQDRV] ^= 2; break;
     case 'r': s->sq_cur = NSTEPS - 1; desk_say(d, "RESTARTED"); break;   /* the next clock lands on step 1 */

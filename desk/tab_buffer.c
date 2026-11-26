@@ -23,8 +23,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct { const char *name; int addr, lo, hi, step, coarse; } Setting;
-
 static const Setting TAPE[] = {
   { "MODE",    REG_BWMODE, 0, 2, 1, 1 },          /* BWMODE */
   { "LENGTH",  REG_BUFMS, 50, 30000, 50, 1000 },   /* BUFMS */
@@ -47,7 +45,6 @@ static const Col COLS[4] = {
 static const char FLAG_LABEL[4] = { 'R', 'V', 'T', 'L' };   /* bits 0..3 of GFLG: REL, REV, TRK, LOOP */
 #define FLAG_COL 33
 
-static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
 static int voice_addr(int base, int voice) { return base + voice; }
 
 /* What the voice actually uses: voice 0's position, rate and level are matrix targets, so read their effective values. */
@@ -63,9 +60,9 @@ static void fmt_pct(char *out, size_t n, int v) { snprintf(out, n, "%d%%", (int)
 static void fmt_tape(char *out, size_t n, const FezSynth *s, int addr, int v) {
   static const char *const MODE[3] = { "frozen", "running", "one-shot" };
   static const char *const SRC[4] = { "mixer", "voice", "mod voice", "both" };
-  if (addr == REG_BWMODE) snprintf(out, n, "%s", MODE[clampi(v, 0, 2)]);
+  if (addr == REG_BWMODE) snprintf(out, n, "%s", MODE[fez_clamp(v, 0, 2)]);
   else if (addr == REG_BUFMS) snprintf(out, n, "%d ms", v);
-  else if (addr == REG_BWSRC) snprintf(out, n, "%s", SRC[clampi(v, 0, 3)]);
+  else if (addr == REG_BWSRC) snprintf(out, n, "%s", SRC[fez_clamp(v, 0, 3)]);
   else if (addr == REG_BWLEN) snprintf(out, n, "%.2f s", v / 32767.0 * s->mem[REG_BUFMS] / 1000.0);
   else fmt_pct(out, n, v);
 }
@@ -109,7 +106,7 @@ static void draw_tape_page(Desk *d, View *v) {
   FezSynth *s = d->synth;
   const BufEngine *b = &s->audio.buf;
   int sc = d->scale, len = b->len > 0 ? b->len : 1;
-  int ph = clampi(v->rows - 2 - 1 - NTAPE - 3, 3, 14);          /* picture rows: what is left after the header, ruler, settings, help */
+  int ph = fez_clamp(v->rows - 2 - 1 - NTAPE - 3, 3, 14);          /* picture rows: what is left after the header, ruler, settings, help */
   int x0 = v->x + sc, w = v->w - 2 * sc, y0 = v->y + 2 * v->rh, h = ph * v->rh;
   char buf[64];
 
@@ -138,20 +135,20 @@ static void draw_tape_page(Desk *d, View *v) {
   snprintf(buf, sizeof buf, "0"); view_text(v, 0, ry, buf, COL_DIM);
   snprintf(buf, sizeof buf, "%d ms", s->mem[REG_BUFMS]); view_text_right(v, 0, v->cols - 1, ry, buf, COL_DIM);
   static const char *const STATE[3] = { "frozen", "running", "recording" };
-  snprintf(buf, sizeof buf, "head %s  voice %d selected", STATE[clampi(s->bw.state, 0, 2)], d->bf.voice);
+  snprintf(buf, sizeof buf, "head %s  voice %d selected", STATE[fez_clamp(s->bw.state, 0, 2)], d->bf.voice);
   view_text(v, 6, ry, buf, s->bw.state == 2 ? COL_RED : COL_DIM);
 
   /* settings */
   int first = 3 + ph, vis = v->rows - first - 2;
   if (vis < 1) vis = 1;
   if (vis > NTAPE) vis = NTAPE;
-  int top = clampi(d->bf.set - vis / 2, 0, NTAPE - vis);
+  int top = fez_clamp(d->bf.set - vis / 2, 0, NTAPE - vis);
   for (int r = 0; r < vis; r++) {
     int i = top + r, sel = i == d->bf.set, val = fez_reg_read(s, TAPE[i].addr);
     char text[32];
     if (sel) view_fill(v, 0, first + r, v->cols - 1, 1, COL_AMBD);
     view_text(v, 0, first + r, TAPE[i].name, sel ? COL_AMB : COL_FG);
-    if (sel && d->bf.mode == BFM_TYPE) snprintf(buf, sizeof buf, "%s_", d->bf.buf); else snprintf(buf, sizeof buf, "%d", val);
+    if (sel && d->bf.mode == BFM_TYPE) snprintf(buf, sizeof buf, "%s_", d->bf.in.buf); else snprintf(buf, sizeof buf, "%d", val);
     view_text_right(v, 9, 6, first + r, buf, sel && d->bf.mode == BFM_TYPE ? COL_AMB : COL_FG);
     fmt_tape(text, sizeof text, s, TAPE[i].addr, val);
     view_text(v, 17, first + r, text, COL_DIM);
@@ -178,7 +175,7 @@ static void draw_voices_page(Desk *d, View *v) {
     for (int c = 0; c < 4; c++) {
       int cur = sel && d->bf.cell == c, adjusting = cur && d->bf.mode == BFM_ADJUST, typing = cur && d->bf.mode == BFM_TYPE;
       if (cur) view_fill(v, COLS[c].col, row, COLS[c].width, 1, adjusting ? COL_GRN : COL_AMBD);
-      if (typing) snprintf(buf, sizeof buf, "%s_", d->bf.buf); else fmt_cell(buf, sizeof buf, s, c, i);
+      if (typing) snprintf(buf, sizeof buf, "%s_", d->bf.in.buf); else fmt_cell(buf, sizeof buf, s, c, i);
       view_text_right(v, COLS[c].col, COLS[c].width, row, buf, adjusting ? COL_BG : typing ? COL_AMB : cur ? COL_AMB : COL_FG);
     }
     for (int f = 0; f < 4; f++) {
@@ -198,21 +195,15 @@ static void draw_voices_page(Desk *d, View *v) {
 
 void tab_buffer_draw(Desk *d, View *v) {
   int page = d->bf.page;
-  int col = 0;
   static const char *const NAMES[BFP_COUNT] = { "TAPE", "VOICES" };
-  for (int i = 0; i < BFP_COUNT; i++) {
-    int len = (int)strlen(NAMES[i]);
-    if (i == page) view_fill(v, col, 0, len + 1, 1, COL_AMBD);
-    view_text(v, col, 0, NAMES[i], i == page ? COL_AMB : COL_DIM);
-    col += len + 2;
-  }
+  view_pages(v, NAMES, BFP_COUNT, page);
   if (v->rows < 8) return;
   if (page == BFP_TAPE) draw_tape_page(d, v); else draw_voices_page(d, v);
 }
 
 /* ---------------------------------------------------------------- keys */
 
-static void stop_entry(Desk *d) { d->bf.mode = BFM_NORMAL; d->bf.len = 0; d->bf.buf[0] = '\0'; }
+static void stop_entry(Desk *d) { d->bf.mode = BFM_NORMAL; entry_clear(&d->bf.in); }
 
 /* The register and limits of whatever is under the cursor, or 0 if it is not a number (a flag). */
 static int current_target(const Desk *d, int *addr, int *lo, int *hi, int *step, int *coarse) {
@@ -227,7 +218,7 @@ static void change(Desk *d, int dir, int coarse) {
   int addr, lo, hi, step, big;
   if (!current_target(d, &addr, &lo, &hi, &step, &big)) return;
   int v = fez_reg_read(d->synth, addr) + dir * (coarse ? big : step);
-  fez_reg_write(d->synth, addr, clampi(v, lo, hi));
+  fez_reg_write(d->synth, addr, fez_clamp(v, lo, hi));
 }
 
 static void toggle_flag(Desk *d) {
@@ -250,18 +241,18 @@ void tab_buffer_key(Desk *d, int key, int mods) {
       int dir = key == KEY_RIGHT ? 1 : -1;
       if (tape) { change(d, dir, mods & MOD_SHIFT); stop_entry(d); }                    /* the tape page has one column: Left/Right change the value */
       else if (d->bf.mode == BFM_ADJUST) change(d, dir, mods & MOD_SHIFT);              /* the table: only while adjusting */
-      else { d->bf.cell = clampi(d->bf.cell + dir, 0, 7); stop_entry(d); }
+      else { d->bf.cell = fez_clamp(d->bf.cell + dir, 0, 7); stop_entry(d); }
       break;
     }
     case KEY_ENTER: {
       int addr, lo, hi, step, big;
-      if (d->bf.mode == BFM_TYPE && current_target(d, &addr, &lo, &hi, &step, &big)) { fez_reg_write(s, addr, clampi(atoi(d->bf.buf), lo, hi)); stop_entry(d); }
+      if (d->bf.mode == BFM_TYPE && current_target(d, &addr, &lo, &hi, &step, &big)) { fez_reg_write(s, addr, fez_clamp(atoi(d->bf.in.buf), lo, hi)); stop_entry(d); }
       else if (!tape && d->bf.cell >= 4) toggle_flag(d);
       else if (!tape) { d->bf.mode = d->bf.mode == BFM_ADJUST ? BFM_NORMAL : BFM_ADJUST; desk_say(d, d->bf.mode == BFM_ADJUST ? (d->handheld ? "ADJUSTING: Left/Right, A when done" : "ADJUSTING: Left/Right, Enter when done") : "RELEASED"); }
       break;
     }
     case KEY_ESC: stop_entry(d); break;
-    case KEY_BACKSPACE: if (d->bf.len > 0) d->bf.buf[--d->bf.len] = '\0'; if (d->bf.len == 0 && d->bf.mode == BFM_TYPE) d->bf.mode = BFM_NORMAL; break;
+    case KEY_BACKSPACE: entry_backspace(&d->bf.in); if (!d->bf.in.editing && d->bf.mode == BFM_TYPE) d->bf.mode = BFM_NORMAL; break;
     case KEY_TAB: d->bf.page = !d->bf.page; stop_entry(d); break;
     default: break;
   }
@@ -272,8 +263,8 @@ void tab_buffer_text(Desk *d, int ch) {
   if (ch == '[' || ch == ']') { d->bf.page = (d->bf.page + (ch == ']' ? 1 : BFP_COUNT - 1)) % BFP_COUNT; stop_entry(d); return; }
   if (ch >= '0' && ch <= '9') {                                                          /* a raw number for the cell under the cursor */
     if (d->bf.page == BFP_VOICES && d->bf.cell >= 4) return;
-    if (d->bf.mode != BFM_TYPE) { d->bf.len = 0; d->bf.buf[0] = '\0'; }
-    if (d->bf.len < 5) { d->bf.buf[d->bf.len++] = (char)ch; d->bf.buf[d->bf.len] = '\0'; d->bf.mode = BFM_TYPE; }
+    if (d->bf.mode != BFM_TYPE) entry_clear(&d->bf.in);
+    entry_add(&d->bf.in, ch, 5); d->bf.mode = BFM_TYPE;              /* 5 characters: 0..32767 */
     return;
   }
   if (d->bf.mode == BFM_TYPE) return;

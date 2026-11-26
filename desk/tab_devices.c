@@ -41,8 +41,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct { const char *name; int addr, lo, hi, step, coarse; } Setting;
-
 static const Setting CA_SETTINGS[] = {
   { "RULE", REG_CARULE, 0, 255, 1, 16 }, { "TAP", REG_CATAP, 0, 15, 1, 4 }, { "TRIG", REG_CATRIG, 0, 4, 1, 1 } };
 static const Setting LZ_SETTINGS[] = {
@@ -71,7 +69,6 @@ static const Setting *settings_of(int sub, int *n) {
   return TABLE[sub];
 }
 
-static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 /* ---------------------------------------------------------------- recording (once a frame) */
 
@@ -107,8 +104,8 @@ static void draw_settings(Desk *d, View *v, int col, int row, int width) {
     char buf[48], extra[32] = "";
     if (sel) view_fill(v, col, row + i, width, 1, COL_AMBD);
     view_text(v, col, row + i, st[i].name, sel ? COL_AMB : COL_FG);
-    if (sel && d->dev.editing) snprintf(buf, sizeof buf, "%s_", d->dev.buf); else snprintf(buf, sizeof buf, "%d", val);
-    view_text_right(v, col + 8, 6, row + i, buf, sel && d->dev.editing ? COL_AMB : COL_FG);
+    if (sel && d->dev.in.editing) snprintf(buf, sizeof buf, "%s_", d->dev.in.buf); else snprintf(buf, sizeof buf, "%d", val);
+    view_text_right(v, col + 8, 6, row + i, buf, sel && d->dev.in.editing ? COL_AMB : COL_FG);
     if (st[i].addr == REG_CATRIG || st[i].addr == REG_LZTRIG) trig_name(extra, sizeof extra, val);
     else if (st[i].addr == REG_CARULE) for (int b = 7; b >= 0; b--) extra[7 - b] = (char)('0' + ((val >> b) & 1)), extra[8] = '\0';
     else if (st[i].addr == REG_LZRHO) snprintf(extra, sizeof extra, "rho %.1f", lz_rho(val));
@@ -333,16 +330,12 @@ static void draw_lorenz(Desk *d, View *v, int pane_w, int prows, int sx, int sy,
   if (!d->handheld && sy + 8 < v->rows) view_text(v, sx, sy + 8, "Space or r: restart", COL_DIM);
 }
 
+/* How many pages the DEVICES tab cycles through. The KEYS page is the computer keyboard as a piano, which a handheld has no use for. */
+static int page_count(const Desk *d) { return d->handheld ? DEV_COUNT - 1 : DEV_COUNT; }
+
 void tab_devices_draw(Desk *d, View *v) {
   int sub = d->dev.sub;
-  /* the page names along the top, the showing one lit */
-  int col = 0;
-  for (int i = 0; i < DEV_COUNT; i++) {
-    int len = (int)strlen(DEVICE_NAMES[i]);
-    if (i == sub) view_fill(v, col, 0, len + 1, 1, COL_AMBD);
-    view_text(v, col, 0, DEVICE_NAMES[i], i == sub ? COL_AMB : COL_DIM);
-    col += len + 2;
-  }
+  view_pages(v, DEVICE_NAMES, page_count(d), sub);          /* the handheld has no KEYS page, so it is not named there */
 
   /* Wide tiles: the picture on the left, the settings beside it. Narrow tiles: the settings go under the picture. */
   int top_only = sub == DEV_DELAY || sub == DEV_KEYS || sub == DEV_QUANTISER;   /* these pictures are always on top, full width, the text always below */
@@ -378,10 +371,8 @@ void tab_devices_draw(Desk *d, View *v) {
 
 /* ---------------------------------------------------------------- keys */
 
-/* How many pages the DEVICES tab cycles through. The KEYS page is the computer keyboard as a piano, which a handheld has no use for. */
-static int page_count(const Desk *d) { return d->handheld ? DEV_COUNT - 1 : DEV_COUNT; }
 
-static void stop_entry(Desk *d) { d->dev.editing = 0; d->dev.len = 0; d->dev.buf[0] = '\0'; }
+static void stop_entry(Desk *d) { entry_clear(&d->dev.in); }
 
 /* The page's main action: step the automaton or the Turing machine, switch the quantiser or the freeze, or restart the attractor. */
 static void action(Desk *d) {
@@ -403,18 +394,17 @@ void tab_devices_key(Desk *d, int key, int mods) {
     case KEY_LEFT: case KEY_RIGHT: {
       const Setting *t = &st[*sel];
       int dir = key == KEY_RIGHT ? 1 : -1, v = fez_reg_read(d->synth, t->addr);
-      fez_reg_write(d->synth, t->addr, clampi(v + dir * ((mods & MOD_SHIFT) ? t->coarse : t->step), t->lo, t->hi));
+      fez_reg_write(d->synth, t->addr, fez_clamp(v + dir * ((mods & MOD_SHIFT) ? t->coarse : t->step), t->lo, t->hi));
       stop_entry(d);
       break;
     }
     case KEY_ENTER:
-      if (d->dev.editing) { fez_reg_write(d->synth, st[*sel].addr, clampi(atoi(d->dev.buf), st[*sel].lo, st[*sel].hi)); stop_entry(d); }
+      if (d->dev.in.editing) { fez_reg_write(d->synth, st[*sel].addr, fez_clamp(atoi(d->dev.in.buf), st[*sel].lo, st[*sel].hi)); stop_entry(d); }
       else action(d);
       break;
     case KEY_ESC: stop_entry(d); break;
     case KEY_BACKSPACE:
-      if (d->dev.len > 0) d->dev.buf[--d->dev.len] = '\0';
-      if (d->dev.len == 0) d->dev.editing = 0;
+      entry_backspace(&d->dev.in);
       break;
     default: break;
   }
@@ -424,8 +414,8 @@ void tab_devices_text(Desk *d, int ch) {
   if (ch == '[' || ch == ']') { d->dev.sub = (d->dev.sub + (ch == ']' ? 1 : page_count(d) - 1)) % page_count(d); stop_entry(d); return; }
   if (d->dev.sub == DEV_KEYS && ch != ' ') return;      /* on the KEYS page the letters and digits are notes (played from key events), not typing */
   if (ch >= '0' && ch <= '9') {
-    if (d->dev.len < 5) { d->dev.buf[d->dev.len++] = (char)ch; d->dev.buf[d->dev.len] = '\0'; d->dev.editing = 1; }
-  } else if (ch == ' ') { if (!d->dev.editing) action(d); }
+    entry_add(&d->dev.in, ch, 5);                                   /* 5 characters: 0..32767 */
+  } else if (ch == ' ') { if (!d->dev.in.editing) action(d); }
   else if (d->dev.sub == DEV_CELLULAR && (ch == 'n' || ch == 'N')) fez_reg_write(d->synth, REG_CAROW, rand() & 0xffff);
   else if (d->dev.sub == DEV_CELLULAR && (ch == 'c' || ch == 'C')) fez_reg_write(d->synth, REG_CAROW, 1 << 8);
   else if (d->dev.sub == DEV_LORENZ && (ch == 'r' || ch == 'R')) action(d);

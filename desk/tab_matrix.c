@@ -25,7 +25,6 @@
 #define WEIGHT_STEP 256
 #define WEIGHT_COARSE 4096
 
-static int clampi(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
 
 /* The rows of the screen: every route, plus a "+" row while there is room for another. */
 static int row_count(const Desk *d) { return d->synth->nroutes + (d->synth->nroutes < MAX_ROUTES ? 1 : 0); }
@@ -56,7 +55,7 @@ static void draw_pick(Desk *d, View *v) {
   if (vis < 1) return;
   if (vis > n) vis = n;
   if (d->mtx.psel >= n) d->mtx.psel = n ? n - 1 : 0;
-  int top = clampi(d->mtx.psel - vis / 2, 0, n > vis ? n - vis : 0);
+  int top = fez_clamp(d->mtx.psel - vis / 2, 0, n > vis ? n - vis : 0);
   char buf[64];
 
   view_text(v, 0, 0, d->mtx.mode == MTX_PICK_SRC ? "PICK A SOURCE" : "PICK A DESTINATION", COL_AMB);
@@ -106,7 +105,7 @@ void tab_matrix_draw(Desk *d, View *v) {
   int total = row_count(d), vis = v->rows - 2 - 2;                 /* title and column heads above; two help lines below */
   if (vis < 3) vis = 3;
   if (vis > total) vis = total;
-  int top = clampi(d->mtx.row - vis / 2, 0, total - vis);
+  int top = fez_clamp(d->mtx.row - vis / 2, 0, total - vis);
   char buf[48];
 
   snprintf(buf, sizeof buf, "%d of %d routes", s->nroutes, MAX_ROUTES);
@@ -130,13 +129,13 @@ void tab_matrix_draw(Desk *d, View *v) {
     snprintf(buf, sizeof buf, "%2d", i + 1);
     view_text(v, 0, row, buf, COL_DIM);
     if (cur == 0) view_fill(v, C_SRC, row, 7, 1, COL_AMBD);
-    view_text(v, C_SRC, row, SRC_TABLE[clampi(rt->src, 0, SRC_COUNT - 1)].name, cur == 0 ? COL_AMB : COL_FG);
+    view_text(v, C_SRC, row, SRC_TABLE[fez_clamp(rt->src, 0, SRC_COUNT - 1)].name, cur == 0 ? COL_AMB : COL_FG);
     if (cur == 1) view_fill(v, C_DST, row, 8, 1, COL_AMBD);
     view_text(v, C_DST, row, dst_name(d, rt->dst), cur == 1 ? COL_AMB : COL_FG);
 
     int adjusting = cur == 2 && d->mtx.mode == MTX_ADJUST, typing = cur == 2 && d->mtx.mode == MTX_TYPE;
     if (cur == 2) view_fill(v, C_W, row, W_WIDTH + 1, 1, adjusting ? COL_GRN : COL_AMBD);
-    if (typing) snprintf(buf, sizeof buf, "%s_", d->mtx.buf); else snprintf(buf, sizeof buf, "%d", rt->w);
+    if (typing) snprintf(buf, sizeof buf, "%s_", d->mtx.in.buf); else snprintf(buf, sizeof buf, "%d", rt->w);
     view_text_right(v, C_W, W_WIDTH, row, buf, adjusting ? COL_BG : cur == 2 ? COL_AMB : COL_FG);
 
     int now = fez_round((double)rt->w * fez_matrix_source(s, rt->src) / 32768.0);
@@ -160,13 +159,13 @@ void tab_matrix_draw(Desk *d, View *v) {
 
 /* ---------------------------------------------------------------- keys */
 
-static void stop_entry(Desk *d) { d->mtx.mode = MTX_NORMAL; d->mtx.len = 0; d->mtx.buf[0] = '\0'; }
+static void stop_entry(Desk *d) { d->mtx.mode = MTX_NORMAL; entry_clear(&d->mtx.in); }
 
 static void delete_route(Desk *d, int i) {
   FezSynth *s = d->synth;
   for (int k = i; k < s->nroutes - 1; k++) s->routes[k] = s->routes[k + 1];
   s->nroutes--;
-  d->mtx.row = clampi(d->mtx.row, 0, row_count(d) - 1);
+  d->mtx.row = fez_clamp(d->mtx.row, 0, row_count(d) - 1);
 }
 
 static void open_pick(Desk *d, int mode) {
@@ -205,13 +204,13 @@ static void pick_key(Desk *d, int key) {
 
 static void step_weight(Desk *d, int dir, int coarse) {
   RouteDef *rt = &d->synth->routes[d->mtx.row];
-  rt->w = clampi(rt->w + dir * (coarse ? WEIGHT_COARSE : WEIGHT_STEP), -32768, 32767);
+  rt->w = fez_clamp(rt->w + dir * (coarse ? WEIGHT_COARSE : WEIGHT_STEP), -32768, 32767);
 }
 
 void tab_matrix_key(Desk *d, int key, int mods) {
   FezSynth *s = d->synth;
   if (d->mtx.mode == MTX_PICK_SRC || d->mtx.mode == MTX_PICK_DST) { pick_key(d, key); return; }
-  d->mtx.row = clampi(d->mtx.row, 0, row_count(d) - 1);
+  d->mtx.row = fez_clamp(d->mtx.row, 0, row_count(d) - 1);
   int on_route = d->mtx.row < s->nroutes;
 
   switch (key) {
@@ -224,7 +223,7 @@ void tab_matrix_key(Desk *d, int key, int mods) {
     case KEY_LEFT: case KEY_RIGHT: {
       int dir = key == KEY_RIGHT ? 1 : -1;
       if (d->mtx.mode == MTX_ADJUST && on_route) step_weight(d, dir, mods & MOD_SHIFT);   /* only while adjusting */
-      else { d->mtx.cell = clampi(d->mtx.cell + dir, 0, 2); stop_entry(d); }
+      else { d->mtx.cell = fez_clamp(d->mtx.cell + dir, 0, 2); stop_entry(d); }
       break;
     }
     case KEY_ENTER:
@@ -234,7 +233,7 @@ void tab_matrix_key(Desk *d, int key, int mods) {
         d->mtx.adding = 1; d->mtx.cell = 0;
         open_pick(d, MTX_PICK_SRC);
       }
-      else if (d->mtx.mode == MTX_TYPE) { s->routes[d->mtx.row].w = clampi(atoi(d->mtx.buf), -32768, 32767); stop_entry(d); }
+      else if (d->mtx.mode == MTX_TYPE) { s->routes[d->mtx.row].w = fez_clamp(atoi(d->mtx.in.buf), -32768, 32767); stop_entry(d); }
       else if (d->mtx.cell == 0) open_pick(d, MTX_PICK_SRC);
       else if (d->mtx.cell == 1) open_pick(d, MTX_PICK_DST);
       else {                                                            /* weight: start or stop adjusting */
@@ -244,7 +243,7 @@ void tab_matrix_key(Desk *d, int key, int mods) {
       break;
     case KEY_ESC: stop_entry(d); break;
     case KEY_BACKSPACE:
-      if (d->mtx.mode == MTX_TYPE) { if (d->mtx.len > 0) d->mtx.buf[--d->mtx.len] = '\0'; if (d->mtx.len == 0) stop_entry(d); }
+      if (d->mtx.mode == MTX_TYPE) { entry_backspace(&d->mtx.in); if (!d->mtx.in.editing) stop_entry(d); }
       else if (on_route) { delete_route(d, d->mtx.row); stop_entry(d); desk_say(d, "ROUTE DELETED"); }
       break;
     case KEY_DELETE:
@@ -261,9 +260,9 @@ void tab_matrix_text(Desk *d, int ch) {
     return;
   }
   if (d->mtx.row >= d->synth->nroutes || d->mtx.cell != 2) return;
-  int minus = ch == '-' && d->mtx.len == 0;
+  int minus = ch == '-' && d->mtx.in.len == 0;
   if ((ch >= '0' && ch <= '9') || minus) {
-    if (d->mtx.mode != MTX_TYPE) { d->mtx.len = 0; d->mtx.buf[0] = '\0'; }
-    if (d->mtx.len < 6) { d->mtx.buf[d->mtx.len++] = (char)ch; d->mtx.buf[d->mtx.len] = '\0'; d->mtx.mode = MTX_TYPE; }
+    if (d->mtx.mode != MTX_TYPE) entry_clear(&d->mtx.in);
+    entry_add(&d->mtx.in, ch, 6); d->mtx.mode = MTX_TYPE;            /* 6 characters: weights run -32768..32767 */
   }
 }
