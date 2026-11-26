@@ -203,7 +203,7 @@ static void draw_tile(Desk *d, int i) {
     px += tw;
   }
   if (last + 1 < TAB_COUNT) gfx_text(cv, px, y + 2, ">", s, gfx_colour(COL_DIM));
-  gfx_fill(cv, x, y + th - 1, w, 1, gfx_colour(COL_LINE));
+  gfx_fill(cv, x, y + th - 1, w, 1, gfx_colour(focused ? COL_AMB : COL_LINE));   /* the line under the tabs: amber on the focused tile */
 
   /* 2. the tab's own content, in a view inside the tile */
   View v;
@@ -214,9 +214,13 @@ static void draw_tile(Desk *d, int i) {
   gfx_clip(cv, v.x - 1, v.y - 1, v.w + 2, v.h + 2);
   TABS[tab].draw(d, &v);
 
-  /* 3. the border: amber around the focused tile */
+  /* 3. the border. The focused tile gets a thick amber frame (2 pixels, more at larger text scales); the others a thin dark
+     one, so the focused tile is plain at a glance. The content starts 5 pixels in, so a frame up to 4 thick never covers it. */
   gfx_clip(cv, x, y, w, h);
-  gfx_frame(cv, x, y, w, h, gfx_colour(focused ? COL_AMB : COL_LINE));
+  if (focused) {
+    int t = s < 2 ? 2 : s > 4 ? 4 : s;
+    for (int k = 0; k < t; k++) gfx_frame(cv, x + k, y + k, w - 2 * k, h - 2 * k, gfx_colour(COL_AMB));
+  } else gfx_frame(cv, x, y, w, h, gfx_colour(COL_SEL));
 }
 
 static void draw_status(Desk *d) {
