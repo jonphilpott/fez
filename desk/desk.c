@@ -64,6 +64,7 @@ void desk_init(Desk *d, FezSynth *synth) {
   memset(d, 0, sizeof *d);
   d->synth = synth;
   d->scale = 1; d->pulsers_on = 1;
+  d->dev.stk_dir = d->dev.stk_note = -1;                  /* the stick: nothing held */
   init_layouts(d);
   d->nregs = regview_list(d->regs, MAX_LIST);
   d->npars = regview_params(d->pars, MAX_LIST);

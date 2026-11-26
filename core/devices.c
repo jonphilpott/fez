@@ -3,6 +3,7 @@
    fire pulsers by setting bits in vm.pending; the next tick runs whatever is aimed at those pulsers. */
 #include "fez.h"
 #include "scales.h"
+#include "tables.h"
 #include <math.h>
 
 /* ---------------------------------------------------------------- cellular automaton
@@ -121,6 +122,26 @@ static const int QT_SCALES[8] = { 0xFFF, 0xAB5, 0x5AD, 0x6AD, 0x295, 0x4A9, 0x4E
    /* chromatic, major, natural minor, dorian, major pentatonic, minor pentatonic, blues, whole tone */
 
 int fez_scale_mask(int scale) { return QT_SCALES[fez_clamp(scale, 0, 7)]; }
+/* Degree k of a scale, as a pitch above the root in 8.8 semitones. The mask has one bit per allowed semitone, so
+   "degree k" means "the k-th set bit". The degrees repeat every octave: k walks past the last set bit into the next
+   octave (and below 0 into the one beneath). Used by the word SCALE and by the handheld's stick. */
+int fez_scale_degree(int scale, int k) {
+  int mask = fez_scale_mask(scale), n = 0;
+  for (int b = 0; b < 12; b++) n += (mask >> b) & 1;                 /* notes per octave (never 0: every mask has bits) */
+  int oct = fez_floor_div(k, n), i = k - oct * n, semi = 0;          /* i: the degree inside its octave, 0..n-1 */
+  for (int b = 0; b < 12; b++) if ((mask >> b) & 1) { if (i-- == 0) { semi = b; break; } }
+  return (oct * 12 + semi) * 256;
+}
+
+/* Degree k of colour col (0 to 15), as a pitch above the root in 8.8 semitones: a five-note scale in just intonation.
+   Notes 0, 2 and 3 are fixed (root, fourth, fifth); bits 2 and 3 of col pick the second note from four, bits 0 and 1
+   the top note from four (JUST88 in tables.c holds the intervals). Used by the word COLOUR and by the handheld's stick. */
+int fez_colour_degree(int col, int k) {
+  int oct = fez_floor_div(k, 5), n = k - oct * 5;
+  int j = n == 0 ? 0 : n == 1 ? (col >> 2) + 1 : n == 2 ? 5 : n == 3 ? 7 : (col & 3) + 8;
+  return oct * 3072 + JUST88[j];
+}
+
 const char *fez_scale_name(int scale) {
   static const char *const NAMES[8] = { "chromatic", "major", "minor", "dorian", "pent major", "pent minor", "blues", "whole tone" };
   return NAMES[fez_clamp(scale, 0, 7)];

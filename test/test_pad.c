@@ -131,12 +131,13 @@ void test_pad(void) {
   /* every screen draws without trouble, with every overlay */
   for (int t = 0; t < TAB_COUNT; t++) { d.layouts[3].tab[0] = t; tap(BTN_MENU); desk_draw(&d); pad_draw(&pad); tap(BTN_B); desk_draw(&d); pad_draw(&pad); }
 
-  /* the Devices screen has five pages on the handheld: R2 walks round them and never reaches the KEYS page */
+  /* the Devices screen has six pages on the handheld: R2 walks round them and never reaches the KEYS page (STICK takes its place) */
   d.layouts[3].tab[0] = TAB_DEVICES; d.dev.sub = DEV_DELAY;
   int pages_seen = 0;
   for (int i = 0; i < 12; i++) { tap(BTN_R2); CHECK(d.dev.sub != DEV_KEYS, "R2 never reaches the KEYS page on the handheld"); pages_seen |= 1 << d.dev.sub; }
   CHECK(pages_seen == (1 << DEV_COUNT) - 1 - (1 << DEV_KEYS), "R2 visits every other page");
-  d.dev.sub = DEV_DELAY; tap(BTN_L2); CHECK(d.dev.sub == DEV_TURING, "L2 from the first page wraps to the last one the handheld has");
+  d.dev.sub = DEV_DELAY; tap(BTN_L2); CHECK(d.dev.sub == DEV_STICK, "L2 from the first page wraps to the last one the handheld has");
+  d.dev.sub = DEV_DELAY;                                  /* off the STICK page: the right stick is a pair of pots again */
 
   /* the sticks are modulation pots MP0..MP3 */
   CHECK(fez_reg_read(&s, REG_MP0) == 16384 && fez_reg_read(&s, REG_MP3) == 16384, "the pots start at the sticks' centre");
@@ -147,6 +148,29 @@ void test_pad(void) {
   pad_stick(&pad, 1, -32768);  CHECK(fez_reg_read(&s, REG_MP1) == 32767, "pushing up (SDL's negative Y) raises the pot");
   pad_stick(&pad, 3, 20000);   CHECK(fez_reg_read(&s, REG_MP3) < 16384, "pushing the right stick down lowers MP3");
   pad_stick(&pad, 2, 6000);    CHECK(fez_reg_read(&s, REG_MP2) > 16384 && fez_reg_read(&s, REG_MP2) < 18000, "just outside the dead zone the pot moves only a little");
+  pad_stick(&pad, 2, 0); pad_stick(&pad, 3, 0);
+
+  /* the STICK page: the right stick's direction picks a degree of the scale (C major from C4 by default) */
+  d.dev.sub = DEV_STICK;
+  int mp2 = fez_reg_read(&s, REG_MP2);
+  pad_stick(&pad, 3, -32767);  CHECK(s.mem[REG_KBGATE] == 1 && s.mem[REG_KBNOTE] == 60 * 256, "up plays the root, C4");
+  CHECK(fez_reg_read(&s, REG_MP2) == mp2, "and the pots do not move");
+  pad_stick(&pad, 3, 0); pad_stick(&pad, 2, 32767);  CHECK(s.mem[REG_KBNOTE] == 64 * 256, "right is degree 2, E4");
+  pad_stick(&pad, 2, -32767);  CHECK(s.mem[REG_KBNOTE] == 71 * 256, "left is degree 6, B4");
+  pad_stick(&pad, 3, -32767 / 3); CHECK(s.mem[REG_KBNOTE] == 71 * 256, "a little up of left stays on left (no chatter at the border)");
+  pad_stick(&pad, 2, 0); pad_stick(&pad, 3, 0);  CHECK(s.mem[REG_KBGATE] == 0, "back to the centre lets go");
+  tap(BTN_X);                  CHECK(fez_reg_read(&s, REG_STKMODE) == 1, "X switches to swell");
+  pad_stick(&pad, 2, 32767);   CHECK(s.mem[REG_KBGATE] == 0 && fez_reg_read(&s, REG_PITCH) == 64 * 256 && fez_reg_read(&s, REG_GATELEVEL) == 32767, "swell: right sets E4 and opens the gate fully, with no key down");
+  pad_stick(&pad, 2, 16000);   CHECK(fez_reg_read(&s, REG_GATELEVEL) > 10000 && fez_reg_read(&s, REG_GATELEVEL) < 20000, "half way is about half open");
+  tap(BTN_L2); pad_tick(&pad); CHECK(fez_reg_read(&s, REG_GATELEVEL) == 0, "leaving the page closes the gate it opened");
+  pad_stick(&pad, 2, 0);
+  fez_reg_write(&s, REG_STKMODE, 0);
+  tap(BTN_R2);                                            /* back to the STICK page (L2 wrapped from it to DELAY's neighbour) */
+  d.dev.sub = DEV_STICK;
+  fez_reg_write(&s, REG_STKTYPE, 1); fez_reg_write(&s, REG_STKSCALE, 10); fez_reg_write(&s, REG_STKROOT, 57 * 256);   /* colour 10 from A3 */
+  pad_stick(&pad, 2, 32767);   CHECK(fez_reg_read(&s, REG_PITCH) == 57 * 256 + 1275 && s.mem[REG_KBGATE] == 1, "colours: right is degree 2, a just fourth above the root, played exactly");
+  pad_stick(&pad, 2, 0);       CHECK(s.mem[REG_KBGATE] == 0, "and lets go at the centre");
+  fez_reg_write(&s, REG_STKTYPE, 0); fez_reg_write(&s, REG_STKSCALE, 1); fez_reg_write(&s, REG_STKROOT, 15360);
   pad_stick(&pad, 9, 32767);   CHECK(fez_reg_read(&s, REG_MP2) < 18000, "a bad axis is ignored");
   fez_load_patch(&s, 2);       CHECK(fez_reg_read(&s, REG_MP0) == 1 && fez_reg_read(&s, REG_MP1) == 32767, "loading a patch leaves the pots where they were");
 

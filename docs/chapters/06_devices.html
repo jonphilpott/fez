@@ -85,7 +85,7 @@ TMOUT PITCH 6000 ROUTE       \ the bits pick the pitch
 
 <h3 id="keyboard">Keyboard</h3>
 
-<p>The keyboard device turns key presses into notes. On the desktop, the KEYS page of the DEVICES tab plays the computer keyboard like a piano: the bottom row (Z S X D C V G B H N J M) is one octave, and the row above (Q 2 W 3 E R 5 T 6 Y 7 U) is the next. The layout follows the position of the keys, so it works on any national layout. Only that page plays, and Space lets go of everything. The handheld has no KEYS page.</p>
+<p>The keyboard device turns key presses into notes. On the desktop, the KEYS page of the DEVICES tab plays the computer keyboard like a piano: the bottom row (Z S X D C V G B H N J M) is one octave, and the row above (Q 2 W 3 E R 5 T 6 Y 7 U) is the next. The layout follows the position of the keys, so it works on any national layout. Only that page plays, and Space lets go of everything. The handheld has no KEYS page; its STICK page plays the keyboard device from the right stick instead (see <a href="#stick-page">the handheld chapter</a>).</p>
 
 <p>A key press does four things: it writes the note into <code>PITCH</code> and <code>KBNOTE</code>, fires the gate, fires the pulsers in the mask <code>KBPUL</code>, and holds the gate open until the key is let go, then the release runs. If you press a second key while the first is held, the new one wins, and letting go of it returns to the first without a new attack. <code>KBOCT</code> (0 to 8) is the octave of the bottom key, and <code>KBGATE</code> is 1 while any key is down. <code>KBNOTE</code> and <code>KBGATE</code> are read only; <code>KBNOTE</code> is also a matrix source, which can be used to make a filter follow the notes you play.</p>
 

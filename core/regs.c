@@ -58,7 +58,7 @@ int fez_read(FezSynth *s, int a, int b, unsigned *fault) {
   if (in(a, REG_GPOS0, REG_GFLG7)) return s->mem[a];
   if (a == REG_GWIN) return s->mem[a];
   if (in(a, REG_BP0, REG_BP15) || a == REG_SQPUL || a == REG_GRPUL || a == REG_TMPUL || a == REG_KBPUL) return s->mem[a];   /* pulser masks */
-  if (in(a, REG_KBNOTE, REG_KBOCT)) return s->mem[a];                                                      /* keyboard: note, gate, octave */
+  if (in(a, REG_KBNOTE, REG_KBOCT) || in(a, REG_STKTYPE, REG_STKMODE)) return s->mem[a];   /* keyboard (note, gate, octave) and stick */
   if (in(a, REG_QON, REG_QROOT) || a == REG_TMCHANCE || a == REG_TMLEN) return s->mem[a];                  /* quantiser, and the Turing machine's settings */
   if (a == REG_TMBITS) return (int16_t)(s->tm.bits & 0xffff);                        /* TMBITS reads signed, like CAROW */
   if (a == REG_TMOUT) return fez_tm_out(s);
@@ -104,6 +104,9 @@ void fez_write(FezSynth *s, int a, int v, int b, unsigned *fault) {
   if (in(a, REG_BP0, REG_BP15) || a == REG_SQPUL || a == REG_GRPUL || a == REG_TMPUL || a == REG_KBPUL) { s->mem[a] = (int16_t)fez_clamp(v, 0, 15); return; }   /* pulser masks: 4 bits, one per pulser */
   if (a == REG_KBNOTE || a == REG_KBGATE) { *fault |= FAULT_ADDR; return; }                         /* keyboard state: read only */
   if (a == REG_KBOCT) { s->mem[a] = (int16_t)fez_clamp(v, 0, 8); return; }                        /* KBOCT */
+  if (a == REG_STKTYPE || a == REG_STKMODE) { s->mem[a] = (int16_t)fez_clamp(v, 0, 1); return; }  /* the stick: scales or colours; play or swell */
+  if (a == REG_STKSCALE) { s->mem[a] = (int16_t)fez_clamp(v, 0, 15); return; }                    /* 16 colours; a scale number above 7 counts as 7 */
+  if (a == REG_STKROOT)  { s->mem[a] = (int16_t)fez_clamp(v, 0, 32767); return; }                 /* a pitch, 8.8 */
   if (a == REG_QON) { s->mem[a] = (int16_t)fez_clamp(v, 0, 1); return; }                     /* QON */
   if (a == REG_QSCALE) { s->mem[a] = (int16_t)fez_clamp(v, 0, 7); return; }                     /* QSCALE */
   if (a == REG_QROOT || a == REG_TMCHANCE) { s->mem[a] = (int16_t)fez_clamp(v, 0, 32767); return; }     /* QROOT, TMCHANCE */

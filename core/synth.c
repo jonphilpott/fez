@@ -42,6 +42,7 @@ void fez_default_registers(int16_t mem[NUM_REGS]) {
   mem[REG_QSCALE] = 1; mem[REG_QROOT] = 15360;                             /* QSCALE major, QROOT C4 */
   mem[REG_TMCHANCE] = 4096; mem[REG_TMLEN] = 16;                             /* TMCHANCE about 12 percent, TMLEN 16 */
   mem[REG_KBOCT] = 3;                                                        /* the keyboard's bottom key is C3 */
+  mem[REG_STKSCALE] = 1; mem[REG_STKROOT] = 15360;                           /* the stick: C major from C4 */
   mem[REG_SQEN] = 255; mem[REG_SQLEN] = 8; mem[REG_SQDRV] = 3;                 /* SQEN all on, SQLEN 8, SQDRV pitch and gate */
   for (int i = 0; i < 8; i++) mem[REG_SQ0 + i] = (int16_t)seq_default[i];
   mem[REG_BWMODE] = 1; mem[REG_BWSRC] = 0; mem[REG_BWLEN] = 32767; mem[REG_BUFMS] = 2000; mem[REG_BIN] = 32767; mem[REG_GWIN] = 16000;

@@ -10,10 +10,17 @@ static int cur_tab(const Pad *p) { return p->d->layouts[p->d->layout].tab[p->d->
 
 #define STICK_DEADZONE 4096           /* a stick at rest wanders a little: inside this the pot sits exactly at its centre */
 
+static int on_stick_page(const Pad *p) { return cur_tab(p) == TAB_DEVICES && p->d->dev.sub == DEV_STICK; }
+
 void pad_stick(Pad *p, int axis, int raw) {
   if (axis < 0 || axis > 3) return;
   int v = raw < -32767 ? -32767 : raw;               /* keep -v in range */
   if (axis & 1) v = -v;                              /* SDL's Y is negative upwards; the pot should rise when you push up */
+  if (axis >= 2 && on_stick_page(p)) {               /* on the STICK page the right stick plays (tab_devices.c), and MP2/MP3 stay put */
+    Desk *d = p->d;
+    tab_devices_stick(d, axis == 2 ? v : d->dev.stk_x, axis == 3 ? v : d->dev.stk_y);
+    return;
+  }
   /* 1) take off the dead zone and stretch what is left to the full range, so the pot leaves its centre smoothly */
   int mag = v < 0 ? -v : v;
   mag = mag <= STICK_DEADZONE ? 0 : (int)((long)(mag - STICK_DEADZONE) * 32767 / (32767 - STICK_DEADZONE));
@@ -406,6 +413,7 @@ void pad_button(Pad *p, Button b, int down) {
 
 void pad_tick(Pad *p) {
   p->d->hint_override = tab_hint(p);                        /* the status bar's button hints for whatever is on screen now */
+  if (!on_stick_page(p) && (p->d->dev.stk_dir >= 0 || p->d->dev.stk_note >= 0 || p->d->dev.stk_swell)) tab_devices_stick_release(p->d);   /* left the page while playing */
   for (int b = 0; b < BTN_COUNT; b++)
     if (held(p, (Button)b) && repeatable(p, (Button)b) && p->d->now_ms >= p->repeat_at[b]) { press(p, (Button)b); p->repeat_at[b] = p->d->now_ms + 70; }
 }
@@ -429,6 +437,7 @@ static const char *tab_hint(const Pad *p) {
         case DEV_CELLULAR: case DEV_TURING: return "A act  X step  L2/R2 page";
         case DEV_QUANTISER:                 return "A act  X on/off  L2/R2 page";
         case DEV_DELAY:                     return "A act  X freeze  L2/R2 page";
+        case DEV_STICK:                     return "R stick plays  X mode  L2/R2";
         default:                            return "A act  X restart  L2/R2 page";   /* Lorenz */
       }
     case TAB_BUFFER:  return "A adjust  X trigger  L2/R2 page";

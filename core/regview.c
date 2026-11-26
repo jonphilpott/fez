@@ -12,7 +12,7 @@ const RegGroup REG_GROUPS[] = {
   { "MOD VOICE", REG_MDWAVE }, { "DELAY", REG_DLYTIME },  { "SLEW", REG_SLT0 },        { "SCRATCH", REG_S0 },
   { "CELLULAR", REG_CARULE },  { "LORENZ", REG_LZRATE },  { "SEQUENCER", REG_SQSTEP }, { "BUFFER", REG_BWMODE },
   { "GRAINS", REG_GPOS0 },     { "PULSERS", REG_BP0 },    { "QUANTISER", REG_QON },    { "TURING", REG_TMPUL },
-  { "KEYBOARD", REG_KBNOTE }, { "POTS", REG_MP0 } };
+  { "KEYBOARD", REG_KBNOTE }, { "STICK", REG_STKTYPE }, { "POTS", REG_MP0 } };
 const int REG_GROUP_COUNT = (int)(sizeof REG_GROUPS / sizeof REG_GROUPS[0]);
 
 int regview_list(RegEntry *out, int max) {

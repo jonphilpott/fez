@@ -57,9 +57,10 @@ int main(int argc, char **argv) {
     tap(BTN_R1);
   }
   desk.layouts[3].tab[0] = TAB_DEVICES;                  /* every page of the Devices tab (R2 is the next page) */
-  for (int p = 1; p < 5; p++) {                          /* the handheld has no KEYS page */
-    static const char *const pages[] = { "delay", "cellular", "lorenz", "quantiser", "turing" };
+  for (int p = 1; p < 6; p++) {                          /* the handheld has STICK where the desktop has KEYS */
+    static const char *const pages[] = { "delay", "cellular", "lorenz", "quantiser", "turing", "stick" };
     tap(BTN_R2);
+    if (p == 5) { pad_stick(&pad, 2, 26000); pad_stick(&pad, 3, -26000); }   /* the stick pushed up and right: degree 1 lit */
     if (p == 1) for (int i = 0; i < 14; i++) { tap(BTN_X); fez_render_stereo(&synth, out, 480); desk_tick(&desk, 16); }   /* step the automaton so the picture has a history */
     char n[32]; snprintf(n, sizeof n, "03%c_%s", 'a' + p, pages[p]);
     dump(prefix, n);

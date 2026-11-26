@@ -130,6 +130,8 @@ void fez_tm_step(FezSynth *s);
 int  fez_tm_out(const FezSynth *s);                      /* the Turing machine's output, 0..32767 */
 int  fez_scale_mask(int scale);                          /* 12 bits: bit k set = k semitones above the root is in the scale */
 const char *fez_scale_name(int scale);
+int  fez_scale_degree(int scale, int k);                 /* degree k (any integer) of the scale (0..7), 8.8 pitch above the root */
+int  fez_colour_degree(int col, int k);                  /* degree k (any integer) of the colour (0..15), 8.8 pitch above the root */
 int  fez_quantise(int pitch, int scale, int root);       /* snap a pitch (8.8 semitones) to a scale over a root */
 void fez_push_buf_event(FezSynth *s, int type, int mask);
 int  fez_clamp(int x, int lo, int hi);

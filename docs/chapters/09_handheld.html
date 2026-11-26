@@ -44,6 +44,25 @@
 
 <p>Loading a patch leaves the pots where they are, because they belong to your hands and not to the patch. The CTRL screen shows all sixteen under the POTS heading. <code>MP4</code> to <code>MP15</code> are not connected to anything yet.</p>
 
+<h3 id="stick-page">Playing tunes with the right stick</h3>
+
+<p>The last page of the DEVICES screen, <b>STICK</b>, turns the right stick into an instrument. Its direction picks a note: straight up is the root, and each eighth of a turn clockwise is the next note of the scale, so the eight directions are the first eight notes. In a seven-note scale, up-left is the octave; in a five-note colour, the octave is down-left. The page draws the eight notes in a ring (for colours, their degree numbers, 0 to 7), with the root in green and the one you are holding lit. While this page is showing, the right stick plays and leaves <code>MP2</code> and <code>MP3</code> alone.</p>
+
+<p>Four settings choose the notes and how they sound:</p>
+
+<ul>
+  <li><b>TYPE</b> (<code>STKTYPE</code>): <b>scales</b> (0), the quantiser's eight, as the word <code>SCALE</code> gives them; or <b>colours</b> (1), the sixteen five-note scales in just intonation that the word <code>COLOUR</code> gives.</li>
+  <li><b>SCALE</b> (<code>STKSCALE</code>): which scale (0 to 7, major by default) or which colour (0 to 15).</li>
+  <li><b>ROOT</b> (<code>STKROOT</code>): the note straight up plays, C4 by default, as on the quantiser page. Left and right step a semitone; with Y held, a fifth.</li>
+  <li><b>MODE</b> (<code>STKMODE</code>): how a note sounds. X switches between the two.</li>
+</ul>
+
+<p>In <b>play</b> mode (0) the stick works like a key. Pushing it out plays the note with a fresh attack, moving round to another direction plays the next note, and letting the stick spring back lets go, so the release runs. Because it goes through the keyboard device, <code>KBNOTE</code>, <code>KBGATE</code> and the pulsers in <code>KBPUL</code> follow the stick as they follow keys. A colour's just notes fall between the keys: <code>KBNOTE</code> holds the nearest key, and <code>PITCH</code> the exact note.</p>
+
+<p>In <b>swell</b> mode (1) the direction only moves <code>PITCH</code>, with no attack, and how far you push sets <code>GATELEVEL</code>, which holds the gate open by hand. Push gently for a quiet note, push to the edge for full volume, and let the stick return to fade it out. Turning the stick round while it is pushed out glides through the scale without a break. Swell mode owns <code>GATELEVEL</code>: leaving the page or switching mode sets it back to 0.</p>
+
+<p>Near the border between two directions the stick keeps the note it has until you are clearly past the border, so a note does not flicker between two.</p>
+
 <h3 id="screens">The screens, and what A, B and X do on each</h3>
 
 <table class="regs">
@@ -108,6 +127,6 @@
 <h3 id="limits">What the Brick does not do</h3>
 
 <ul>
-  <li>There is no KEYS page: playing notes is a job for a keyboard. Use Start for single notes, and the sequencer, the Turing machine or the pulsers for the rest.</li>
+  <li>There is no KEYS page. The <a href="#stick-page">STICK page</a> takes its place: the right stick plays the notes of a scale.</li>
   <li>The handheld screens are smaller, so a few details, such as the longest register help lines, are shortened.</li>
 </ul>

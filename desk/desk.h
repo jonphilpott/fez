@@ -75,7 +75,7 @@ typedef struct { int sel, top; Entry in; } ValueList;
 
 enum { BFP_TAPE, BFP_VOICES, BFP_COUNT };                      /* the BUFFER tab's pages */
 enum { BFM_NORMAL, BFM_ADJUST, BFM_TYPE };                      /* what the keys do on a voice cell */
-enum { DEV_DELAY, DEV_CELLULAR, DEV_LORENZ, DEV_QUANTISER, DEV_TURING, DEV_KEYS, DEV_COUNT };                  /* the DEVICES tab's pages */
+enum { DEV_DELAY, DEV_CELLULAR, DEV_LORENZ, DEV_QUANTISER, DEV_TURING, DEV_KEYS, DEV_STICK, DEV_COUNT };       /* the DEVICES tab's pages (KEYS on the desktop only, STICK on the handheld only) */
 #define CA_HIST 64                                        /* generations of the automaton kept for the picture */
 #define KB_HIST 480                                       /* frames of the keyboard's note trace (about 8 s) */
 #define LZ_HIST 400                                       /* points of the Lorenz trace */
@@ -150,6 +150,9 @@ typedef struct Desk {
     uint16_t tm_hist[CA_HIST]; int tm_n;     /* the same for the Turing machine's bits */
     int lz_x[LZ_HIST], lz_z[LZ_HIST]; int lz_n, lz_head;   /* the Lorenz trace: a ring of (X, Z) register values */
     int8_t kb_hist[KB_HIST]; int kb_n;       /* the keyboard's note trace, oldest first: the note held that frame, or -1 */
+    int stk_x, stk_y;                        /* STICK: the right stick, -32767..32767 each, up and right positive */
+    int stk_dir, stk_note, stk_swell;        /* the direction held (0 up, clockwise to 7) or -1; the key (MIDI note) held down or -1; GATELEVEL is ours */
+    int stk_pitch;                           /* the exact pitch sounding (8.8; a colour's just notes fall between keys) */
   } dev;
   struct {                                   /* MATRIX */
     int row, cell, mode;                     /* the route under the cursor; its cell (0 source, 1 destination, 2 weight); what the keys do now */
@@ -213,6 +216,8 @@ void tab_editor_draw(Desk *d, View *v);   void tab_editor_key(Desk *d, int key, 
 void tab_patches_draw(Desk *d, View *v);  void tab_patches_key(Desk *d, int key, int mods);  void tab_patches_text(Desk *d, int ch);
 void tab_pulsers_draw(Desk *d, View *v);  void tab_pulsers_key(Desk *d, int key, int mods);  void tab_pulsers_text(Desk *d, int ch);
 void tab_devices_draw(Desk *d, View *v);  void tab_devices_key(Desk *d, int key, int mods);  void tab_devices_text(Desk *d, int ch);
+void tab_devices_stick(Desk *d, int x, int y);   /* the STICK page: the right stick moved (x right, y up, -32767..32767) */
+void tab_devices_stick_release(Desk *d);         /* let go of the stick's note and GATELEVEL (leaving the page) */
 extern const char KB_KEYS_LOW[13], KB_KEYS_HIGH[13];   /* the keyboard device's two rows of keys, in semitone order */
 int  desk_note_key(Desk *d, int ch, int down);   /* a physical key (lower-case US letter or digit) went down or up: 1 if the keyboard device took it */
 void desk_all_notes_off(Desk *d);            /* let go of every key (also when the window loses focus) */

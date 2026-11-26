@@ -281,21 +281,12 @@ static int exec(Vm *vm, const Compiled *c, int ip, int b, int depth) {
       case OP_HZ:   POP(a); PUSH(hz_to_pitch(a)); break;
       case OP_COLOUR: {                               /* ( index colour -- pitch above the root, 8.8 semitones ) */
         POP(a); POP(x);
-        int col = floor_mod(a, 16), n = floor_mod(x, 5), oct = fez_floor_div(x, 5);
-        int j = n == 0 ? 0 : n == 1 ? (col >> 2) + 1 : n == 2 ? 5 : n == 3 ? 7 : (col & 3) + 8;
-        PUSH(sat(oct * 3072 + JUST88[j]));
+        PUSH(sat(fez_colour_degree(floor_mod(a, 16), x)));
         break;
       }
       case OP_SCALE: {                                /* ( index scale -- pitch above the root, 8.8 semitones ) */
-        /* The scale number is the quantiser's SCALE (0 to 7). Its mask has one bit per allowed semitone, so
-           "degree k" means "the k-th set bit". The degrees repeat every octave: index n walks past the last
-           set bit into the next octave (3072 = 12 semitones in 8.8). */
         POP(a); POP(x);
-        int mask = fez_scale_mask(floor_mod(a, 8)), n = 0;        /* wrap 0..7 like COLOUR wraps its col */
-        for (int b2 = 0; b2 < 12; b2++) n += (mask >> b2) & 1;      /* notes per octave (never 0: every mask has bits) */
-        int oct = fez_floor_div(x, n), k = floor_mod(x, n), semi = 0;
-        for (int b2 = 0; b2 < 12; b2++) if ((mask >> b2) & 1) { if (k-- == 0) { semi = b2; break; } }
-        PUSH(sat(oct * 3072 + semi * 256));
+        PUSH(sat(fez_scale_degree(floor_mod(a, 8), x)));         /* wrap 0..7 like COLOUR wraps its col */
         break;
       }
       case OP_RND:  POP(a); PUSH(a > 0 ? (int)floor(vm->host.rnd(vm->host.ctx) * a) : 0); break;

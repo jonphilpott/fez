@@ -54,17 +54,21 @@ static const Setting DLY_SETTINGS[] = {
   { "WOBBLE", REG_DLYWOB, 0, 32767, 512, 4096 }, { "NOISE", REG_DLYNZ, 0, 32767, 512, 4096 },
   { "FREEZE", REG_DLYFRZ, 0, 32767, 32767, 32767 },                           /* on at or above half, so one step flips it */
   { "MIX", REG_DLYMIX, 0, 32767, 512, 4096 }, { "INPUT", REG_DLYIN, 0, 32767, 512, 4096 } };
-static const char *const DEVICE_NAMES[DEV_COUNT] = { [DEV_DELAY] = "DELAY", [DEV_CELLULAR] = "CELLULAR", [DEV_LORENZ] = "LORENZ", [DEV_QUANTISER] = "QUANTISER", [DEV_TURING] = "TURING", [DEV_KEYS] = "KEYS" };
+static const char *const DEVICE_NAMES[DEV_COUNT] = { [DEV_DELAY] = "DELAY", [DEV_CELLULAR] = "CELLULAR", [DEV_LORENZ] = "LORENZ", [DEV_QUANTISER] = "QUANTISER", [DEV_TURING] = "TURING", [DEV_KEYS] = "KEYS", [DEV_STICK] = "STICK" };
 
 static const Setting KB_SETTINGS[] = {
   { "OCTAVE", REG_KBOCT, 0, 8, 1, 1 }, { "PULSERS", REG_KBPUL, 0, 15, 1, 1 } };
+static const Setting STK_SETTINGS[] = {
+  { "TYPE", REG_STKTYPE, 0, 1, 1, 1 }, { "SCALE", REG_STKSCALE, 0, 15, 1, 4 },      /* SCALE: 0..7 for scales, 0..15 for colours (see setting_hi) */
+  { "ROOT", REG_STKROOT, 0, 32767, 256, 1792 }, { "MODE", REG_STKMODE, 0, 1, 1, 1 } };   /* ROOT: a semitone, or a fifth with Shift */
 
 static const Setting *settings_of(int sub, int *n) {
-  static const Setting *const TABLE[DEV_COUNT] = { [DEV_DELAY] = DLY_SETTINGS, [DEV_CELLULAR] = CA_SETTINGS, [DEV_LORENZ] = LZ_SETTINGS, [DEV_QUANTISER] = QT_SETTINGS, [DEV_TURING] = TM_SETTINGS, [DEV_KEYS] = KB_SETTINGS };
+  static const Setting *const TABLE[DEV_COUNT] = { [DEV_DELAY] = DLY_SETTINGS, [DEV_CELLULAR] = CA_SETTINGS, [DEV_LORENZ] = LZ_SETTINGS, [DEV_QUANTISER] = QT_SETTINGS, [DEV_TURING] = TM_SETTINGS, [DEV_KEYS] = KB_SETTINGS, [DEV_STICK] = STK_SETTINGS };
   /* counted from the tables themselves, so adding a setting to a table cannot leave a stale number here */
   static const int COUNT[DEV_COUNT] = { [DEV_DELAY] = (int)(sizeof DLY_SETTINGS / sizeof DLY_SETTINGS[0]), [DEV_CELLULAR] = (int)(sizeof CA_SETTINGS / sizeof CA_SETTINGS[0]),
     [DEV_LORENZ] = (int)(sizeof LZ_SETTINGS / sizeof LZ_SETTINGS[0]), [DEV_QUANTISER] = (int)(sizeof QT_SETTINGS / sizeof QT_SETTINGS[0]),
-    [DEV_TURING] = (int)(sizeof TM_SETTINGS / sizeof TM_SETTINGS[0]), [DEV_KEYS] = (int)(sizeof KB_SETTINGS / sizeof KB_SETTINGS[0]) };
+    [DEV_TURING] = (int)(sizeof TM_SETTINGS / sizeof TM_SETTINGS[0]), [DEV_KEYS] = (int)(sizeof KB_SETTINGS / sizeof KB_SETTINGS[0]),
+    [DEV_STICK] = (int)(sizeof STK_SETTINGS / sizeof STK_SETTINGS[0]) };
   *n = COUNT[sub];
   return TABLE[sub];
 }
@@ -116,6 +120,10 @@ static void draw_settings(Desk *d, View *v, int col, int row, int width) {
     else if (st[i].addr == REG_TMCHANCE) snprintf(extra, sizeof extra, "flip %d%%", (int)(val * 100.0 / 32768 + 0.5));
     else if (st[i].addr >= REG_DLYTIME && st[i].addr <= REG_DLYIN) regview_fmt_param(extra, sizeof extra, st[i].addr, val);      /* the tape delay's registers */
     else if (st[i].addr == REG_KBOCT) snprintf(extra, sizeof extra, "C%d to B%d", val, val + 1);     /* the two rows of keys */
+    else if (st[i].addr == REG_STKTYPE) snprintf(extra, sizeof extra, "%s", val ? "colours (just)" : "scales");
+    else if (st[i].addr == REG_STKSCALE) snprintf(extra, sizeof extra, "%s", fez_reg_read(d->synth, REG_STKTYPE) ? "colour" : fez_scale_name(val));
+    else if (st[i].addr == REG_STKROOT) regview_fmt_note(extra, sizeof extra, val);
+    else if (st[i].addr == REG_STKMODE) snprintf(extra, sizeof extra, "%s", val ? "swell (GATELEVEL)" : "play notes");
     else if (st[i].addr == REG_TMPUL || st[i].addr == REG_KBPUL) {
       size_t l = 0; extra[0] = '\0';
       for (int p = 0; p < NUM_PULSERS; p++) if ((val >> p) & 1) l += (size_t)snprintf(extra + l, sizeof extra - l, "%sP%d", l ? " " : "", p);
@@ -330,15 +338,119 @@ static void draw_lorenz(Desk *d, View *v, int pane_w, int prows, int sx, int sy,
   if (!d->handheld && sy + 8 < v->rows) view_text(v, sx, sy + 8, "Space or r: restart", COL_DIM);
 }
 
-/* How many pages the DEVICES tab cycles through. The KEYS page is the computer keyboard as a piano, which a handheld has no use for. */
-static int page_count(const Desk *d) { return d->handheld ? DEV_COUNT - 1 : DEV_COUNT; }
+/* The pages the DEVICES tab cycles through. The last is KEYS on the desktop (the computer keyboard as a piano) and STICK on
+   the handheld (the right stick plays): each machine has the one its controls can play. */
+#define PAGE_COUNT (DEV_KEYS + 1)
+static int page_at(const Desk *d, int i) { return i < DEV_KEYS ? i : d->handheld ? DEV_STICK : DEV_KEYS; }
+static int page_pos(int sub) { return sub < DEV_KEYS ? sub : DEV_KEYS; }                 /* where a page sits in the list */
+static void turn_page(Desk *d, int step) {                                                /* step +1 or -1, wrapping */
+  d->dev.sub = page_at(d, (page_pos(d->dev.sub) + step + PAGE_COUNT) % PAGE_COUNT);
+}
+
+/* ---------------------------------------------------------------- the stick (handheld)
+
+   The right stick picks a degree of the scale by its direction: up is the root, and each 45 degrees clockwise is the next
+   degree, so the eight directions are degrees 0 to 7 (a seven-note scale reaches the octave at up-left). Two modes:
+     play   pushing out plays the note (through fez_note_on, like a key: the envelope fires and holds; KBPUL pulsers fire);
+            moving round to another direction plays the next, and letting the stick go back to the centre lets go.
+     swell  the direction sets PITCH without a new attack, and how far the stick is pushed sets GATELEVEL (the gate held
+            open by hand), so a note swells in and fades as the stick returns. */
+#define PI_ 3.14159265358979323846     /* C99 has no M_PI */
+#define STK_ON  12000                  /* pushed this far (of 32767) the stick picks a direction */
+#define STK_OFF 8000                   /* and lets go only back inside this: the gap stops a note chattering at the edge */
+#define STK_DEAD 4096                  /* GATELEVEL is 0 inside this (a stick at rest is never exactly at the centre) */
+#define STK_HOLD 30.0                  /* degrees: the direction changes only this far past the middle of its slice (22.5 + 7.5) */
+
+static int stick_pitch(const Desk *d, int dir) {        /* the pitch (8.8) of direction dir: the root plus degree dir of the scale or colour */
+  FezSynth *s = d->synth;
+  int k = fez_reg_read(s, REG_STKSCALE);
+  int above = fez_reg_read(s, REG_STKTYPE) ? fez_colour_degree(k, dir) : fez_scale_degree(k > 7 ? 7 : k, dir);
+  return fez_clamp(fez_reg_read(s, REG_STKROOT) + above, 0, 32767);
+}
+
+void tab_devices_stick_release(Desk *d) {
+  if (d->dev.stk_note >= 0) fez_note_off(d->synth, d->dev.stk_note);
+  if (d->dev.stk_swell) fez_reg_write(d->synth, REG_GATELEVEL, 0);
+  d->dev.stk_note = d->dev.stk_dir = -1; d->dev.stk_swell = 0;
+}
+
+void tab_devices_stick(Desk *d, int x, int y) {
+  FezSynth *s = d->synth;
+  int swell = fez_reg_read(s, REG_STKMODE) == 1;
+  d->dev.stk_x = x; d->dev.stk_y = y;
+  /* 1) a change of mode lets go of what the other mode held */
+  if (swell && d->dev.stk_note >= 0) { fez_note_off(s, d->dev.stk_note); d->dev.stk_note = -1; }
+  if (!swell && d->dev.stk_swell) { fez_reg_write(s, REG_GATELEVEL, 0); d->dev.stk_swell = 0; }
+  /* 2) how far and which way. atan2(x, y) measures the angle from straight up, clockwise, in -180..180 degrees. */
+  double mag = sqrt((double)x * x + (double)y * y), ang = atan2((double)x, (double)y) * 180.0 / PI_;
+  if (ang < 0) ang += 360;
+  int out = mag > STK_ON || (d->dev.stk_dir >= 0 && mag > STK_OFF);
+  if (!out) d->dev.stk_dir = -1;
+  else {
+    int dir = (int)floor((ang + 22.5) / 45.0) % 8;                       /* the 45 degree slice it points into */
+    if (d->dev.stk_dir >= 0 && dir != d->dev.stk_dir) {                  /* near a border: keep the old slice until clearly past it */
+      double off = fabs(ang - d->dev.stk_dir * 45.0);
+      if (off > 180) off = 360 - off;
+      if (off < STK_HOLD) dir = d->dev.stk_dir;
+    }
+    d->dev.stk_dir = dir;
+  }
+  /* 3) play: a new direction is a new note. The keyboard device takes whole notes, so the stick presses the nearest key
+     (the attack, KBNOTE, KBPUL) and then sets PITCH exactly, for a colour's just notes that fall between keys. The new key
+     goes down before the old one comes up, so the voice never sees no key held between them. */
+  if (!swell) {
+    int pitch = d->dev.stk_dir >= 0 ? stick_pitch(d, d->dev.stk_dir) : -1;
+    if (pitch != (d->dev.stk_note >= 0 ? d->dev.stk_pitch : -1)) {
+      int note = pitch >= 0 ? (pitch + 128) / 256 : -1, old = d->dev.stk_note;
+      if (note >= 0) { fez_note_on(s, note); fez_reg_write(s, REG_PITCH, pitch); }
+      if (old >= 0 && old != note) fez_note_off(s, old);                  /* the same key again was simply pressed again */
+      d->dev.stk_note = note; d->dev.stk_pitch = pitch;
+    }
+    return;
+  }
+  /* 4) swell: the direction moves PITCH (no attack); the distance past the dead zone opens the gate, 0 to full */
+  if (d->dev.stk_dir >= 0) fez_reg_write(s, REG_PITCH, stick_pitch(d, d->dev.stk_dir));
+  double open = (mag > 32767 ? 32767 : mag) - STK_DEAD;
+  fez_reg_write(s, REG_GATELEVEL, open > 0 ? (int)(open * 32767 / (32767 - STK_DEAD)) : 0);
+  d->dev.stk_swell = 1;
+}
+
+/* The stick's picture: the eight directions as a ring of note names (degree numbers for colours) round the centre, the one held lit, and a dot where
+   the stick is now. In swell mode a bar along the bottom shows GATELEVEL. */
+static void draw_stick(Desk *d, View *v, int pane_w, int prows, int sx, int sy, int swidth) {
+  FezSynth *s = d->synth;
+  int x0 = v->x, y0 = v->y + 2 * v->rh, w = pane_w, h = prows * v->rh, sc = d->scale;
+  int cx = x0 + w / 2, cy = y0 + h / 2, ry = h / 2 - v->rh, rx = ry * 2;     /* an oval, wider than tall, so the names have room */
+  if (rx > w / 2 - 3 * v->cw) rx = w / 2 - 3 * v->cw;
+  gfx_fill(&d->cv, x0, y0, w, h, gfx_colour(COL_PNL));
+  for (int dir = 0; dir < 8; dir++) {
+    double a = dir * 45.0 * PI_ / 180.0;
+    char name[8];
+    if (fez_reg_read(s, REG_STKTYPE)) snprintf(name, sizeof name, "%d", dir);   /* colours are just-intoned: a note name would need an offset, so show the degree */
+    else regview_fmt_note(name, sizeof name, stick_pitch(d, dir));
+    int tx = cx + (int)(sin(a) * rx) - (int)strlen(name) * v->cw / 2, ty = cy - (int)(cos(a) * ry) - v->rh / 2;
+    gfx_text(&d->cv, tx, ty, name, sc, gfx_colour(dir == d->dev.stk_dir ? COL_MAG : dir == 0 ? COL_GRN : COL_FG));   /* the root in green */
+  }
+  int dx = cx + d->dev.stk_x * rx / 2 / 32767, dy = cy - d->dev.stk_y * ry / 2 / 32767;   /* the stick, at half the ring's size */
+  gfx_line(&d->cv, cx, cy, dx, dy, gfx_colour(COL_SEL));
+  gfx_fill(&d->cv, dx - sc, dy - sc, 3 * sc, 3 * sc, gfx_colour(d->dev.stk_dir >= 0 ? COL_MAG : COL_DIM));
+  gfx_frame(&d->cv, x0, y0, w, h, gfx_colour(d->dev.stk_dir >= 0 ? COL_AMB : COL_LINE));
+  draw_settings(d, v, sx, sy, swidth);
+  int n; settings_of(DEV_STICK, &n);
+  if (fez_reg_read(s, REG_STKMODE) == 1) {
+    view_text(v, sx, sy + n, "GATE", COL_DIM);
+    view_bar(v, sx + 8, sy + n, swidth - 8 > 4 ? swidth - 8 : 4, fez_reg_read(s, REG_GATELEVEL) / 32767.0, COL_MAG, COL_SEL);
+  } else view_text(v, sx, sy + n, "right stick plays  X: mode", COL_DIM);
+}
 
 void tab_devices_draw(Desk *d, View *v) {
   int sub = d->dev.sub;
-  view_pages(v, DEVICE_NAMES, page_count(d), sub);          /* the handheld has no KEYS page, so it is not named there */
+  const char *names[PAGE_COUNT];                             /* this machine's pages, in order */
+  for (int i = 0; i < PAGE_COUNT; i++) names[i] = DEVICE_NAMES[page_at(d, i)];
+  view_pages(v, names, PAGE_COUNT, page_pos(sub));
 
   /* Wide tiles: the picture on the left, the settings beside it. Narrow tiles: the settings go under the picture. */
-  int top_only = sub == DEV_DELAY || sub == DEV_KEYS || sub == DEV_QUANTISER;   /* these pictures are always on top, full width, the text always below */
+  int top_only = sub == DEV_DELAY || sub == DEV_KEYS || sub == DEV_QUANTISER || sub == DEV_STICK;   /* these pictures are always on top, full width, the text always below */
   int pane_w = 16 * v->rh, wide = v->w >= pane_w + 26 * v->cw && !top_only;
   /* The cellular page on a small screen (the Brick's 256x192): shrink the picture's cells until the settings fit beside it. */
   int cs = v->rh, compact = 0;
@@ -354,7 +466,7 @@ void tab_devices_draw(Desk *d, View *v) {
        the blank row, the n settings, and each page's own lines below them (delay none; quantiser and keys their live
        values and hints, which reach sy + 8; the others reach sy + 7). */
     int n; settings_of(sub, &n);
-    int below = 1 + n + (sub == DEV_DELAY ? 1 : sub == DEV_QUANTISER || sub == DEV_KEYS ? 6 : 5);
+    int below = 1 + n + (sub == DEV_DELAY || sub == DEV_STICK ? 1 : sub == DEV_QUANTISER || sub == DEV_KEYS ? 6 : 5);
     prows = v->rows - 2 - below;
     if (sub == DEV_QUANTISER && prows > 7) prows = 7;                        /* the piano is never taller than 7 rows: keep the text right under it */
     if (prows < 3) prows = 3;
@@ -366,6 +478,7 @@ void tab_devices_draw(Desk *d, View *v) {
   else if (sub == DEV_QUANTISER) draw_quantiser(d, v, wide ? pane_w : v->w - 2, prows, sx, sy, swidth);
   else if (sub == DEV_DELAY) { draw_delay(d, v, v->w - 2, prows); draw_settings(d, v, sx, sy, swidth); }
   else if (sub == DEV_KEYS) draw_keys(d, v, v->w - 2, prows, sx, sy, swidth);
+  else if (sub == DEV_STICK) draw_stick(d, v, v->w - 2, prows, sx, sy, swidth);
   else draw_turing(d, v, pane_w, prows, sx, sy, swidth);
 }
 
@@ -374,12 +487,18 @@ void tab_devices_draw(Desk *d, View *v) {
 
 static void stop_entry(Desk *d) { entry_clear(&d->dev.in); }
 
+/* A setting's top value. The stick's SCALE is the one that moves: 8 scales, or 16 colours. */
+static int setting_hi(const Desk *d, const Setting *t) {
+  return t->addr == REG_STKSCALE && !fez_reg_read(d->synth, REG_STKTYPE) ? 7 : t->hi;
+}
+
 /* The page's main action: step the automaton or the Turing machine, switch the quantiser or the freeze, or restart the attractor. */
 static void action(Desk *d) {
   if (d->dev.sub == DEV_CELLULAR) fez_reg_write(d->synth, REG_CASTEP, 1);
   else if (d->dev.sub == DEV_QUANTISER) fez_reg_write(d->synth, REG_QON, !fez_reg_read(d->synth, REG_QON));
   else if (d->dev.sub == DEV_TURING) fez_reg_write(d->synth, REG_TMSTEP, 1);
   else if (d->dev.sub == DEV_KEYS) desk_all_notes_off(d);                              /* a stuck note, or just tidying up */
+  else if (d->dev.sub == DEV_STICK) { tab_devices_stick_release(d); fez_reg_write(d->synth, REG_STKMODE, !fez_reg_read(d->synth, REG_STKMODE)); }   /* play or swell */
   else if (d->dev.sub == DEV_DELAY) fez_reg_write(d->synth, REG_DLYFRZ, fez_reg_read(d->synth, REG_DLYFRZ) >= 16384 ? 0 : 32767);   /* freeze on or off */
   else fez_reg_write(d->synth, REG_LZSEED, rand() & 0x7fff);                         /* ponytail: libc rand, not the synth's generator: a UI gesture needs no replay */
 }
@@ -388,18 +507,19 @@ void tab_devices_key(Desk *d, int key, int mods) {
   int n; const Setting *st = settings_of(d->dev.sub, &n);
   int *sel = &d->dev.sel[d->dev.sub];
   switch (key) {
-    case KEY_TAB: d->dev.sub = (d->dev.sub + (mods & MOD_SHIFT ? page_count(d) - 1 : 1)) % page_count(d); stop_entry(d); break;
+    case KEY_TAB: turn_page(d, mods & MOD_SHIFT ? -1 : 1); stop_entry(d); break;
     case KEY_UP:   *sel = (*sel + n - 1) % n; stop_entry(d); break;
     case KEY_DOWN: *sel = (*sel + 1) % n; stop_entry(d); break;
     case KEY_LEFT: case KEY_RIGHT: {
       const Setting *t = &st[*sel];
       int dir = key == KEY_RIGHT ? 1 : -1, v = fez_reg_read(d->synth, t->addr);
-      fez_reg_write(d->synth, t->addr, fez_clamp(v + dir * ((mods & MOD_SHIFT) ? t->coarse : t->step), t->lo, t->hi));
+      fez_reg_write(d->synth, t->addr, fez_clamp(v + dir * ((mods & MOD_SHIFT) ? t->coarse : t->step), t->lo, setting_hi(d, t)));
+      if (t->addr == REG_STKTYPE && fez_reg_read(d->synth, REG_STKSCALE) > 7 && !fez_reg_read(d->synth, REG_STKTYPE)) fez_reg_write(d->synth, REG_STKSCALE, 7);   /* back to scales: there are only 8 */
       stop_entry(d);
       break;
     }
     case KEY_ENTER:
-      if (d->dev.in.editing) { fez_reg_write(d->synth, st[*sel].addr, fez_clamp(atoi(d->dev.in.buf), st[*sel].lo, st[*sel].hi)); stop_entry(d); }
+      if (d->dev.in.editing) { fez_reg_write(d->synth, st[*sel].addr, fez_clamp(atoi(d->dev.in.buf), st[*sel].lo, setting_hi(d, &st[*sel]))); stop_entry(d); }
       else action(d);
       break;
     case KEY_ESC: stop_entry(d); break;
@@ -411,7 +531,7 @@ void tab_devices_key(Desk *d, int key, int mods) {
 }
 
 void tab_devices_text(Desk *d, int ch) {
-  if (ch == '[' || ch == ']') { d->dev.sub = (d->dev.sub + (ch == ']' ? 1 : page_count(d) - 1)) % page_count(d); stop_entry(d); return; }
+  if (ch == '[' || ch == ']') { turn_page(d, ch == ']' ? 1 : -1); stop_entry(d); return; }
   if (d->dev.sub == DEV_KEYS && ch != ' ') return;      /* on the KEYS page the letters and digits are notes (played from key events), not typing */
   if (ch >= '0' && ch <= '9') {
     entry_add(&d->dev.in, ch, 5);                                   /* 5 characters: 0..32767 */
