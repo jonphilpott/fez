@@ -35,6 +35,11 @@ static const HelpLine LEFT[] = {
   { "  low row",     "Z S X D C V G B H N J M" },
   { "  high row",    "Q 2 W 3 E R 5 T 6 Y 7 U" },
   { "  Space",       "let go of every key" },
+  { "", "" },
+  { NULL, "BUFFER TAB" },
+  { "Space  S",      "start / stop the picked voice" },
+  { "R  F",          "record a one-shot / freeze" },
+  { "C",             "empty the tape" },
 };
 
 /* ---- the right column: files, recording, the editor ---- */
@@ -64,6 +69,8 @@ static const HelpLine RIGHT[] = {
   { "",              "worst of the last 3 seconds" },
   { "CLIP",          "output reached full scale" },
   { "MUTED  REC",    "shown there while on" },
+  { "tab keys",      "the keys of the tab in front;" },
+  { "",              "the patch name gives way to them" },
 };
 
 #define COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))

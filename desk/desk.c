@@ -175,6 +175,9 @@ int wrap_text(const char *s, int width, char lines[][64], int max_lines) {
 
 /* ---------------------------------------------------------------- drawing */
 
+/* PLAY (four pads for the face buttons) is the handheld's; on the desktop the PULSERS tab fires a pulser by hand (F). */
+static int tab_shown(const Desk *d, int t) { return d->handheld || t != TAB_PLAY; }
+
 static void draw_tile(Desk *d, int i) {
   Canvas *cv = &d->cv;
   int tab = d->layouts[d->layout].tab[i], focused = i == d->focus;
@@ -188,22 +191,24 @@ static void draw_tile(Desk *d, int i) {
      Each tab is its name plus one cell of padding. We start with the showing tab and add its neighbours (right first, then
      left) for as long as the bar has room. */
   gfx_fill(cv, x, y, w, th, gfx_colour(COL_PNL));
+  int list[TAB_COUNT], n = 0, at = 0;                              /* the tabs this machine has, and where the showing one is among them */
+  for (int t = 0; t < TAB_COUNT; t++) if (tab_shown(d, t)) { if (t == tab) at = n; list[n++] = t; }
   int cw = GFX_CELL_W * s, room = (w - 8) / cw;                    /* the bar's width in cells */
-  int first = tab, last = tab, used = (int)strlen(TABS[tab].name) + 1;
+  int first = at, last = at, used = (int)strlen(TABS[tab].name) + 1;
   for (int grew = 1; grew;) {
     grew = 0;
-    if (last + 1 < TAB_COUNT && used + (int)strlen(TABS[last + 1].name) + 1 <= room - (first > 0 ? 1 : 0)) { last++; used += (int)strlen(TABS[last].name) + 1; grew = 1; }
-    if (first > 0 && used + (int)strlen(TABS[first - 1].name) + 1 <= room - (last + 1 < TAB_COUNT ? 1 : 0)) { first--; used += (int)strlen(TABS[first].name) + 1; grew = 1; }
+    if (last + 1 < n && used + (int)strlen(TABS[list[last + 1]].name) + 1 <= room - (first > 0 ? 1 : 0)) { last++; used += (int)strlen(TABS[list[last]].name) + 1; grew = 1; }
+    if (first > 0 && used + (int)strlen(TABS[list[first - 1]].name) + 1 <= room - (last + 1 < n ? 1 : 0)) { first--; used += (int)strlen(TABS[list[first]].name) + 1; grew = 1; }
   }
   int px = x + 4;
   if (first > 0) { gfx_text(cv, px, y + 2, "<", s, gfx_colour(COL_DIM)); px += cw; }
-  for (int t = first; t <= last; t++) {
-    int len = (int)strlen(TABS[t].name), tw = (len + 1) * cw;
+  for (int i = first; i <= last; i++) {
+    int t = list[i], len = (int)strlen(TABS[t].name), tw = (len + 1) * cw;
     if (t == tab) gfx_fill(cv, px, y + 1, tw, th - 1, gfx_colour(focused ? COL_AMBD : COL_SEL));
     gfx_text(cv, px + cw / 2, y + 2, TABS[t].name, s, gfx_colour(t == tab ? (focused ? COL_AMB : COL_FG) : COL_DIM));
     px += tw;
   }
-  if (last + 1 < TAB_COUNT) gfx_text(cv, px, y + 2, ">", s, gfx_colour(COL_DIM));
+  if (last + 1 < n) gfx_text(cv, px, y + 2, ">", s, gfx_colour(COL_DIM));
   gfx_fill(cv, x, y + th - 1, w, 1, gfx_colour(focused ? COL_AMB : COL_LINE));   /* the line under the tabs: amber on the focused tile */
 
   /* 2. the tab's own content, in a view inside the tile */
@@ -231,9 +236,22 @@ static void draw_status(Desk *d) {
   gfx_fill(cv, 0, y, cv->w, sh, gfx_colour(COL_PNL));
   gfx_fill(cv, 0, y, cv->w, 1, gfx_colour(COL_LINE));
 
+  int meter_w = (d->handheld ? 9 : 14) * GFX_CELL_W * s;                     /* the load meter sits at the right edge, the CLIP flag just left of it */
+  int clip_w = 6 * GFX_CELL_W * s;
+  /* NAN: the sound went bad (a number that is not a number) and the core silenced it. That is a bug in the synth or a
+     runaway patch, never normal, so it is flagged in red for 3 s after each new one. The core counts them; we watch the count. */
+  if (d->synth->audio.nan_count != d->nan_seen) { d->nan_seen = d->synth->audio.nan_count; d->nan_until = d->now_ms + 3000; }
+  int nan = d->nan_until > d->now_ms;
+  int flags_w = (nan && d->clip ? 2 : 1) * (clip_w + 4);                    /* room for CLIP; for NAN too only while both show (the handheld is narrow) */
+  const char *text = d->msg_until > d->now_ms ? d->msg : d->hint_override ? d->hint_override : TABS[d->layouts[d->layout].tab[d->focus]].hint;
+
+  /* The head: layout, patch name, pulsers. The tab's key hints matter more (they are the only reminder of a tab's letter
+     keys), so when both do not fit, the head goes and the hint gets the whole bar. */
   char head[96];
   if (d->handheld) snprintf(head, sizeof head, " ");                           /* 256 pixels leave no room for the name: the button hints get the space (the Patches and Play screens show the rest) */
   else snprintf(head, sizeof head, " %s  %s  pulsers %s ", d->layouts[d->layout].name, d->loaded_name, d->pulsers_on ? "on" : "off");
+  int markers = (d->muted ? 8 : 0) + (d->recording ? 11 : 0);                 /* cells the MUTED and REC markers take */
+  if ((int)(strlen(head) + strlen(text) + markers) * GFX_CELL_W * s > cv->w - meter_w - flags_w - 4) snprintf(head, sizeof head, " ");
   int hx = (int)strlen(head) * GFX_CELL_W * s;
   gfx_text(cv, 0, y + 3, head, s, gfx_colour(COL_FG));
   if (d->muted) {                                        /* a solid red MUTED marker right after the name, so it cannot be missed */
@@ -252,16 +270,8 @@ static void draw_status(Desk *d) {
     hx += rw + GFX_CELL_W * s;
   }
 
-  int meter_w = (d->handheld ? 9 : 14) * GFX_CELL_W * s;                     /* the load meter sits at the right edge, the CLIP flag just left of it */
-  int clip_w = 6 * GFX_CELL_W * s;
-  /* NAN: the sound went bad (a number that is not a number) and the core silenced it. That is a bug in the synth or a
-     runaway patch, never normal, so it is flagged in red for 3 s after each new one. The core counts them; we watch the count. */
-  if (d->synth->audio.nan_count != d->nan_seen) { d->nan_seen = d->synth->audio.nan_count; d->nan_until = d->now_ms + 3000; }
-  int nan = d->nan_until > d->now_ms;
-  int flags_w = (nan && d->clip ? 2 : 1) * (clip_w + 4);                    /* room for CLIP; for NAN too only while both show (the handheld is narrow) */
   gfx_clip(cv, hx, y, cv->w - hx - meter_w - flags_w - 4, sh);
-  if (d->msg_until > d->now_ms) gfx_text(cv, hx, y + 3, d->msg, s, gfx_colour(COL_AMB));
-  else gfx_text(cv, hx, y + 3, d->hint_override ? d->hint_override : TABS[d->layouts[d->layout].tab[d->focus]].hint, s, gfx_colour(COL_DIM));
+  gfx_text(cv, hx, y + 3, text, s, gfx_colour(d->msg_until > d->now_ms ? COL_AMB : COL_DIM));
   gfx_unclip(cv);
   /* The load bar: how much of real time the audio callback uses. Full bar = 100 percent = the point where the audio crackles.
      The bar is the recent average; a thin marker shows the worst reading of the last few seconds plus the time the UI
@@ -372,8 +382,8 @@ void desk_key(Desk *d, int key, int mods) {
       case KEY_RIGHT: move_focus(d, 1, 0); return;
       case KEY_UP:    move_focus(d, 0, -1); return;
       case KEY_DOWN:  move_focus(d, 0, 1); return;
-      case '[': *tab = (*tab + TAB_COUNT - 1) % TAB_COUNT; return;
-      case ']': *tab = (*tab + 1) % TAB_COUNT; return;
+      case '[': do *tab = (*tab + TAB_COUNT - 1) % TAB_COUNT; while (!tab_shown(d, *tab)); return;
+      case ']': do *tab = (*tab + 1) % TAB_COUNT; while (!tab_shown(d, *tab)); return;
       case KEY_TAB:
         d->layout = (d->layout + 1) % 3;
         d->focus = d->focus < d->layouts[d->layout].ntiles ? d->focus : 0;

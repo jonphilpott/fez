@@ -549,7 +549,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
   <li><b>Devices</b> such as the grains (<code>GRPUL</code>), the cellular automaton and the Turing machine (<code>TMPUL</code>), described in <a href="#devices">Devices</a>.</li>
 </ul>
 
-<p>You can also fire a pulser from code with <code>TRIG</code>: <code>2 TRIG</code> fires pulser 2 at the next tick. The PLAY tab does the same from the keyboard (keys 1 to 4), and a key on the KEYS page can fire pulsers too, through <code>KBPUL</code>.</p>
+<p>You can also fire a pulser from code with <code>TRIG</code>: <code>2 TRIG</code> fires pulser 2 at the next tick. On the desktop, <b>F</b> on the PULSERS tab does the same by hand; on the handheld, the PLAY screen's four buttons do. A key on the KEYS page can fire pulsers too, through <code>KBPUL</code>.</p>
 
 <p>To run a block directly, without a pulser, write its number to <code>RUN</code>: <code>4 RUN !</code> runs block 4 at the next tick.</p>
 
@@ -845,9 +845,8 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
   <li><b>DEVICES</b>: pages for the cellular automaton, Lorenz, quantiser, Turing machine, delay and keys. <b>Space</b> does the page's main action (a step, a reseed, a freeze).</li>
   <li><b>BUFFER</b>: the tape, and its voices.</li>
   <li><b>PULSERS</b>: the four clocks. <b>Space</b> toggles one, <b>F</b> fires it, and you can type a new rate.</li>
-  <li><b>SEQ</b>: the eight steps. Type a note name to set a step.</li>
+  <li><b>SEQ</b>: the eight steps. Type a note name to set a step, and press <b>Enter</b> to clock the sequencer once.</li>
   <li><b>MATRIX</b>: the routes. <b>Enter</b> picks or adjusts a cell, and <b>Backspace</b> deletes a route.</li>
-  <li><b>PLAY</b>: keys 1 to 4 fire the pulsers, and S clocks the sequencer.</li>
   <li><b>SCOPE</b>: a picture of the output wave, steadied by starting each sweep on a rising edge.</li>
 </ul>
 
