@@ -27,7 +27,7 @@ static void run(int blocks, double *diff, double *peak, int *bad) {
     fez_render_stereo(&s, lr, 4800);
     for (int i = 0; i < 4800; i++) {
       double l = lr[2 * i], r = lr[2 * i + 1];
-      if (!(l == l) || !(r == r)) *bad = 1;
+      if (s.audio.nan_count) *bad = 1;                              /* the core silences NaN, but counts it */
       if (fabs(l - r) > *diff) *diff = fabs(l - r);
       if (fabs(l) > *peak) *peak = fabs(l);
       if (fabs(r) > *peak) *peak = fabs(r);
@@ -97,6 +97,18 @@ void test_audio(void) {
   fez_render_stereo(&s, lr, 4800);
   { double quiet = 0; for (int i = 0; i < 2 * 4800; i++) if (fabs(lr[i]) > quiet) quiet = fabs(lr[i]);
     CHECK(quiet < 0.02, "a patch load empties both spring tanks"); }
+
+  /* The buffer looping back to itself through the gate (MIXBP into the gate, BWSRC taking the gate's output) with BWFB at 0:
+     this second feedback path once grew to NaN, which stuck in the gate's filter and silenced the synth until a restart. */
+  fez_init(&s, 1);
+  fez_load_blank(&s);
+  fez_reg_write(&s, REG_MIXCX, 32767); fez_reg_write(&s, REG_GATELEVEL, 32767);
+  fez_reg_write(&s, REG_BWSRC, 1); fez_reg_write(&s, REG_BWMODE, 1); fez_reg_write(&s, REG_BIN, 32767); fez_reg_write(&s, REG_BWFB, 0);
+  fez_reg_write(&s, REG_MIXBP, 32767);
+  fez_reg_write(&s, REG_GLVL0, 32767); fez_reg_write(&s, REG_GPOS0, 300); fez_reg_write(&s, REG_GFLG0, 1);
+  fez_reg_write(&s, REG_GLVL1, 32767); fez_reg_write(&s, REG_GPOS1, 500); fez_reg_write(&s, REG_GFLG1, 1);
+  for (int b = 0; b < 100; b++) fez_render_stereo(&s, lr, 4800);   /* 10 seconds */
+  CHECK(s.audio.nan_count == 0, "the buffer looping through the gate stays finite");
 
   /* GATELEVEL: the gate is open by this much plus whatever the envelope adds */
   CHECK(gate_peak(0, 0, 12) < 0.001, "GATELEVEL 0 and no envelope: the gate is shut and the voice is silent");

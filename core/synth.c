@@ -58,7 +58,7 @@ void fez_load_patch(FezSynth *s, int index) {
   memset(s->priv, 0, sizeof s->priv);
   fez_default_registers(s->mem);
   memcpy(s->mem + REG_MP0, pots, sizeof pots);
-  for (int i = 0; i < p->npresets; i++) s->mem[p->presets[i].addr] = (int16_t)p->presets[i].value;
+  for (int i = 0; i < PATCH_MAX_PRESETS && p->presets[i].addr != 0; i++) s->mem[p->presets[i].addr] = (int16_t)p->presets[i].value;
 
   /* 2) code */
   for (int i = 0; i < NUM_BLOCKS; i++) {

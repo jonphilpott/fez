@@ -315,7 +315,7 @@ void vm_set_block(Vm *vm, int b, const char *src) {
   Block *blk = &vm->blocks[b];
   strncpy(blk->src, src, BLOCK_SRC_MAX - 1);
   blk->src[BLOCK_SRC_MAX - 1] = '\0';
-  vm_compile(&blk->c, src, BLOCK_SLOTS);
+  vm_compile(&blk->c, blk->src, BLOCK_SLOTS);      /* compile what was kept, so the code that runs is the code a save writes */
   blk->halted = 0; blk->resume = -1; blk->fault = 0; blk->fault_slot = -1; blk->peak = 0;
 }
 
@@ -331,7 +331,7 @@ const char *vm_fault_name(unsigned fault) {
 void vm_set_word(Vm *vm, int w, const char *src) {
   strncpy(vm->word_src[w], src, WORD_SRC_MAX - 1);
   vm->word_src[w][WORD_SRC_MAX - 1] = '\0';
-  vm_compile(&vm->words[w], src, WORD_SLOTS);
+  vm_compile(&vm->words[w], vm->word_src[w], WORD_SLOTS);  /* compile what was kept (see vm_set_block) */
 }
 
 /* Run block b once. A halted or empty block does nothing. After YIELD the next run continues where it stopped. */

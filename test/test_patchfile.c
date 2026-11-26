@@ -79,6 +79,29 @@ void test_patchfile(void) {
   CHECK(bad == 2 && copy.mem[REG_CUTOFF] == 123 && !strncmp(err, "line 3", 6), "bad lines are skipped and counted, good ones still load");
   CHECK(patchfile_write(&orig, &info, text1, 20) == -1, "a buffer that is too small is reported");
 
+  /* a file cannot hold what code could not write: the same range checks apply */
+  fez_init(&copy, 7);
+  patchfile_read(&copy, "FEZ PATCH 1\nreg BUFMS 0\nreg ATK 5\n", &back, err, sizeof err);
+  CHECK(copy.mem[REG_BUFMS] == 50, "a file's BUFMS 0 is raised to the smallest length, as a block's write would be");
+  CHECK(patchfile_read(&copy, "FEZ PATCH 1\nreg KBGATE 1\n", &back, err, sizeof err) == 1 && copy.mem[REG_KBGATE] == 0, "a read-only register in a file is refused");
+  patchfile_read(&copy, "FEZ PATCH 1\nca 30 5 3 -1\nlz 8000 15291 -1\n", &back, err, sizeof err);
+  CHECK(copy.ca.trig == 0 && copy.lz.trig == 0, "device trig numbers from a file are kept in range");
+
+  /* a very long line is cut short, not written past the end of a buffer */
+  { static char longtext[3000];
+    int n = snprintf(longtext, sizeof longtext, "FEZ PATCH 1\ndesc ");
+    memset(longtext + n, 'x', 2000); longtext[n + 2000] = '\0';
+    patchfile_read(&copy, longtext, &back, err, sizeof err);
+    CHECK(strlen(back.desc) == PATCH_TEXT_MAX - 1, "an overlong description is cut to fit"); }
+
+  /* word source longer than a word can hold is refused, so what runs is always what a save would write */
+  { static char longword[1000];
+    int n = snprintf(longword, sizeof longword, "FEZ PATCH 1\nword 0\n> \\ ");
+    memset(longword + n, 'c', 300); n += 300;
+    snprintf(longword + n, sizeof longword - n, "\n> 7\n");
+    fez_init(&copy, 7);
+    CHECK(patchfile_read(&copy, longword, &back, err, sizeof err) >= 1, "word source over the word limit is reported"); }
+
   /* routes are written and read by source NAME, so renumbering the sources can never change a saved patch */
   fez_init(&orig, 7); fez_load_blank(&orig);
   fez_set_route(&orig, REG_MP9, REG_CUTOFF, 4000, &(unsigned){0});

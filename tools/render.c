@@ -1,5 +1,5 @@
 /* Offline renderer and sound checker (no SDL, no sound card).
-     ./render PATCH SECONDS [out.wav]        render patch 1..12, print the level of each second, optionally save a WAV
+     ./render PATCH SECONDS [out.wav]        render patch 1..PATCH_COUNT (see tables.c), print the level of each second, optionally save a WAV
      ./render PATCH SECONDS out.wav stress   same, with every feedback control at 100 percent and the filter resonance
                                              at maximum: the level must stay bounded
      ./render all                            quick check of every patch: peak, RMS, NaN, silence
@@ -42,11 +42,12 @@ static double run(int patch, double seconds, const char *wav, int stress, int ve
   int nan = 0; double peak_all = 0, last_peak = 0, sum2 = 0;
   for (int sec = 0; sec * FEZ_SAMPLE_RATE < n; sec++) {
     double pk = 0, s2 = 0; int a = sec * FEZ_SAMPLE_RATE, b = a + FEZ_SAMPLE_RATE < n ? a + FEZ_SAMPLE_RATE : n;
-    for (int i = a; i < b; i++) { if (x[i] != x[i]) nan++; double v = fabs(x[i]); if (v > pk) pk = v; s2 += (double)x[i] * x[i]; }
+    for (int i = a; i < b; i++) { double v = fabs(x[i]); if (v > pk) pk = v; s2 += (double)x[i] * x[i]; }
     if (verbose) printf("  second %2d: peak %.3f  rms %.4f\n", sec + 1, pk, sqrt(s2 / (b - a)));
     if (pk > peak_all) peak_all = pk;
     sum2 += s2; last_peak = pk;
   }
+  nan = (int)synth.audio.nan_count;                      /* the core replaces NaN with silence, but counts it */
   printf("%-14s peak %.3f  rms %.4f  %s%s%s\n", PATCH_TABLE[patch].name, peak_all, sqrt(sum2 / n),
          nan ? "NaN! " : "", peak_all >= 0.999 ? "CLIPPING " : "", sqrt(sum2 / n) < 1e-4 ? "SILENT" : "");
   if (wav) write_wav(wav, x, n);
@@ -59,7 +60,7 @@ int main(int argc, char **argv) {
     for (int p = 0; p < PATCH_COUNT; p++) run(p, 20, NULL, 0, 0);
     return 0;
   }
-  if (argc < 3) { fprintf(stderr, "usage: render PATCH(1-12) SECONDS [out.wav [stress]] | render all\n"); return 1; }
+  if (argc < 3) { fprintf(stderr, "usage: render PATCH(1-%d) SECONDS [out.wav [stress]] | render all\n", PATCH_COUNT); return 1; }
   int p = atoi(argv[1]) - 1;
   if (p < 0 || p >= PATCH_COUNT) { fprintf(stderr, "patch 1-%d\n", PATCH_COUNT); return 1; }
   run(p, atof(argv[2]), argc > 3 ? argv[3] : NULL, argc > 4, 1);

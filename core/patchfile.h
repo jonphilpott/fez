@@ -16,11 +16,11 @@
      listen What to listen for
      level 20000                  <- the master level knob
      cutoff 0                     <- the cutoff offset knob
-     pulser 0 on 1 rate 120       <- pulser number, on (0 or 1), rate in beats per minute
+     pulser 0 on 1 rate 120       <- pulser number, on (0 or 1), rate in pulses per minute
      reg CUTOFF 12000             <- a register by name (or by address); only those that differ from the default
      route ENV CUTOFF 4000        <- matrix: source name, destination register, weight
-     ca 30 5 3 0                  <- rule, row, tap, trig
-     lz 50 28 0                   <- rate, rho, trig
+     ca 30 5 3 4                  <- rule, row, tap, trig (4 = none)
+     lz 8000 15291 4               <- rate, rho (register scale: 15291 is rho 28), trig (4 = none)
      block 3                      <- the source of block 3, each line starting with "> "
      > 1 DROP
      word 2                       <- the same for a word

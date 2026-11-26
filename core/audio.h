@@ -62,6 +62,8 @@ typedef struct {
   /* ---- buffer device ---- */
   BufEngine buf;
   double buf_prev;                      /* its output one sample ago (used to break the loop through the gate) */
+
+  unsigned long nan_count;              /* samples where the output was NaN and was replaced by silence (a bug if ever above 0) */
 } Audio;
 
 void audio_init(Audio *a);

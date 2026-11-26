@@ -24,7 +24,7 @@ render: $(CORE) tools/render.c core/*.h
 	$(CC) $(CFLAGS) -Icore $(CORE) tools/render.c -o $@ -lm
 
 # the tests also build the UI code (everything in desk/ except the SDL shell), to test the handheld controls
-test_core: $(CORE) $(TESTS) core/*.h desk/*.h test/test.h
+test_core: $(CORE) $(DESK) $(TESTS) core/*.h desk/*.h test/test.h
 	$(CC) $(CFLAGS) -Icore -Idesk -Itest $(CORE) $(filter-out desk/main.c,$(DESK)) $(TESTS) -o $@ -lm
 
 test: test_core

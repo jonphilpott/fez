@@ -96,8 +96,8 @@ void audio_init(Audio *a) {
 
 /* ---------------------------------------------------------------- clearing the effects */
 
-/* Empty everything that remembers sound: the delay ring and its feedback lowpass, the spring's ring and filters, and the
-   compressor's level follower. Only state is cleared. Settings (delay length, filter coefficients, freeze) are left alone, because
+/* Empty everything that remembers sound: the delay ring and its feedback lowpass, the spring's ring and filters, the
+   compressor's level follower, and the voice's own filters and gate (which also clears any NaN stuck in them). Only state is cleared. Settings (delay length, filter coefficients, freeze) are left alone, because
    the new patch's registers are about to set them. memset on the arrays is safe here: float and double zero is all-bits-zero. */
 void audio_clear_fx(Audio *a) {
   memset(a->dly, 0, sizeof a->dly);
@@ -106,6 +106,11 @@ void audio_clear_fx(Audio *a) {
   memset(a->spr_ap, 0, sizeof a->spr_ap);
   memset(a->spr_svf, 0, sizeof a->spr_svf);
   a->comp_env = 0;
+  memset(&a->lpg_lp, 0, sizeof a->lpg_lp);
+  memset(&a->nz_svf, 0, sizeof a->nz_svf);
+  memset(&a->md_ladder, 0, sizeof a->md_ladder);
+  a->yf = a->ys = 0;
+  a->buf_prev = 0;
 }
 
 /* ---------------------------------------------------------------- once per control tick (5 ms) */
@@ -156,7 +161,11 @@ static void service_events(FezSynth *s) {
 
 static void begin_chunk(FezSynth *s) {
   Audio *a = &s->audio;
-  if (a->chunks_to_tick == 0) { fez_tick(s, 5.0); service_events(s); a->chunks_to_tick = TICK_CHUNKS; }
+  if (a->chunks_to_tick == 0) {
+    fez_tick(s, 1000.0 * TICK_CHUNKS * CHUNK / FEZ_SAMPLE_RATE);            /* one tick's worth of time: 5 ms */
+    service_events(s);
+    a->chunks_to_tick = TICK_CHUNKS;
+  }
   a->chunks_to_tick--;
 
   /* 1) smooth every parameter register toward its effective value (register + matrix) */
@@ -176,30 +185,37 @@ static void begin_chunk(FezSynth *s) {
   a->md_shape = md_shape(s->eff[REG_MDWAVE]);
 
   /* 3) gains. Blends are "equal power": cos and sin of an angle, so the loudness stays steady across the blend. */
-  static const double cx_scale[3] = { 1.0, 0.55, 0.75 };                       /* level-match the shapes */
+  static const double cx_scale[3] = { 1.0, 0.55, 0.75 };                       /* level-match the shapes (by ear): triangle, square, saw */
   static const double md_scale[4] = { 1.0, 1.0, 0.5, 0.65 };
   double bl = P(s, REG_CXBLEND) / FULL * HALF_PI;
   double mdb = P(s, REG_MDNZ) / FULL * HALF_PI;
   double md_cut = cut_hz(P(s, REG_MDCUT));
   /* White noise through a low cutoff carries little energy, so lift it as the cutoff falls to keep sweeps level. */
   double lift = clampd(sqrt(8000.0 / md_cut), 1.0, 6.0);
-  double next[16] = {
-    cos(bl), sin(bl) * cx_scale[a->cx_shape],                                  /* g_sine, g_shape */
-    0.25 + 0.75 * P(s, REG_FOLD) / FULL,                                            /* pre: drive into the folder */
-    P(s, REG_MIXCX) / FULL, P(s, REG_MIXMD) / FULL, P(s, REG_MIXNZ) / FULL,                      /* mixer: complex, mod, noise */
-    cos(mdb) * md_scale[a->md_shape], sin(mdb) * 0.9 * lift,                   /* mod voice: oscillator, noise */
-    pow(P(s, REG_MDLVL) / FULL, 1.5),                                                /* mod voice VCA */
-    pow(P(s, REG_LEVEL) / FULL, 1.5) * 1.8,                                          /* master level */
-    P(s, REG_MIXBF) / FULL, P(s, REG_MIXBP) / FULL,                                        /* buffer out: to bus, to the gate */
-    P(s, REG_DLYMIX) / FULL, P(s, REG_SPRMIX) / FULL * 1.7,                                  /* delay wet, spring wet */
-    P(s, REG_SPRWID) / FULL,                                                                /* spring stereo width: 0 mono, 1 wide */
-    pow(P(s, REG_DLYIN) / FULL, 2.0)       /* how much sound is written into the delay loop: squared, so the quiet end has room */
+  /* Each ramped gain and the value it heads for this chunk, side by side, so the two cannot get out of step.
+     The constants 0.9 (noise), 1.7 (spring) and 1.8 (master) are loudness matches set by ear when the voice was built;
+     change them by listening, not by calculation. */
+  struct { Ramp *ramp; double next; } gains[] = {
+    { &a->g_sine,  cos(bl) },                                       /* complex oscillator: the sine ... */
+    { &a->g_shape, sin(bl) * cx_scale[a->cx_shape] },               /* ... and the shaped wave, blended */
+    { &a->pre,     0.25 + 0.75 * P(s, REG_FOLD) / FULL },           /* drive into the folder */
+    { &a->mix_cx,  P(s, REG_MIXCX) / FULL },                        /* mixer: complex, mod, noise */
+    { &a->mix_md,  P(s, REG_MIXMD) / FULL },
+    { &a->mix_nz,  P(s, REG_MIXNZ) / FULL },
+    { &a->md_osc_g, cos(mdb) * md_scale[a->md_shape] },             /* mod voice: oscillator ... */
+    { &a->md_nz_g, sin(mdb) * 0.9 * lift },                         /* ... and noise */
+    { &a->md_vca,  pow(P(s, REG_MDLVL) / FULL, 1.5) },              /* mod voice VCA */
+    { &a->master,  pow(P(s, REG_LEVEL) / FULL, 1.5) * 1.8 },        /* master level */
+    { &a->out_bf,  P(s, REG_MIXBF) / FULL },                        /* buffer out: to the bus ... */
+    { &a->out_bp,  P(s, REG_MIXBP) / FULL },                        /* ... and to the gate */
+    { &a->dly_wet, P(s, REG_DLYMIX) / FULL },                       /* delay wet */
+    { &a->spr_wet, P(s, REG_SPRMIX) / FULL * 1.7 },                 /* spring wet */
+    { &a->spr_wid, P(s, REG_SPRWID) / FULL },                       /* spring stereo width: 0 mono, 1 wide */
+    { &a->dly_in,  pow(P(s, REG_DLYIN) / FULL, 2.0) },              /* sound written into the delay loop: squared, so the quiet end has room */
   };
-  Ramp *r[16] = { &a->g_sine, &a->g_shape, &a->pre, &a->mix_cx, &a->mix_md, &a->mix_nz, &a->md_osc_g, &a->md_nz_g,
-                  &a->md_vca, &a->master, &a->out_bf, &a->out_bp, &a->dly_wet, &a->spr_wet, &a->spr_wid, &a->dly_in };
-  for (int i = 0; i < 16; i++) {
-    if (!a->primed) r[i]->cur = next[i];                                       /* first chunk: start there, do not fade in */
-    ramp_to(r[i], next[i]);
+  for (size_t i = 0; i < sizeof gains / sizeof gains[0]; i++) {
+    if (!a->primed) gains[i].ramp->cur = gains[i].next;             /* first chunk: start there, do not fade in */
+    ramp_to(gains[i].ramp, gains[i].next);
   }
 
   /* 4) filters */
@@ -231,13 +247,13 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
   double m = wave(a->md_shape, a->ph_md, dt_md);                  /* mod oscillator, also the FM source */
   a->ph_md = advance_phase(a->ph_md, a->f_md);
   double zraw = white(a);
-  double nz = svf_lowpass(&a->nz_svf, &a->nz_c, zraw * 0.7);       /* noise through its tone control (0.7: as the JS buffer) */
+  double nz = svf_lowpass(&a->nz_svf, &a->nz_c, zraw * 0.7);       /* noise through its tone control (0.7: a level set by ear) */
 
   /* complex oscillator: a sine plus a shaped wave on the same phase, FM'd by the mod oscillator */
   double f = a->f_cx + m * a->fm_depth;
   double dt_cx = fabs(f) / FEZ_SAMPLE_RATE;
   double sine = sin(TWO_PI * a->ph_cx);
-  double shaped = a->cx_shape == 0 ? wave(1, a->ph_cx, dt_cx) : a->cx_shape == 1 ? wave(2, a->ph_cx, dt_cx) : wave(3, a->ph_cx, dt_cx);
+  double shaped = wave(a->cx_shape + 1, a->ph_cx, dt_cx);           /* cx_shape counts from triangle, wave() from sine: hence + 1 */
   a->ph_cx = advance_phase(a->ph_cx, f);
   double cx = ramp_next(&a->g_sine) * sine + ramp_next(&a->g_shape) * shaped;
   /* wavefolder: sin(2 pi x) bends the wave back on itself when it gets loud, adding harmonics (the "fold") */
@@ -302,6 +318,7 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
 
   /* freeze glides (about 10 ms) so engaging it does not click */
   a->dly_frz += (a->dly_frz_target - a->dly_frz) * 0.002;
+  if (fabs(a->dly_frz - a->dly_frz_target) < 1e-9) a->dly_frz = a->dly_frz_target;   /* arrive exactly: the glide alone never quite gets there */
   double frz = a->dly_frz;
 
   /* read between two samples (linear interpolation); the time itself also glides (DLYTIME is smoothed), so changing
@@ -314,7 +331,9 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
   double rp = a->dly_w - len;
   if (rp < 0) rp += DLY_SAMPLES;
   a->dly_rp = rp;                                    /* remembered only so the screen can draw the read head */
-  int i0 = (int)rp, i1 = i0 + 1 >= DLY_SAMPLES ? 0 : i0 + 1;
+  int i0 = (int)rp;
+  if (i0 >= DLY_SAMPLES) i0 -= DLY_SAMPLES;          /* a tiny negative rp plus DLY_SAMPLES can round up to exactly DLY_SAMPLES */
+  int i1 = i0 + 1 >= DLY_SAMPLES ? 0 : i0 + 1;
   double fr = rp - i0;
   double d_out = a->dly[i0] * (1 - fr) + a->dly[i1] * fr;
   double lp = onepole_run(&a->dly_damp, a->dly_damp_a, d_out);
@@ -367,8 +386,7 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
   double l = bus_l * out_gain, r = bus_r * out_gain;
 
   /* safety: never output NaN, never exceed full scale (a final hard limit protects speakers and ears) */
-  if (!(l == l)) l = 0;
-  if (!(r == r)) r = 0;
+  if (!(l == l) || !(r == r)) { a->nan_count++; l = r = 0; }    /* counted, so tests and tools can still see that it happened */
   *out_l = clampd(l, -1.0, 1.0);
   *out_r = clampd(r, -1.0, 1.0);
 }
@@ -385,14 +403,14 @@ void fez_render_stereo(FezSynth *s, float *out, int frames) {
   }
 }
 
-/* The same sound mixed down to one channel, (left + right) / 2: for the tools and tests that want a mono signal. */
+/* The same sound mixed down to one channel, (left + right) / 2: for the tools and tests that want a mono signal.
+   It renders stereo in short pieces and mixes them, so there is one render loop. */
 void fez_render(FezSynth *s, float *out, int frames) {
-  Audio *a = &s->audio;
-  for (int i = 0; i < frames; i++) {
-    if (a->chunk_pos == 0) begin_chunk(s);
-    double l, r;
-    render_sample(s, &l, &r);
-    out[i] = (float)(0.5 * (l + r));
-    if (++a->chunk_pos == CHUNK) a->chunk_pos = 0;
+  float lr[2 * 256];
+  while (frames > 0) {
+    int n = frames < 256 ? frames : 256;
+    fez_render_stereo(s, lr, n);
+    for (int i = 0; i < n; i++) out[i] = 0.5f * (lr[2 * i] + lr[2 * i + 1]);
+    out += n; frames -= n;
   }
 }

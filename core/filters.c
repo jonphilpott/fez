@@ -1,6 +1,6 @@
 /* See filters.h. */
 #include "filters.h"
-#include "buf.h"            /* FEZ_SAMPLE_RATE */
+#include "rate.h"           /* FEZ_SAMPLE_RATE */
 #include <math.h>
 
 #define PI_D 3.14159265358979323846

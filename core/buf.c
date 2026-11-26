@@ -1,6 +1,7 @@
 /* The buffer device. See buf.h. It makes one call per sample (buf_process), which suits the voice that feeds it
    sample by sample. (It began as a port of a JavaScript BufEngine, which is why a few comments mention JS.) */
 #include "buf.h"
+#include "filters.h"   /* flush_denormal */
 #include <math.h>
 #include <string.h>
 
@@ -8,8 +9,10 @@
 
 static double wrap(const BufEngine *e, double p) {
   double n = e->len;
-  p = fmod(p, n);                                    /* JS % keeps the sign of the dividend, like fmod */
-  return p < 0 ? p + n : p;
+  p = fmod(p, n);                                    /* fmod keeps the sign of p, so a negative p comes out negative */
+  if (p < 0) p += n;
+  /* A tiny negative p (say -1e-14) plus n rounds to exactly n in floating point, which is one past the end. */
+  return p >= n ? 0 : p;
 }
 
 void buf_init(BufEngine *e) {
@@ -101,7 +104,8 @@ double buf_process(BufEngine *e, double x) {
   for (int k = 0; k < BUF_VOICES; k++) {
     BufVoice *o = &e->vo[k];
     double lt = c->v[k].lvl / 32767.0;
-    o->lvl_s += (lt - o->lvl_s) * e->k_lvl;
+    /* flush: decaying toward 0 it would otherwise end as a "denormal", a tiny number that is very slow on Intel chips */
+    o->lvl_s = flush_denormal(o->lvl_s + (lt - o->lvl_s) * e->k_lvl);
     if (c->v[k].len == 0) {                                    /* continuous voice: a delay tap, or a free-running loop */
       if (lt == 0 && o->lvl_s < 1e-4) { o->started = 0; o->env = 0; continue; }
       double p;
@@ -132,14 +136,13 @@ double buf_process(BufEngine *e, double x) {
     } else o->env = 0;
   }
   if (e->state != 0) {                                         /* the head writes unless frozen */
-    double w = x * c->bin;
-    if (c->fb > 0) {
-      w += sum * c->fb;
-      double a = fabs(w);
-      /* soft clip: above 0.8 the signal bends toward 1.0, so feedback of 100 percent cannot run away */
-      if (a > 0.8) w = (w < 0 ? -1 : 1) * (0.8 + 0.2 * tanh((a - 0.8) / 0.2));
-    }
-    e->buf[(int)e->wp] = (float)w;
+    double w = x * c->bin + sum * c->fb;
+    /* Soft clip every write: above 0.8 the signal bends toward 1.0. Feedback is not only BWFB: the buffer can also loop
+       back to itself through the gate (MIXBP into the gate, and BWSRC taking the gate's output), so the clip must not
+       depend on BWFB. Without it that loop grows to infinity, and then NaN, which sticks in the filters. */
+    double a = fabs(w);
+    if (a > 0.8) w = (w < 0 ? -1 : 1) * (0.8 + 0.2 * tanh((a - 0.8) / 0.2));
+    e->buf[e->wp] = (float)w;
     if (e->state == 2 && --e->rec_left <= 0) e->state = 0;
   }
   if (++e->wp >= e->len) e->wp = 0;

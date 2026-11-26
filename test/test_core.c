@@ -31,6 +31,7 @@ void test_tables(void) {
   CHECK(!strcmp(SRC_NAMES[7], "MP0") && !strcmp(SRC_NAMES[22], "MP15") && !strcmp(SRC_NAMES[23], "CADENS") && !strcmp(SRC_NAMES[33], "KB"), "the sixteen pots are matrix sources 7..22, in one run");
   CHECK(HZ_TAB[0] == 0 && HZ_TAB[256] == 65536, "hz table runs from log2(1) to log2(2) in Q16");
   /* the word table describes every operation, in the same order as the compiler's list, with every field filled in */
+  CHECK(PARAM_COUNT <= PARAM_MAX, "every parameter has a smoothing slot in the audio side (PARAM_MAX in audio.h)");
   CHECK(WORD_COUNT == OP_COUNT, "the word table has one entry per operation");
   for (int i = 0; i < WORD_COUNT && i < OP_COUNT; i++) {
     CHECK(strcmp(WORD_TABLE[i].name, OP_NAMES[i]) == 0, "the word table runs in the same order as OP_NAMES");

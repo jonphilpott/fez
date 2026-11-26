@@ -130,7 +130,7 @@ static void draw_tape_page(Desk *d, View *v) {
     snprintf(buf, sizeof buf, "%d", i);
     gfx_text(&d->cv, x - GFX_CELL_W * sc / 2, y0 - v->rh + sc, buf, sc, gfx_colour(i == d->bf.voice ? COL_AMB : colour));
   }
-  int hx = x0 + (int)(b->wp / len * (w - 1));                   /* the write head */
+  int hx = x0 + (int)((double)b->wp / len * (w - 1));           /* the write head */
   if (b->state != 0) gfx_fill(&d->cv, hx, y0, 2 * sc, h, gfx_colour(COL_AMB));
   else gfx_fill(&d->cv, hx, y0, sc, h, gfx_colour(COL_DIM));
   /* ruler: the tape's length, and the head's state */

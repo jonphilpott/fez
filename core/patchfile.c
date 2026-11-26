@@ -141,7 +141,8 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
       if (!kind) { complain(err, errcap, &bad, lineno, "source line outside a block:", line); continue; }
       const char *t = line[1] == ' ' ? line + 2 : line + 1;
       size_t tl = strlen(t);
-      if (srclen + tl + 2 >= sizeof src) { complain(err, errcap, &bad, lineno, "source too long in", kind == 1 ? "block" : "word"); continue; }
+      size_t cap = kind == 1 ? BLOCK_SRC_MAX : WORD_SRC_MAX;    /* what vm_set_block / vm_set_word can store */
+      if (srclen + tl + 2 >= cap) { complain(err, errcap, &bad, lineno, "source too long in", kind == 1 ? "block" : "word"); continue; }
       if (srclen) src[srclen++] = '\n';
       memcpy(src + srclen, t, tl); srclen += tl; src[srclen] = '\0';
       continue;
@@ -152,7 +153,8 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
     }
     if (!line[0] || line[0] == '#') continue;
 
-    char word[32] = "", rest[BLOCK_SRC_MAX] = "";
+    /* split the line into its keyword and the rest. rest is as big as line, so the copy always fits. */
+    char word[32] = "", rest[sizeof line] = "";
     sscanf(line, "%31s %[^\n]", word, rest);
     int a, b, c, d, e;
     char nm[32], sn[32];
@@ -161,27 +163,39 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
     else if (!strcmp(word, "desc")) copy_text(info->desc, sizeof info->desc, rest);
     else if (!strcmp(word, "listen")) copy_text(info->listen, sizeof info->listen, rest);
     else if (!strcmp(word, "level") && sscanf(rest, "%d", &a) == 1) s->level_pot = fez_clamp(a, 0, 32767);
-    else if (!strcmp(word, "cutoff") && sscanf(rest, "%d", &a) == 1) s->cutoff_add = a;
+    else if (!strcmp(word, "cutoff") && sscanf(rest, "%d", &a) == 1) s->cutoff_add = fez_clamp(a, -32768, 32767);
     else if (!strcmp(word, "pulser") && sscanf(rest, "%d on %d rate %d", &a, &b, &c) == 3 && a >= 0 && a < NUM_PULSERS) {
       s->pulsers[a].on = b != 0; s->pulsers[a].rate = fez_clamp(c, 10, 600);
     }
     else if (!strcmp(word, "reg") && sscanf(rest, "%31s %d", nm, &a) == 2) {
       int addr = addr_of(nm);
       if (addr < 0) complain(err, errcap, &bad, lineno, "unknown register", nm);
-      else if (addr == REG_TMBITS) s->tm.bits = a & 0xffff;
-      else s->mem[addr] = (int16_t)fez_clamp(a, -32768, 32767);
+      else {
+        /* Through fez_write, like a block's "!": the same range checks, so a file cannot hold a value code could not
+           write (BUFMS 0 would divide by zero). Read-only registers are refused. fez_write also handles TMBITS. */
+        unsigned f = 0;
+        fez_write(s, addr, a, 0, &f);
+        if (f) complain(err, errcap, &bad, lineno, "register cannot be written:", nm);
+      }
     }
     else if (!strcmp(word, "route") && sscanf(rest, "%31s %31s %d", sn, nm, &b) == 3) {
       int dst = addr_of(nm);
       a = src_of(sn);
       if (dst < 0 || a < 1 || s->nroutes >= MAX_ROUTES || s->param_index[dst] < 0) complain(err, errcap, &bad, lineno, "bad route", rest);
-      else { s->routes[s->nroutes].src = a; s->routes[s->nroutes].dst = dst; s->routes[s->nroutes].w = b; s->nroutes++; }
+      else { s->routes[s->nroutes].src = a; s->routes[s->nroutes].dst = dst; s->routes[s->nroutes].w = fez_clamp(b, -32768, 32767); s->nroutes++; }
     }
-    else if (!strcmp(word, "ca") && sscanf(rest, "%d %d %d %d", &a, &b, &c, &d) == 4) { s->ca.rule = a & 255; s->ca.row = b & 0xFFFF; s->ca.tap = fez_clamp(c, 0, 15); s->ca.trig = d; }
-    else if (!strcmp(word, "lz") && sscanf(rest, "%d %d %d", &a, &b, &c) == 3) { s->lz.rate = a; s->lz.rho = b; s->lz.trig = c; }
-    else if ((!strcmp(word, "block") || !strcmp(word, "word")) && sscanf(rest, "%d", &e) == 1 && e >= 0 && e < NUM_BLOCKS) {
-      kind = word[0] == 'b' ? 1 : 2; index = e; src[0] = '\0'; srclen = 0;
+    /* the devices: through their own register writers, so the same limits apply as for code (a trig of -1 would shift by -1) */
+    else if (!strcmp(word, "ca") && sscanf(rest, "%d %d %d %d", &a, &b, &c, &d) == 4) {
+      unsigned f = 0;
+      fez_ca_write(s, REG_CARULE, a & 255, &f); fez_ca_write(s, REG_CAROW, b, &f);
+      fez_ca_write(s, REG_CATAP, c, &f);        fez_ca_write(s, REG_CATRIG, d, &f);
     }
+    else if (!strcmp(word, "lz") && sscanf(rest, "%d %d %d", &a, &b, &c) == 3) {
+      unsigned f = 0;
+      fez_lz_write(s, REG_LZRATE, a, &f); fez_lz_write(s, REG_LZRHO, b, &f); fez_lz_write(s, REG_LZTRIG, c, &f);
+    }
+    else if (!strcmp(word, "block") && sscanf(rest, "%d", &e) == 1 && e >= 0 && e < NUM_BLOCKS) { kind = 1; index = e; src[0] = '\0'; srclen = 0; }
+    else if (!strcmp(word, "word") && sscanf(rest, "%d", &e) == 1 && e >= 0 && e < NUM_WORDS) { kind = 2; index = e; src[0] = '\0'; srclen = 0; }
     else complain(err, errcap, &bad, lineno, "cannot read", line);
   }
   if (kind) { if (kind == 1) vm_set_block(&s->vm, index, src); else vm_set_word(&s->vm, index, src); }

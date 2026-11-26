@@ -4,7 +4,7 @@
 #ifndef FEZ_BUF_H
 #define FEZ_BUF_H
 
-#define FEZ_SAMPLE_RATE 48000                     /* fixed for now (see fez.h); every time constant derives from it */
+#include "rate.h"                                 /* FEZ_SAMPLE_RATE */
 #define BUF_MAX_SECONDS 30                        /* the longest BUFMS */
 #define BUF_SAMPLES (FEZ_SAMPLE_RATE * BUF_MAX_SECONDS + 16)
 #define BUF_VOICES 8
@@ -29,13 +29,12 @@ typedef struct {
 typedef struct {
   float buf[BUF_SAMPLES];
   int len;                       /* samples in use (BUFMS worth) */
-  double wp;                     /* write position; an integer value kept as double like the JS */
+  int wp;                        /* write position, 0..len-1 */
   int state;                     /* 0 frozen, 1 running, 2 recording a one-shot */
   int rec_left, last_mode;
   BufCfg c;
   BufVoice vo[BUF_VOICES];
-  float ratio[BUF_VOICES];       /* playback speed of each voice, from RATE (and PITCH if tracking). A float, not a
-                                    double: the prototype kept these in a Float32Array, and the output stays the same */
+  double ratio[BUF_VOICES];      /* playback speed of each voice, from RATE (and PITCH if tracking); negative plays backwards */
   double k_off, k_lvl, declick;  /* smoothing coefficients; grain edge length in samples */
 } BufEngine;
 

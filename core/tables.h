@@ -18,7 +18,7 @@ typedef struct {
   const char *name;
   const char *desc;
   const char *listen;       /* what to listen for */
-  int npresets;  Preset presets[PATCH_MAX_PRESETS];
+  Preset presets[PATCH_MAX_PRESETS];   /* the list ends at the first unused entry (address 0, which no preset uses) */
   const char *blocks[16];   /* source text of each block ("" = empty) */
   const char *words[16];
   PulserDef pulsers[4];
