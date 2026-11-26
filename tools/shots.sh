@@ -28,7 +28,7 @@ conv "$t/gb_01_patches.ppm"       pad-patches
 conv "$t/gb_02_ctrl.ppm"          pad-ctrl
 conv "$t/gb_07_matrix.ppm"        pad-matrix
 conv "$t/gb_05_pulsers.ppm"       pad-pulsers
-conv "$t/gb_08_play.ppm"          pad-play
+conv "$t/gb_09_sticks.ppm"        pad-sticks
 conv "$t/r30_03b_cellular.ppm"    pad-cellular
 conv "$t/lz_03c_lorenz.ppm"       pad-lorenz
 conv "$t/sm_06_seq.ppm"           pad-seq

@@ -19,6 +19,7 @@
 #include "pad.h"
 #include "userpatch.h"
 #include "wavrec.h"
+#include "midi.h"
 #include <sys/stat.h>
 #ifdef _WIN32
 #include <direct.h>
@@ -145,6 +146,77 @@ static void rec_stop(void) {
   desk.msg_until = desk.now_ms + 8000;
 }
 
+/* ---------------------------------------------------------------- the audio device and the F2 setup page
+
+   The output device is opened by name (the one chosen on the F2 page), or SDL's default when the name is "" or that device
+   is not there. Reopening closes the old one first; the synth carries on as if nothing happened. */
+static double buffer_secs;                    /* how long one audio buffer lasts (512 frames: 10.7 ms), for the load meter */
+
+static int open_audio(const char *name) {
+  SDL_AudioSpec want, have;
+  SDL_zero(want);
+  want.freq = FEZ_SAMPLE_RATE; want.format = AUDIO_F32SYS; want.channels = 2; want.samples = 512; want.callback = audio_cb;
+  if (dev) SDL_CloseAudioDevice(dev);
+  dev = name && name[0] ? SDL_OpenAudioDevice(name, 0, &want, &have, 0) : 0;   /* 0 for "allowed changes": SDL converts if the hardware differs from our request */
+  int ok = dev != 0 || !(name && name[0]);
+  if (!dev) dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);                /* not there (unplugged?): the system's default */
+  if (!dev) return -1;
+  buffer_secs = (double)have.samples / have.freq;
+  SDL_PauseAudioDevice(dev, 0);                                                /* start playing */
+  return ok ? 0 : 1;                                                           /* 1: playing, but on the default instead */
+}
+
+static char setup_path[440];                  /* ~/FEZ/setup.txt ("" if there is no home folder) */
+
+static void setup_save(void) {
+  if (!setup_path[0]) return;
+  char text[2048];
+  int n = setup_write(&desk.setup, text, sizeof text);
+  FILE *f = fopen(setup_path, "wb");
+  if (!f || fwrite(text, 1, (size_t)n, f) != (size_t)n) desk_say(&desk, "CANNOT SAVE SETUP.TXT");
+  if (f) fclose(f);
+}
+
+static void setup_load(void) {
+  char text[2048] = "";
+  FILE *f = setup_path[0] ? fopen(setup_path, "rb") : NULL;
+  if (!f) return;                                                              /* first run: the defaults stand */
+  size_t n = fread(text, 1, sizeof text - 1, f);
+  text[n] = '\0';
+  fclose(f);
+  setup_read(&desk.setup, text);
+}
+
+/* The F2 page asks for the device lists when it opens ... */
+static void setup_scan(Desk *d) {
+  int n = SDL_GetNumAudioDevices(0);                                           /* 0: outputs (1 would be inputs) */
+  d->n_audio = 0;
+  for (int i = 0; i < n && d->n_audio < SETUP_DEVS; i++) {
+    const char *name = SDL_GetAudioDeviceName(i, 0);
+    if (name) snprintf(d->audio_names[d->n_audio++], SETUP_NAME, "%s", name);
+  }
+  d->n_midi = midi_list(d->midi_names, SETUP_DEVS);
+}
+
+/* ... and tells us when something changed. The page is drawn and driven with the audio locked (desk_key), but the device
+   must be closed and opened without the lock held, because closing waits for the audio thread to finish. */
+static int setup_pending = -1;                /* what to apply after the key has been handled, or -1 */
+static void setup_apply(Desk *d, int what) { (void)d; if (setup_pending < what) setup_pending = what; }
+
+static void setup_do(void) {
+  int what = setup_pending;
+  setup_pending = -1;
+  if (what == SETUP_AUDIO) {
+    int r = open_audio(desk.setup.audio);
+    if (r < 0) { fprintf(stderr, "audio: %s\n", SDL_GetError()); desk.quit = 1; return; }
+    desk_say(&desk, r ? "THAT OUTPUT IS NOT THERE: USING THE DEFAULT" : "OUTPUT CHANGED");
+  } else if (what == SETUP_MIDI) {
+    if (!desk.setup.midi[0]) { midi_close(); desk_say(&desk, "MIDI OFF"); }
+    else desk_say(&desk, midi_open(desk.setup.midi) == 0 ? "LISTENING TO MIDI" : "CANNOT OPEN THAT MIDI INPUT");
+  }
+  setup_save();
+}
+
 /* The system clipboard, for the editor's copy, cut and paste. */
 static void clip_set(const char *text) { SDL_SetClipboardText(text); }
 static int clip_get(char *buf, int max) {
@@ -171,7 +243,7 @@ static int translate_key(SDL_Keycode k) {
     case SDLK_RETURN: case SDLK_KP_ENTER: return KEY_ENTER;
     case SDLK_ESCAPE: return KEY_ESC;    case SDLK_BACKSPACE: return KEY_BACKSPACE;
     case SDLK_TAB: return KEY_TAB;       case SDLK_DELETE: return KEY_DELETE;
-    case SDLK_F1: return KEY_F1;
+    case SDLK_F1: return KEY_F1;         case SDLK_F2: return KEY_F2;
     default: return k > 32 && k < 127 ? (int)k : KEY_NONE;
   }
 }
@@ -260,21 +332,19 @@ int main(int argc, char **argv) {
         if (old) { userpatch_import(old, sub); SDL_free(old); }
       }
       desk_patches_refresh(&desk);
+      snprintf(setup_path, sizeof setup_path, "%ssetup.txt", home_fez);
     }
   }
 
-  SDL_AudioSpec want, have;
-  SDL_zero(want);
-  want.freq = FEZ_SAMPLE_RATE; want.format = AUDIO_F32SYS; want.channels = 2; want.samples = 512; want.callback = audio_cb;
-  dev = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);       /* 0: SDL converts if the hardware differs from our request */
-  if (!dev) { fprintf(stderr, "audio: %s\n", SDL_GetError()); SDL_Quit(); return 1; }
+  /* The F2 setup page (desktop only): the saved choices, then the devices they name. */
+  if (!brick_mode) { desk.setup_scan = setup_scan; desk.setup_apply = setup_apply; setup_load(); }
+  if (open_audio(desk.setup.audio) < 0) { fprintf(stderr, "audio: %s\n", SDL_GetError()); SDL_Quit(); return 1; }
+  if (desk.setup.midi[0] && midi_open(desk.setup.midi) != 0) desk_say(&desk, "THE SAVED MIDI INPUT IS NOT THERE (F2 TO CHOOSE)");
 
-  double buffer_secs = (double)have.samples / have.freq;    /* how long one audio buffer lasts (512 frames: 10.7 ms) */
   double lock_peak = 0, lock_left = 0;                       /* the longest the per-frame tick held the audio lock lately, and how long to keep it */
   uint32_t *pixels = NULL; SDL_Texture *tex = NULL; int pw = 0, ph = 0;
   if (!brick_mode) SDL_StartTextInput();                     /* printable characters arrive as SDL_TEXTINPUT (the handheld has no typing) */
   for (int i = 0; i < SDL_NumJoysticks(); i++) if (SDL_IsGameController(i)) SDL_GameControllerOpen(i);
-  SDL_PauseAudioDevice(dev, 0);                              /* start playing */
 
   Uint32 last_frame = SDL_GetTicks();
   while (!desk.quit) {
@@ -304,13 +374,13 @@ int main(int argc, char **argv) {
       } else if (ev.type == SDL_KEYDOWN) {                     /* (key repeats are wanted: held arrows keep stepping) */
         int mods = translate_mods(ev.key.keysym.mod), key = translate_key(ev.key.keysym.sym);
         int nk = note_key_char(ev.key.keysym.scancode), played = 0;
-        if (nk && !(mods & (MOD_CTRL | MOD_ALT))) {            /* on the KEYS page a letter or digit plays a note (key repeats are swallowed there) */
+        if (nk && !(mods & (MOD_CTRL | MOD_ALT))) {            /* on the KEYS tab a letter or digit plays a note (key repeats are swallowed there) */
           SDL_LockAudioDevice(dev);
           played = desk_note_key(&desk, nk, 1);
           SDL_UnlockAudioDevice(dev);
         }
         if (played) {
-          /* a note key: nothing more to do (its text event will be ignored by the KEYS page) */
+          /* a note key: nothing more to do (its text event will be ignored by the KEYS tab) */
         } else if ((mods & MOD_CTRL) && key == 'f') {
           SDL_SetWindowFullscreen(win, (SDL_GetWindowFlags(win) & SDL_WINDOW_FULLSCREEN_DESKTOP) ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
         } else if (ev.key.repeat && key == KEY_ESC && (mods & MOD_SHIFT)) {
@@ -333,6 +403,11 @@ int main(int argc, char **argv) {
         SDL_UnlockAudioDevice(dev);
       }
       got = SDL_PollEvent(&ev);
+    }
+    if (setup_pending >= 0) setup_do();                        /* a change on the F2 page: reopen a device, save (without the lock) */
+    {                                                          /* MIDI that arrived since the last pass. ponytail: up to 16 ms late (the loop's pace); a MIDI thread if notes feel late */
+      unsigned char mb[512]; int n;
+      while ((n = midi_read(mb, sizeof mb)) > 0) { SDL_LockAudioDevice(dev); desk_midi_bytes(&desk, mb, n); SDL_UnlockAudioDevice(dev); }
     }
 
     if (desk.rec_toggle) { desk.rec_toggle = 0; if (desk.recording) rec_stop(); else rec_start(); }
@@ -393,6 +468,7 @@ int main(int argc, char **argv) {
   }
 
   if (desk.recording) rec_stop();                             /* close the file properly so its header is right */
+  midi_close();
   SDL_CloseAudioDevice(dev);
   free(pixels); if (tex) SDL_DestroyTexture(tex);
   SDL_DestroyRenderer(ren); SDL_DestroyWindow(win);

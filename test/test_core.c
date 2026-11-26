@@ -61,6 +61,7 @@ int main(void) {
   test_patchfile();
   test_audio();
   test_pad();
+  test_setup();
   if (test_fails) { printf("%d test(s) failed\n", test_fails); return 1; }
   printf("all tests ok\n");
   return 0;

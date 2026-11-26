@@ -43,11 +43,11 @@ void test_pad(void) {
     CHECK(!strcmp(e->text[e->blk], "100 PITCH !") && e->cursor == 11, "Ctrl+/ again takes the comment off and the cursor stays put");
     e->text[e->blk][0] = '\0'; e->cursor = 0; }
 
-  /* L1 and R1 walk through every screen and wrap round */
+  /* L1 and R1 walk through every screen the handheld has (all but KEYS) and wrap round */
   int seen[TAB_COUNT] = { 0 };
-  for (int i = 0; i < TAB_COUNT; i++) { seen[tab()] = 1; tap(BTN_R1); }
-  int all = 1; for (int i = 0; i < TAB_COUNT; i++) all &= seen[i];
-  CHECK(all && tab() == TAB_EDITOR, "R1 visits every screen and comes back");
+  for (int i = 0; i < TAB_COUNT - 1; i++) { seen[tab()] = 1; tap(BTN_R1); }
+  int all = 1; for (int i = 0; i < TAB_COUNT; i++) all &= seen[i] == (i != TAB_KEYS);
+  CHECK(all && tab() == TAB_EDITOR, "R1 visits every screen but KEYS and comes back");
   tap(BTN_L1); CHECK(tab() == TAB_SCOPE, "L1 from the first screen wraps to the last");
 
   /* Select mutes, and again unmutes */
@@ -56,8 +56,8 @@ void test_pad(void) {
   /* the volume buttons move the master level */
   int v0 = s.level_pot; tap(BTN_VOLD); CHECK(s.level_pot < v0, "Vol- lowers the level"); tap(BTN_VOLU); CHECK(s.level_pot == v0, "Vol+ raises it again");
 
-  /* PLAY: A B X Y fire the four pulsers */
-  d.layouts[3].tab[0] = TAB_PLAY;
+  /* STICKS: A B X Y fire the four pulsers */
+  d.layouts[3].tab[0] = TAB_STICKS;
   s.vm.pending = 0; tap(BTN_A); CHECK(s.vm.pending == 1, "A fires P0");
   s.vm.pending = 0; tap(BTN_B); CHECK(s.vm.pending == 2, "B fires P1");
   s.vm.pending = 0; tap(BTN_X); CHECK(s.vm.pending == 4, "X fires P2");
@@ -131,13 +131,12 @@ void test_pad(void) {
   /* every screen draws without trouble, with every overlay */
   for (int t = 0; t < TAB_COUNT; t++) { d.layouts[3].tab[0] = t; tap(BTN_MENU); desk_draw(&d); pad_draw(&pad); tap(BTN_B); desk_draw(&d); pad_draw(&pad); }
 
-  /* the Devices screen has six pages on the handheld: R2 walks round them and never reaches the KEYS page (STICK takes its place) */
+  /* the Devices screen has five pages: R2 walks round them (KEYS and STICKS are screens of their own) */
   d.layouts[3].tab[0] = TAB_DEVICES; d.dev.sub = DEV_DELAY;
   int pages_seen = 0;
-  for (int i = 0; i < 12; i++) { tap(BTN_R2); CHECK(d.dev.sub != DEV_KEYS, "R2 never reaches the KEYS page on the handheld"); pages_seen |= 1 << d.dev.sub; }
-  CHECK(pages_seen == (1 << DEV_COUNT) - 1 - (1 << DEV_KEYS), "R2 visits every other page");
-  d.dev.sub = DEV_DELAY; tap(BTN_L2); CHECK(d.dev.sub == DEV_STICK, "L2 from the first page wraps to the last one the handheld has");
-  d.dev.sub = DEV_DELAY;                                  /* off the STICK page: the right stick is a pair of pots again */
+  for (int i = 0; i < 12; i++) { tap(BTN_R2); pages_seen |= 1 << d.dev.sub; }
+  CHECK(pages_seen == (1 << DEV_PAGES) - 1, "R2 visits the five device pages and no others");
+  d.dev.sub = DEV_DELAY; tap(BTN_L2); CHECK(d.dev.sub == DEV_TURING, "L2 from the first page wraps to the last");
 
   /* the sticks are modulation pots MP0..MP3 */
   CHECK(fez_reg_read(&s, REG_MP0) == 16384 && fez_reg_read(&s, REG_MP3) == 16384, "the pots start at the sticks' centre");
@@ -150,27 +149,28 @@ void test_pad(void) {
   pad_stick(&pad, 2, 6000);    CHECK(fez_reg_read(&s, REG_MP2) > 16384 && fez_reg_read(&s, REG_MP2) < 18000, "just outside the dead zone the pot moves only a little");
   pad_stick(&pad, 2, 0); pad_stick(&pad, 3, 0);
 
-  /* the STICK page: the right stick's direction picks a degree of the scale (C major from C4 by default) */
-  d.dev.sub = DEV_STICK;
-  int mp2 = fez_reg_read(&s, REG_MP2);
-  pad_stick(&pad, 3, -32767);  CHECK(s.mem[REG_KBGATE] == 1 && s.mem[REG_KBNOTE] == 60 * 256, "up plays the root, C4");
-  CHECK(fez_reg_read(&s, REG_MP2) == mp2, "and the pots do not move");
-  pad_stick(&pad, 3, 0); pad_stick(&pad, 2, 32767);  CHECK(s.mem[REG_KBNOTE] == 64 * 256, "right is degree 2, E4");
-  pad_stick(&pad, 2, -32767);  CHECK(s.mem[REG_KBNOTE] == 71 * 256, "left is degree 6, B4");
-  pad_stick(&pad, 3, -32767 / 3); CHECK(s.mem[REG_KBNOTE] == 71 * 256, "a little up of left stays on left (no chatter at the border)");
-  pad_stick(&pad, 2, 0); pad_stick(&pad, 3, 0);  CHECK(s.mem[REG_KBGATE] == 0, "back to the centre lets go");
-  tap(BTN_X);                  CHECK(fez_reg_read(&s, REG_STKMODE) == 1, "X switches to swell");
-  pad_stick(&pad, 2, 32767);   CHECK(s.mem[REG_KBGATE] == 0 && fez_reg_read(&s, REG_PITCH) == 64 * 256 && fez_reg_read(&s, REG_GATELEVEL) == 32767, "swell: right sets E4 and opens the gate fully, with no key down");
-  pad_stick(&pad, 2, 16000);   CHECK(fez_reg_read(&s, REG_GATELEVEL) > 10000 && fez_reg_read(&s, REG_GATELEVEL) < 20000, "half way is about half open");
-  tap(BTN_L2); pad_tick(&pad); CHECK(fez_reg_read(&s, REG_GATELEVEL) == 0, "leaving the page closes the gate it opened");
+  /* the STICKS screen: the left stick's direction picks a degree of the scale (C major from C4 by default) */
+  d.layouts[3].tab[0] = TAB_STICKS;
+  int mp0 = fez_reg_read(&s, REG_MP0), mp2 = fez_reg_read(&s, REG_MP2);
+  pad_stick(&pad, 1, -32767);  CHECK(s.mem[REG_KBGATE] == 1 && s.mem[REG_KBNOTE] == 60 * 256, "up plays the root, C4");
+  CHECK(fez_reg_read(&s, REG_MP0) == mp0, "and the left stick's pots do not move");
+  pad_stick(&pad, 1, 0); pad_stick(&pad, 0, 32767);  CHECK(s.mem[REG_KBNOTE] == 64 * 256, "right is degree 2, E4");
+  pad_stick(&pad, 0, -32767);  CHECK(s.mem[REG_KBNOTE] == 71 * 256, "left is degree 6, B4");
+  pad_stick(&pad, 1, -32767 / 3); CHECK(s.mem[REG_KBNOTE] == 71 * 256, "a little up of left stays on left (no chatter at the border)");
+  pad_stick(&pad, 0, 0); pad_stick(&pad, 1, 0);  CHECK(s.mem[REG_KBGATE] == 0, "back to the centre lets go");
+  pad_stick(&pad, 2, 20000);   CHECK(fez_reg_read(&s, REG_MP2) != mp2, "the right stick is still a pair of pots");
   pad_stick(&pad, 2, 0);
+  fez_reg_write(&s, REG_STKMODE, 1);
+  pad_stick(&pad, 0, 32767);   CHECK(s.mem[REG_KBGATE] == 0 && fez_reg_read(&s, REG_PITCH) == 64 * 256 && fez_reg_read(&s, REG_GATELEVEL) == 32767, "swell: right sets E4 and opens the gate fully, with no key down");
+  pad_stick(&pad, 0, 16000);   CHECK(fez_reg_read(&s, REG_GATELEVEL) > 10000 && fez_reg_read(&s, REG_GATELEVEL) < 20000, "half way is about half open");
+  tap(BTN_R1); pad_tick(&pad); CHECK(fez_reg_read(&s, REG_GATELEVEL) == 0, "leaving the screen closes the gate it opened");
   fez_reg_write(&s, REG_STKMODE, 0);
-  tap(BTN_R2);                                            /* back to the STICK page (L2 wrapped from it to DELAY's neighbour) */
-  d.dev.sub = DEV_STICK;
+  d.layouts[3].tab[0] = TAB_STICKS;
   fez_reg_write(&s, REG_STKTYPE, 1); fez_reg_write(&s, REG_STKSCALE, 10); fez_reg_write(&s, REG_STKROOT, 57 * 256);   /* colour 10 from A3 */
-  pad_stick(&pad, 2, 32767);   CHECK(fez_reg_read(&s, REG_PITCH) == 57 * 256 + 1275 && s.mem[REG_KBGATE] == 1, "colours: right is degree 2, a just fourth above the root, played exactly");
-  pad_stick(&pad, 2, 0);       CHECK(s.mem[REG_KBGATE] == 0, "and lets go at the centre");
+  pad_stick(&pad, 0, 32767);   CHECK(fez_reg_read(&s, REG_PITCH) == 57 * 256 + 1275 && s.mem[REG_KBGATE] == 1, "colours: right is degree 2, a just fourth above the root, played exactly");
+  pad_stick(&pad, 0, 0);       CHECK(s.mem[REG_KBGATE] == 0, "and lets go at the centre");
   fez_reg_write(&s, REG_STKTYPE, 0); fez_reg_write(&s, REG_STKSCALE, 1); fez_reg_write(&s, REG_STKROOT, 15360);
+  d.layouts[3].tab[0] = TAB_DEVICES;
   pad_stick(&pad, 9, 32767);   CHECK(fez_reg_read(&s, REG_MP2) < 18000, "a bad axis is ignored");
   fez_load_patch(&s, 2);       CHECK(fez_reg_read(&s, REG_MP0) == 1 && fez_reg_read(&s, REG_MP1) == 32767, "loading a patch leaves the pots where they were");
 

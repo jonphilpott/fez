@@ -10,15 +10,15 @@ static int cur_tab(const Pad *p) { return p->d->layouts[p->d->layout].tab[p->d->
 
 #define STICK_DEADZONE 4096           /* a stick at rest wanders a little: inside this the pot sits exactly at its centre */
 
-static int on_stick_page(const Pad *p) { return cur_tab(p) == TAB_DEVICES && p->d->dev.sub == DEV_STICK; }
+static int on_stick_page(const Pad *p) { return cur_tab(p) == TAB_STICKS; }
 
 void pad_stick(Pad *p, int axis, int raw) {
   if (axis < 0 || axis > 3) return;
   int v = raw < -32767 ? -32767 : raw;               /* keep -v in range */
   if (axis & 1) v = -v;                              /* SDL's Y is negative upwards; the pot should rise when you push up */
-  if (axis >= 2 && on_stick_page(p)) {               /* on the STICK page the right stick plays (tab_devices.c), and MP2/MP3 stay put */
+  if (axis < 2 && on_stick_page(p)) {                /* on the STICKS tab the left stick plays (tab_devices.c), and MP0/MP1 stay put */
     Desk *d = p->d;
-    tab_devices_stick(d, axis == 2 ? v : d->dev.stk_x, axis == 3 ? v : d->dev.stk_y);
+    tab_devices_stick(d, axis == 0 ? v : d->dev.stk_x, axis == 1 ? v : d->dev.stk_y);
     return;
   }
   /* 1) take off the dead zone and stretch what is left to the full range, so the pot leaves its centre smoothly */
@@ -128,14 +128,19 @@ static const Action A_BUFFER[]  = { { "Trigger voice", ' ', 0, 1, 0 }, { "Stop v
 static const Action A_PULSERS[] = { { "Fire pulser", 'f', 0, 1, 0 }, { "Rate up", '+', 0, 1, 0 }, { "Rate down", '-', 0, 1, 0 } };
 static const Action A_SEQ[]     = { { "Clock one step", KEY_ENTER, 0, 0, 0 }, { "Length up", '+', 0, 1, 0 }, { "Length down", '-', 0, 1, 0 }, { "Pitch drive", 'p', 0, 1, 0 }, { "Trigger drive", 't', 0, 1, 0 }, { "Restart", 'r', 0, 1, 0 } };
 static const Action A_MATRIX[]  = { { "Delete route", KEY_BACKSPACE, 0, 0, 0 } };
-static const Action A_PLAY[]    = { { "Clock sequencer", 's', 0, 1, 0 } };
+static const Action A_STICKS[]  = { { "Play / swell", ' ', 0, 1, 0 } };
 #define ACT(a) a, (int)(sizeof a / sizeof *a)
 static const struct { const Action *a; int n; } ACTIONS[TAB_COUNT] = {
   [TAB_EDITOR] = { ACT(A_EDITOR) }, [TAB_PATCHES] = { ACT(A_PATCHES) }, [TAB_CTRL] = { ACT(A_CTRL) }, [TAB_DEVICES] = { ACT(A_DEVICES) },
   [TAB_BUFFER] = { ACT(A_BUFFER) }, [TAB_PULSERS] = { ACT(A_PULSERS) }, [TAB_SEQ] = { ACT(A_SEQ) }, [TAB_MATRIX] = { ACT(A_MATRIX) },
-  [TAB_PLAY] = { ACT(A_PLAY) }, [TAB_SCOPE] = { NULL, 0 } };
+  [TAB_KEYS] = { NULL, 0 }, [TAB_STICKS] = { ACT(A_STICKS) }, [TAB_SCOPE] = { NULL, 0 } };
 
-static const char *const TAB_NAMES[TAB_COUNT] = { "Editor", "Patches", "Control", "Devices", "Buffer", "Pulsers", "Sequencer", "Matrix", "Play", "Scope" };
+static const char *const TAB_NAMES[TAB_COUNT] = { "Editor", "Patches", "Control", "Devices", "Buffer", "Pulsers", "Sequencer", "Matrix", "Keys", "Sticks", "Scope" };
+
+/* Go to screen lists the screens this machine has (no KEYS on the handheld): row r of the list is tab goto_tab(r). */
+static int goto_count(const Pad *p) { int n = 0; for (int t = 0; t < TAB_COUNT; t++) n += desk_tab_shown(p->d, t); return n; }
+static int goto_tab(const Pad *p, int row) { for (int t = 0; t < TAB_COUNT; t++) if (desk_tab_shown(p->d, t) && row-- == 0) return t; return TAB_EDITOR; }
+static int goto_row(const Pad *p, int tab) { int r = 0; for (int t = 0; t < tab; t++) r += desk_tab_shown(p->d, t); return r; }
 
 /* The MENU tab's rows. (The other tab, ACTIONS, lists what the current screen can do; see ACTIONS above.) */
 enum { MM_GOTO, MM_NEW, MM_RECORD, MM_PULSERS, MM_HELP, MM_QUIT, MM_CLOSE, MM_COUNT };
@@ -153,12 +158,12 @@ static const char *main_label(const Pad *p, int row) {
 
 /* The rows in the open menu level, as a count. */
 static int menu_rows(const Pad *p) {
-  if (p->menu == MENU_GOTO) return TAB_COUNT;
+  if (p->menu == MENU_GOTO) return goto_count(p);
   if (p->menu == MENU_ACTIONS) return ACTIONS[cur_tab(p)].n ? ACTIONS[cur_tab(p)].n : 1;     /* one row saying there is nothing, so the list is never empty */
   return MM_COUNT;
 }
 static const char *menu_label(const Pad *p, int row) {
-  if (p->menu == MENU_GOTO) return TAB_NAMES[row];
+  if (p->menu == MENU_GOTO) return TAB_NAMES[goto_tab(p, row)];
   if (p->menu == MENU_ACTIONS) {
     if (!ACTIONS[cur_tab(p)].n) return "(none on this screen)";
     const Action *a = &ACTIONS[cur_tab(p)].a[row];
@@ -188,7 +193,7 @@ static void menu_key(Pad *p, Button b) {
   else if (b == BTN_B || b == BTN_MENU) { if (p->menu == MENU_GOTO) { p->menu = MENU_MAIN; p->msel = MM_GOTO; } else p->menu = MENU_CLOSED; }
   else if (b == BTN_A) {
     int row = p->msel;
-    if (p->menu == MENU_GOTO) { d->layouts[d->layout].tab[d->focus] = row; p->pal = 0; p->menu = MENU_CLOSED; }
+    if (p->menu == MENU_GOTO) { d->layouts[d->layout].tab[d->focus] = goto_tab(p, row); p->pal = 0; p->menu = MENU_CLOSED; }
     else if (p->menu == MENU_ACTIONS) {
       if (!ACTIONS[cur_tab(p)].n) return;
       const Action *a = &ACTIONS[cur_tab(p)].a[row];
@@ -196,7 +201,7 @@ static void menu_key(Pad *p, Button b) {
       run_action(p, a);
     }
     else switch (row) {
-      case MM_GOTO: p->menu = MENU_GOTO; p->msel = cur_tab(p); break;
+      case MM_GOTO: p->menu = MENU_GOTO; p->msel = goto_row(p, cur_tab(p)); break;
       case MM_NEW: d->layouts[d->layout].tab[d->focus] = TAB_PATCHES; desk_patches_begin_new(d); p->pal = 0; p->menu = MENU_CLOSED; break;   /* shows the question on the Patches screen */
       case MM_RECORD: d->rec_toggle = 1; p->menu = MENU_CLOSED; break;
       case MM_PULSERS: desk_toggle_pulsers(d); p->menu = MENU_CLOSED; break;
@@ -303,7 +308,7 @@ static void say_volume(Pad *p) {
 /* A, B and X are the three buttons whose job depends on the screen; the others do the same everywhere. */
 static void screen_key(Pad *p, Button b) {
   Desk *d = p->d;
-  int tab = cur_tab(p), shift = held(p, BTN_Y) && tab != TAB_PLAY ? MOD_SHIFT : 0;
+  int tab = cur_tab(p), shift = held(p, BTN_Y) && tab != TAB_STICKS ? MOD_SHIFT : 0;   /* on STICKS, Y is a pulser */
   switch (b) {
     case BTN_UP:    desk_key(d, KEY_UP, shift); return;
     case BTN_DOWN:  desk_key(d, KEY_DOWN, shift); return;
@@ -335,8 +340,8 @@ static void screen_key(Pad *p, Button b) {
       else if (b == BTN_B) desk_key(d, KEY_ESC, 0);
       else if (b == BTN_X) desk_key(d, KEY_BACKSPACE, 0);
       break;
-    case TAB_PLAY:
-      if (b >= BTN_A && b <= BTN_Y) desk_text(d, '1' + (b - BTN_A));            /* A B X Y: pulsers 0 to 3 */
+    case TAB_STICKS:
+      if (b >= BTN_A && b <= BTN_Y) d->synth->vm.pending |= 1u << (b - BTN_A);  /* A B X Y: pulsers 0 to 3, on the next tick, as TRIG does */
       break;
     case TAB_SCOPE: break;
     default:                                                                     /* devices, buffer, pulsers, sequencer */
@@ -437,14 +442,13 @@ static const char *tab_hint(const Pad *p) {
         case DEV_CELLULAR: case DEV_TURING: return "A act  X step  L2/R2 page";
         case DEV_QUANTISER:                 return "A act  X on/off  L2/R2 page";
         case DEV_DELAY:                     return "A act  X freeze  L2/R2 page";
-        case DEV_STICK:                     return "R stick plays  X mode  L2/R2";
         default:                            return "A act  X restart  L2/R2 page";   /* Lorenz */
       }
     case TAB_BUFFER:  return "A adjust  X trigger  L2/R2 page";
     case TAB_PULSERS: return "A edit  X toggle  Y coarse";
     case TAB_SEQ:     return "A clock  X on/off  Y snap";
     case TAB_MATRIX:  return "A pick  B back  X delete  Y coarse";
-    case TAB_PLAY:    return "A B X Y fire pulsers P0 to P3";
+    case TAB_STICKS:  return "L stick plays  ABXY fire P0-P3";
     default:          return "Menu: more";
   }
 }

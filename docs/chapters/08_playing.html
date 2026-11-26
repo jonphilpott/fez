@@ -24,11 +24,12 @@
   <li><b>EDITOR</b>: sixteen blocks of code. See below.</li>
   <li><b>PATCHES</b>: load, save and delete. See <a href="#patches">Patches</a>.</li>
   <li><b>CTRL</b>: every register in one list, under group headings, starting with the master volume. <b>Up</b> and <b>Down</b> pick a row; <b>Left</b> and <b>Right</b> change it (<b>Shift</b> for big steps); type digits and press <b>Enter</b> to set an exact value. <b>Tab</b> switches between real units (Hz, seconds, percent) and raw register numbers.</li>
-  <li><b>DEVICES</b>: pages for the cellular automaton, Lorenz, quantiser, Turing machine, delay and keys. <b>Space</b> does the page's main action (a step, a reseed, a freeze).</li>
+  <li><b>DEVICES</b>: pages for the delay, the cellular automaton, Lorenz, the quantiser and the Turing machine. <b>Space</b> does the page's main action (a step, a reseed, a freeze).</li>
   <li><b>BUFFER</b>: the tape, and its voices.</li>
   <li><b>PULSERS</b>: the four clocks. <b>Space</b> toggles one, <b>F</b> fires it, and you can type a new rate.</li>
   <li><b>SEQ</b>: the eight steps. Type a note name to set a step, and press <b>Enter</b> to clock the sequencer once.</li>
   <li><b>MATRIX</b>: the routes. <b>Enter</b> picks or adjusts a cell, and <b>Backspace</b> deletes a route.</li>
+  <li><b>KEYS</b>: the computer keyboard as a piano (see below).</li>
   <li><b>SCOPE</b>: a picture of the output wave, steadied by starting each sweep on a rising edge.</li>
 </ul>
 
@@ -54,16 +55,40 @@
   <li><b>Ctrl+T</b> starts and stops a recording of the final output. See below.</li>
 </ul>
 
-<h3 id="keys-page">The keys page</h3>
+<h3 id="keys-page">The KEYS tab</h3>
 
-<p>To play FEZ as an instrument, go to the DEVICES tab and press <b>]</b> to reach the KEYS page. The computer keyboard now plays notes, laid out like a piano, by the position of each key so that it works on any national layout:</p>
+<p>To play FEZ as an instrument, go to the KEYS tab (<b>Ctrl+]</b> moves through the tabs). The computer keyboard now plays notes, laid out like a piano, by the position of each key so that it works on any national layout:</p>
 
 <pre>  2 3   5 6 7          upper octave: black keys
  Q W E R T Y U         upper octave: white keys
   S D   G H J          lower octave: black keys
  Z X C V B N M         lower octave: white keys</pre>
 
-<p>The notes are Z (C), S (C sharp), X (D), D (D sharp), C (E), V (F), G (F sharp), B (G), H (G sharp), N (A), J (A sharp) and M (B), and the upper row is the next octave, starting on Q. <b>Space</b> lets go of every key. Only this page plays; the rest of the time the letters are for typing. If the window loses focus, every held note is released. How a key behaves is explained in <a href="#keyboard">the keyboard device</a>.</p>
+<p>The notes are Z (C), S (C sharp), X (D), D (D sharp), C (E), V (F), G (F sharp), B (G), H (G sharp), N (A), J (A sharp) and M (B), and the upper row is the next octave, starting on Q. <b>Space</b> lets go of every key. Only this tab plays; the rest of the time the letters are for typing. If the window loses focus, every held note is released. How a key behaves is explained in <a href="#keyboard">the keyboard device</a>.</p>
+
+<h3 id="setup">Sound output and MIDI: F2</h3>
+
+<p>Press <b>F2</b> for the setup page. It covers the window, like the help page, and <b>F2</b> or <b>Esc</b> closes it. <b>Up</b> and <b>Down</b> move through everything on it. Your choices are saved in <code>~/FEZ/setup.txt</code> as soon as you make them, and come back the next time FEZ starts. They are not part of any patch, because they describe your computer and your controllers, not a sound.</p>
+
+<ul>
+  <li><b>AUDIO OUTPUT</b>: the sound devices. <b>Enter</b> on one sends the sound there; <b>default</b> follows whatever the system uses. If the saved device is missing when FEZ starts, for example because it is unplugged, the sound goes to the default instead.</li>
+  <li><b>MIDI INPUT</b>: the MIDI devices. <b>Enter</b> on one listens to it, and <b>none</b> stops listening. Notes play the <a href="#keyboard">keyboard device</a>, just as the KEYS tab does, so <code>KBNOTE</code>, <code>KBGATE</code> and the <code>KBPUL</code> pulsers follow them.</li>
+  <li><b>CHANNEL</b>: <b>Left</b> and <b>Right</b> choose the MIDI channel FEZ hears, 1 to 16, or every one.</li>
+  <li><b>LAST MESSAGE</b>: the most recent thing the input sent, such as <code>CC 74 = 90  ch 1</code>. Turn a knob and read its controller number here.</li>
+  <li><b>POTS</b>: the sixteen modulation pots, <code>MP0</code> to <code>MP15</code>, which the <a href="#matrix">matrix</a> can route anywhere. For each pot, choose which MIDI controller number (CC) moves it: <b>Left</b> and <b>Right</b> step it (with <b>Shift</b>, by ten), or type the number and press <b>Enter</b>. Below 0 is <b>off</b>. A bar shows where each pot is now.</li>
+</ul>
+
+<p><b>Space</b> on a pot changes how its controller is read, because knobs and endless encoders send different things:</p>
+
+<ul>
+  <li><b>abs</b>: an ordinary knob or fader. It sends its position, 0 at the bottom to 127 at the top.</li>
+  <li><b>rel64</b>: an endless encoder that sends 64 plus the number of clicks it turned, so 65 is one click up and 63 one click down. Some makers call this "binary offset".</li>
+  <li><b>rel2c</b>: an endless encoder that sends 1 for one click up and 127 for one click down ("two's complement").</li>
+</ul>
+
+<p>If an encoder makes its pot jump to the top or bottom, it is not in abs mode. If it moves the pot the wrong way, or only one way, try the other relative mode. The LAST MESSAGE line shows what it sends as you turn it. With an encoder, 128 clicks take a pot from bottom to top.</p>
+
+<p>On macOS and Windows every MIDI input the system knows about is listed. On Linux FEZ lists ALSA's raw MIDI ports, which covers USB and hardware devices. A software port, such as a virtual keyboard, only appears there if it is connected to a virtual raw port; the <code>snd-virmidi</code> module provides those. If you plug a device in while the page is open, press <b>R</b> to look again.</p>
 
 <h3 id="recording">Recording a take</h3>
 

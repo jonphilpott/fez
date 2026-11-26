@@ -54,7 +54,7 @@ static const Setting DLY_SETTINGS[] = {
   { "WOBBLE", REG_DLYWOB, 0, 32767, 512, 4096 }, { "NOISE", REG_DLYNZ, 0, 32767, 512, 4096 },
   { "FREEZE", REG_DLYFRZ, 0, 32767, 32767, 32767 },                           /* on at or above half, so one step flips it */
   { "MIX", REG_DLYMIX, 0, 32767, 512, 4096 }, { "INPUT", REG_DLYIN, 0, 32767, 512, 4096 } };
-static const char *const DEVICE_NAMES[DEV_COUNT] = { [DEV_DELAY] = "DELAY", [DEV_CELLULAR] = "CELLULAR", [DEV_LORENZ] = "LORENZ", [DEV_QUANTISER] = "QUANTISER", [DEV_TURING] = "TURING", [DEV_KEYS] = "KEYS", [DEV_STICK] = "STICK" };
+static const char *const DEVICE_NAMES[DEV_COUNT] = { [DEV_DELAY] = "DELAY", [DEV_CELLULAR] = "CELLULAR", [DEV_LORENZ] = "LORENZ", [DEV_QUANTISER] = "QUANTISER", [DEV_TURING] = "TURING", [DEV_KEYS] = "KEYS", [DEV_STICK] = "LEFT STICK" };
 
 static const Setting KB_SETTINGS[] = {
   { "OCTAVE", REG_KBOCT, 0, 8, 1, 1 }, { "PULSERS", REG_KBPUL, 0, 15, 1, 1 } };
@@ -101,10 +101,10 @@ void devices_watch(Desk *d) {
 static void trig_name(char *out, size_t n, int v) { if (v >= 0 && v < NUM_PULSERS) snprintf(out, n, "P%d", v); else snprintf(out, n, "off"); }
 
 /* The settings list of the page at (col, row), `width` cells wide. */
-static void draw_settings(Desk *d, View *v, int col, int row, int width) {
-  int n; const Setting *st = settings_of(d->dev.sub, &n);
+static void draw_settings(Desk *d, View *v, int sub, int col, int row, int width) {
+  int n; const Setting *st = settings_of(sub, &n);
   for (int i = 0; i < n; i++) {
-    int sel = i == d->dev.sel[d->dev.sub], val = fez_reg_read(d->synth, st[i].addr);
+    int sel = i == d->dev.sel[sub], val = fez_reg_read(d->synth, st[i].addr);
     char buf[48], extra[32] = "";
     if (sel) view_fill(v, col, row + i, width, 1, COL_AMBD);
     view_text(v, col, row + i, st[i].name, sel ? COL_AMB : COL_FG);
@@ -158,7 +158,7 @@ static void draw_history(Desk *d, View *v, const uint16_t *hist, int n, int prow
 static void draw_cellular(Desk *d, View *v, int prows, int cs, int compact, int sx, int sy, int swidth) {
   FezSynth *s = d->synth;
   draw_history(d, v, d->dev.ca_hist, d->dev.ca_n, prows, cs, 0xFFFF, s->ca.tap);    /* the watched column is shaded */
-  draw_settings(d, v, sx, sy, swidth);
+  draw_settings(d, v, DEV_CELLULAR, sx, sy, swidth);
   char buf[64];
   int alive = fez_reg_read(s, REG_CACOUNT), watched = fez_reg_read(s, REG_CABIT);
   int row = compact ? 2 + prows + 1 : sy + 4, col = compact ? 0 : sx;
@@ -195,7 +195,7 @@ static void draw_quantiser(Desk *d, View *v, int pane_w, int prows, int sx, int 
   int h = prows * v->rh < 7 * v->rh ? prows * v->rh : 7 * v->rh;
   int root_pc = ((s->mem[REG_QROOT] + 128) / 256) % 12, heard = s->mem[REG_QON] ? ((s->eff[REG_PITCH] + 128) / 256) % 12 : -1;
   draw_keyboard(d, v->x, v->y + 2 * v->rh, pane_w, h, fez_scale_mask(s->mem[REG_QSCALE]), root_pc, heard);
-  draw_settings(d, v, sx, sy, swidth);
+  draw_settings(d, v, DEV_QUANTISER, sx, sy, swidth);
   char buf[48], name[16];
   regview_fmt_note(name, sizeof name, s->mem[REG_PITCH]);
   snprintf(buf, sizeof buf, "PITCH register  %s", name); view_text(v, sx, sy + 4, buf, COL_FG);
@@ -210,7 +210,7 @@ static void draw_turing(Desk *d, View *v, int pane_w, int prows, int sx, int sy,
   int len = s->mem[REG_TMLEN] < 2 ? 2 : s->mem[REG_TMLEN] > 16 ? 16 : s->mem[REG_TMLEN];
   (void)pane_w;
   draw_history(d, v, d->dev.tm_hist, d->dev.tm_n, prows, v->rh, (1 << len) - 1, -1);        /* bits past the loop length are dark */
-  draw_settings(d, v, sx, sy, swidth);
+  draw_settings(d, v, DEV_TURING, sx, sy, swidth);
   char buf[32];
   int out = fez_reg_read(s, REG_TMOUT);
   snprintf(buf, sizeof buf, "bits %04X", s->tm.bits & 0xffff); view_text(v, sx, sy + 4, buf, COL_FG);
@@ -285,7 +285,7 @@ static void draw_keys(Desk *d, View *v, int pane_w, int prows, int sx, int sy, i
   gfx_frame(&d->cv, x0, y0, w, h, gfx_colour(s->mem[REG_KBGATE] ? COL_AMB : COL_LINE));
   view_text(v, 0, 2 + prows, "older", COL_DIM);
   view_text_right(v, 0, v->cols - 1, 2 + prows, "now", COL_DIM);
-  draw_settings(d, v, sx, sy, swidth);
+  draw_settings(d, v, DEV_KEYS, sx, sy, swidth);
 
   /* the keys, as a little piano. Black keys sit between the white ones above them, so the rows line up like the real thing.
      The white keys are semitones 0 2 4 5 7 9 11 of an octave and the black ones 1 3 6 8 10 (the gaps are E-F and B-C). */
@@ -326,7 +326,7 @@ static void draw_lorenz(Desk *d, View *v, int pane_w, int prows, int sx, int sy,
   if (d->dev.lz_n) gfx_fill(&d->cv, px - sc, py - sc, 3 * sc, 3 * sc, gfx_colour(COL_AMB));    /* the present */
   gfx_frame(&d->cv, x0, y0, w, h, gfx_colour(COL_LINE));
 
-  draw_settings(d, v, sx, sy, swidth);
+  draw_settings(d, v, DEV_LORENZ, sx, sy, swidth);
   static const char *const AXIS[3] = { "X", "Y", "Z" };
   for (int a = 0; a < 3; a++) {
     int val = fez_reg_read(s, REG_LZX + a);
@@ -338,18 +338,14 @@ static void draw_lorenz(Desk *d, View *v, int pane_w, int prows, int sx, int sy,
   if (!d->handheld && sy + 8 < v->rows) view_text(v, sx, sy + 8, "Space or r: restart", COL_DIM);
 }
 
-/* The pages the DEVICES tab cycles through. The last is KEYS on the desktop (the computer keyboard as a piano) and STICK on
-   the handheld (the right stick plays): each machine has the one its controls can play. */
-#define PAGE_COUNT (DEV_KEYS + 1)
-static int page_at(const Desk *d, int i) { return i < DEV_KEYS ? i : d->handheld ? DEV_STICK : DEV_KEYS; }
-static int page_pos(int sub) { return sub < DEV_KEYS ? sub : DEV_KEYS; }                 /* where a page sits in the list */
+/* The DEVICES tab turns through its first five pages; KEYS and STICK are tabs of their own (see the end of this file). */
 static void turn_page(Desk *d, int step) {                                                /* step +1 or -1, wrapping */
-  d->dev.sub = page_at(d, (page_pos(d->dev.sub) + step + PAGE_COUNT) % PAGE_COUNT);
+  d->dev.sub = (d->dev.sub + step + DEV_PAGES) % DEV_PAGES;
 }
 
 /* ---------------------------------------------------------------- the stick (handheld)
 
-   The right stick picks a degree of the scale by its direction: up is the root, and each 45 degrees clockwise is the next
+   The left stick (on the STICKS tab) picks a degree of the scale by its direction: up is the root, and each 45 degrees clockwise is the next
    degree, so the eight directions are degrees 0 to 7 (a seven-note scale reaches the octave at up-left). Two modes:
      play   pushing out plays the note (through fez_note_on, like a key: the envelope fires and holds; KBPUL pulsers fire);
             moving round to another direction plays the next, and letting the stick go back to the centre lets go.
@@ -435,19 +431,29 @@ static void draw_stick(Desk *d, View *v, int pane_w, int prows, int sx, int sy, 
   gfx_line(&d->cv, cx, cy, dx, dy, gfx_colour(COL_SEL));
   gfx_fill(&d->cv, dx - sc, dy - sc, 3 * sc, 3 * sc, gfx_colour(d->dev.stk_dir >= 0 ? COL_MAG : COL_DIM));
   gfx_frame(&d->cv, x0, y0, w, h, gfx_colour(d->dev.stk_dir >= 0 ? COL_AMB : COL_LINE));
-  draw_settings(d, v, sx, sy, swidth);
+  draw_settings(d, v, DEV_STICK, sx, sy, swidth);
   int n; settings_of(DEV_STICK, &n);
   if (fez_reg_read(s, REG_STKMODE) == 1) {
     view_text(v, sx, sy + n, "GATE", COL_DIM);
     view_bar(v, sx + 8, sy + n, swidth - 8 > 4 ? swidth - 8 : 4, fez_reg_read(s, REG_GATELEVEL) / 32767.0, COL_MAG, COL_SEL);
-  } else view_text(v, sx, sy + n, "right stick plays  X: mode", COL_DIM);
+  }
+  /* The four face buttons fire the pulsers: one pad each, lit for 200 ms (40 ticks) after its pulser fires, by hand or by its clock. */
+  static const char *const BUTTON[NUM_PULSERS] = { "A", "B", "X", "Y" };
+  int py = sy + n + 1, pw = (swidth + 1) / NUM_PULSERS;
+  for (int p = 0; p < NUM_PULSERS; p++) {
+    unsigned long since = s->tick_count - s->pulsers[p].last_fire;
+    double light = s->pulsers[p].last_fire && since < 40 ? 1.0 - since / 40.0 : 0.0;
+    int x = v->x + (sx + p * pw) * v->cw, y = v->y + py * v->rh;
+    gfx_fill(&d->cv, x, y, (pw - 1) * v->cw, v->rh, gfx_mix(gfx_colour(COL_PNL), gfx_colour(COL_MAG), light));
+    char buf[12]; snprintf(buf, sizeof buf, "%s P%d", BUTTON[p], p);
+    view_text(v, sx + p * pw + 1, py, buf, light > 0.5 ? COL_BG : COL_FG);
+  }
 }
 
-void tab_devices_draw(Desk *d, View *v) {
-  int sub = d->dev.sub;
-  const char *names[PAGE_COUNT];                             /* this machine's pages, in order */
-  for (int i = 0; i < PAGE_COUNT; i++) names[i] = DEVICE_NAMES[page_at(d, i)];
-  view_pages(v, names, PAGE_COUNT, page_pos(sub));
+/* One page, whichever tab shows it. Row 0 is the page names (DEVICES) or the tab's title (KEYS, STICKS); the picture starts at row 2. */
+static void page_draw(Desk *d, View *v, int sub) {
+  if (sub < DEV_PAGES) view_pages(v, DEVICE_NAMES, DEV_PAGES, sub);
+  else view_pages(v, &DEVICE_NAMES[sub], 1, 0);
 
   /* Wide tiles: the picture on the left, the settings beside it. Narrow tiles: the settings go under the picture. */
   int top_only = sub == DEV_DELAY || sub == DEV_KEYS || sub == DEV_QUANTISER || sub == DEV_STICK;   /* these pictures are always on top, full width, the text always below */
@@ -466,7 +472,7 @@ void tab_devices_draw(Desk *d, View *v) {
        the blank row, the n settings, and each page's own lines below them (delay none; quantiser and keys their live
        values and hints, which reach sy + 8; the others reach sy + 7). */
     int n; settings_of(sub, &n);
-    int below = 1 + n + (sub == DEV_DELAY || sub == DEV_STICK ? 1 : sub == DEV_QUANTISER || sub == DEV_KEYS ? 6 : 5);
+    int below = 1 + n + (sub == DEV_DELAY ? 1 : sub == DEV_STICK ? 2 : sub == DEV_QUANTISER || sub == DEV_KEYS ? 6 : 5);
     prows = v->rows - 2 - below;
     if (sub == DEV_QUANTISER && prows > 7) prows = 7;                        /* the piano is never taller than 7 rows: keep the text right under it */
     if (prows < 3) prows = 3;
@@ -476,11 +482,13 @@ void tab_devices_draw(Desk *d, View *v) {
   if (sub == DEV_CELLULAR) draw_cellular(d, v, prows, cs, compact, sx, sy, swidth);
   else if (sub == DEV_LORENZ) draw_lorenz(d, v, wide ? pane_w : v->w - 2, prows, sx, sy, swidth);
   else if (sub == DEV_QUANTISER) draw_quantiser(d, v, wide ? pane_w : v->w - 2, prows, sx, sy, swidth);
-  else if (sub == DEV_DELAY) { draw_delay(d, v, v->w - 2, prows); draw_settings(d, v, sx, sy, swidth); }
+  else if (sub == DEV_DELAY) { draw_delay(d, v, v->w - 2, prows); draw_settings(d, v, DEV_DELAY, sx, sy, swidth); }
   else if (sub == DEV_KEYS) draw_keys(d, v, v->w - 2, prows, sx, sy, swidth);
   else if (sub == DEV_STICK) draw_stick(d, v, v->w - 2, prows, sx, sy, swidth);
   else draw_turing(d, v, pane_w, prows, sx, sy, swidth);
 }
+
+void tab_devices_draw(Desk *d, View *v) { page_draw(d, v, d->dev.sub); }
 
 /* ---------------------------------------------------------------- keys */
 
@@ -493,21 +501,20 @@ static int setting_hi(const Desk *d, const Setting *t) {
 }
 
 /* The page's main action: step the automaton or the Turing machine, switch the quantiser or the freeze, or restart the attractor. */
-static void action(Desk *d) {
-  if (d->dev.sub == DEV_CELLULAR) fez_reg_write(d->synth, REG_CASTEP, 1);
-  else if (d->dev.sub == DEV_QUANTISER) fez_reg_write(d->synth, REG_QON, !fez_reg_read(d->synth, REG_QON));
-  else if (d->dev.sub == DEV_TURING) fez_reg_write(d->synth, REG_TMSTEP, 1);
-  else if (d->dev.sub == DEV_KEYS) desk_all_notes_off(d);                              /* a stuck note, or just tidying up */
-  else if (d->dev.sub == DEV_STICK) { tab_devices_stick_release(d); fez_reg_write(d->synth, REG_STKMODE, !fez_reg_read(d->synth, REG_STKMODE)); }   /* play or swell */
-  else if (d->dev.sub == DEV_DELAY) fez_reg_write(d->synth, REG_DLYFRZ, fez_reg_read(d->synth, REG_DLYFRZ) >= 16384 ? 0 : 32767);   /* freeze on or off */
+static void action(Desk *d, int sub) {
+  if (sub == DEV_CELLULAR) fez_reg_write(d->synth, REG_CASTEP, 1);
+  else if (sub == DEV_QUANTISER) fez_reg_write(d->synth, REG_QON, !fez_reg_read(d->synth, REG_QON));
+  else if (sub == DEV_TURING) fez_reg_write(d->synth, REG_TMSTEP, 1);
+  else if (sub == DEV_KEYS) desk_all_notes_off(d);                              /* a stuck note, or just tidying up */
+  else if (sub == DEV_STICK) { tab_devices_stick_release(d); fez_reg_write(d->synth, REG_STKMODE, !fez_reg_read(d->synth, REG_STKMODE)); }   /* play or swell */
+  else if (sub == DEV_DELAY) fez_reg_write(d->synth, REG_DLYFRZ, fez_reg_read(d->synth, REG_DLYFRZ) >= 16384 ? 0 : 32767);   /* freeze on or off */
   else fez_reg_write(d->synth, REG_LZSEED, rand() & 0x7fff);                         /* ponytail: libc rand, not the synth's generator: a UI gesture needs no replay */
 }
 
-void tab_devices_key(Desk *d, int key, int mods) {
-  int n; const Setting *st = settings_of(d->dev.sub, &n);
-  int *sel = &d->dev.sel[d->dev.sub];
+static void page_key(Desk *d, int sub, int key, int mods) {
+  int n; const Setting *st = settings_of(sub, &n);
+  int *sel = &d->dev.sel[sub];
   switch (key) {
-    case KEY_TAB: turn_page(d, mods & MOD_SHIFT ? -1 : 1); stop_entry(d); break;
     case KEY_UP:   *sel = (*sel + n - 1) % n; stop_entry(d); break;
     case KEY_DOWN: *sel = (*sel + 1) % n; stop_entry(d); break;
     case KEY_LEFT: case KEY_RIGHT: {
@@ -520,7 +527,7 @@ void tab_devices_key(Desk *d, int key, int mods) {
     }
     case KEY_ENTER:
       if (d->dev.in.editing) { fez_reg_write(d->synth, st[*sel].addr, fez_clamp(atoi(d->dev.in.buf), st[*sel].lo, setting_hi(d, &st[*sel]))); stop_entry(d); }
-      else action(d);
+      else action(d, sub);
       break;
     case KEY_ESC: stop_entry(d); break;
     case KEY_BACKSPACE:
@@ -530,14 +537,31 @@ void tab_devices_key(Desk *d, int key, int mods) {
   }
 }
 
-void tab_devices_text(Desk *d, int ch) {
-  if (ch == '[' || ch == ']') { turn_page(d, ch == ']' ? 1 : -1); stop_entry(d); return; }
-  if (d->dev.sub == DEV_KEYS && ch != ' ') return;      /* on the KEYS page the letters and digits are notes (played from key events), not typing */
+static void page_text(Desk *d, int sub, int ch) {
+  if (sub == DEV_KEYS && ch != ' ') return;            /* on the KEYS tab the letters and digits are notes (played from key events), not typing */
   if (ch >= '0' && ch <= '9') {
     entry_add(&d->dev.in, ch, 5);                                   /* 5 characters: 0..32767 */
-  } else if (ch == ' ') { if (!d->dev.in.editing) action(d); }
-  else if (d->dev.sub == DEV_CELLULAR && (ch == 'n' || ch == 'N')) fez_reg_write(d->synth, REG_CAROW, rand() & 0xffff);
-  else if (d->dev.sub == DEV_CELLULAR && (ch == 'c' || ch == 'C')) fez_reg_write(d->synth, REG_CAROW, 1 << 8);
-  else if (d->dev.sub == DEV_LORENZ && (ch == 'r' || ch == 'R')) action(d);
-  else if (d->dev.sub == DEV_TURING && (ch == 'n' || ch == 'N')) fez_reg_write(d->synth, REG_TMBITS, (int16_t)(rand() & ((1 << fez_reg_read(d->synth, REG_TMLEN)) - 1)));   /* only the bits the loop uses. ponytail: libc rand, as above */
+  } else if (ch == ' ') { if (!d->dev.in.editing) action(d, sub); }
+  else if (sub == DEV_CELLULAR && (ch == 'n' || ch == 'N')) fez_reg_write(d->synth, REG_CAROW, rand() & 0xffff);
+  else if (sub == DEV_CELLULAR && (ch == 'c' || ch == 'C')) fez_reg_write(d->synth, REG_CAROW, 1 << 8);
+  else if (sub == DEV_LORENZ && (ch == 'r' || ch == 'R')) action(d, sub);
+  else if (sub == DEV_TURING && (ch == 'n' || ch == 'N')) fez_reg_write(d->synth, REG_TMBITS, (int16_t)(rand() & ((1 << fez_reg_read(d->synth, REG_TMLEN)) - 1)));   /* only the bits the loop uses. ponytail: libc rand, as above */
 }
+
+/* ---------------------------------------------------------------- the tabs
+
+   DEVICES turns through its five pages ([ ] or Tab); KEYS and STICKS are one page each, drawn and driven by the same code. */
+void tab_devices_key(Desk *d, int key, int mods) {
+  if (key == KEY_TAB) { turn_page(d, mods & MOD_SHIFT ? -1 : 1); stop_entry(d); return; }
+  page_key(d, d->dev.sub, key, mods);
+}
+void tab_devices_text(Desk *d, int ch) {
+  if (ch == '[' || ch == ']') { turn_page(d, ch == ']' ? 1 : -1); stop_entry(d); return; }
+  page_text(d, d->dev.sub, ch);
+}
+void tab_keys_draw(Desk *d, View *v)            { page_draw(d, v, DEV_KEYS); }
+void tab_keys_key(Desk *d, int key, int mods)   { page_key(d, DEV_KEYS, key, mods); }
+void tab_keys_text(Desk *d, int ch)             { page_text(d, DEV_KEYS, ch); }
+void tab_sticks_draw(Desk *d, View *v)          { page_draw(d, v, DEV_STICK); }
+void tab_sticks_key(Desk *d, int key, int mods) { page_key(d, DEV_STICK, key, mods); }
+void tab_sticks_text(Desk *d, int ch)           { page_text(d, DEV_STICK, ch); }

@@ -23,11 +23,11 @@
 
 /* Keys the platform layer reports. Printable characters arrive separately, through desk_text(). Letters and symbols
    that are part of a Ctrl/Alt chord arrive in desk_key() as their lower-case ASCII code. */
-enum { KEY_NONE = 0, KEY_UP = 256, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_ESC, KEY_BACKSPACE, KEY_TAB, KEY_DELETE, KEY_F1 };
+enum { KEY_NONE = 0, KEY_UP = 256, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_ESC, KEY_BACKSPACE, KEY_TAB, KEY_DELETE, KEY_F1, KEY_F2 };
 enum { MOD_SHIFT = 1, MOD_CTRL = 2, MOD_ALT = 4 };
 
 /* The order of the tabs, which is also the order Ctrl+[ ] and the handheld's L1/R1 walk through them. */
-enum { TAB_EDITOR, TAB_PATCHES, TAB_CTRL, TAB_DEVICES, TAB_BUFFER, TAB_PULSERS, TAB_SEQ, TAB_MATRIX, TAB_PLAY, TAB_SCOPE, TAB_COUNT };
+enum { TAB_EDITOR, TAB_PATCHES, TAB_CTRL, TAB_DEVICES, TAB_BUFFER, TAB_PULSERS, TAB_SEQ, TAB_MATRIX, TAB_KEYS, TAB_STICKS, TAB_SCOPE, TAB_COUNT };   /* KEYS on the desktop only, STICKS on the handheld only (desk_tab_shown) */
 
 #define MAX_TILES  4
 #define MAX_LIST   256
@@ -67,6 +67,19 @@ typedef struct {
    first character until Enter, Esc or a move ends it. See entry_add and friends in desk.c. */
 typedef struct { char buf[8]; int len, editing; } Entry;
 
+/* The F2 setup page (setup.c): the audio output, the MIDI input, and which MIDI controller (CC) moves each pot. Saved by
+   main.c in ~/FEZ/setup.txt, not in patches: it belongs to the machine and its controllers, not to the sound. */
+#define NUM_POTS    16                       /* MP0..MP15 */
+#define SETUP_DEVS  16                       /* devices listed */
+#define SETUP_NAME  96                       /* characters in a device name */
+enum { CC_ABS, CC_REL64, CC_REL2C, CC_MODES };   /* a pot's CC: 0..127 is the position; or an encoder's relative steps (see setup.c) */
+typedef struct {
+  char audio[SETUP_NAME];                    /* the output device's name; "" = the system's default */
+  char midi[SETUP_NAME];                     /* the MIDI input's name; "" = none */
+  int chan;                                  /* the MIDI channel listened to: 0 = every channel, or 1..16 */
+  struct { int cc, mode; } pot[NUM_POTS];    /* cc -1 = no CC moves this pot */
+} Setup;
+
 /* One setting on a device or buffer page: its label, register, range, and the step for a key press (coarse with Shift). */
 typedef struct { const char *name; int addr, lo, hi, step, coarse; } Setting;
 
@@ -75,7 +88,8 @@ typedef struct { int sel, top; Entry in; } ValueList;
 
 enum { BFP_TAPE, BFP_VOICES, BFP_COUNT };                      /* the BUFFER tab's pages */
 enum { BFM_NORMAL, BFM_ADJUST, BFM_TYPE };                      /* what the keys do on a voice cell */
-enum { DEV_DELAY, DEV_CELLULAR, DEV_LORENZ, DEV_QUANTISER, DEV_TURING, DEV_KEYS, DEV_STICK, DEV_COUNT };       /* the DEVICES tab's pages (KEYS on the desktop only, STICK on the handheld only) */
+enum { DEV_DELAY, DEV_CELLULAR, DEV_LORENZ, DEV_QUANTISER, DEV_TURING, DEV_KEYS, DEV_STICK, DEV_COUNT };
+#define DEV_PAGES DEV_KEYS   /* the DEVICES tab's pages are the first five; KEYS and STICK are drawn by the same code as tabs of their own */
 #define CA_HIST 64                                        /* generations of the automaton kept for the picture */
 #define KB_HIST 480                                       /* frames of the keyboard's note trace (about 8 s) */
 #define LZ_HIST 400                                       /* points of the Lorenz trace */
@@ -103,6 +117,13 @@ typedef struct Desk {
   double nan_until;
   int pulsers_on;                /* whether the pulsers run (Ctrl+P) */
   int help, help_top;            /* the F1 help page is open; how far it is scrolled (narrow windows only) */
+  int setup_open, setup_row;     /* the F2 setup page is open; the row under the cursor */
+  Entry setup_in;                /* a CC number being typed */
+  Setup setup;
+  char audio_names[SETUP_DEVS][SETUP_NAME]; int n_audio;   /* the devices found when the page opened (main.c fills them) */
+  char midi_names[SETUP_DEVS][SETUP_NAME];  int n_midi;
+  int midi_status, midi_n; unsigned char midi_data[2];     /* the MIDI byte reader: the message so far (see desk_midi_bytes) */
+  char midi_last[48];            /* the last message, shown on the setup page so you can see what a knob sends */
   int rec_toggle;                /* Ctrl+T sets this; main.c starts or stops the recording (it owns the file) and clears it */
   int recording; double rec_secs;/* set by main.c while a take runs: the status bar shows REC and the time */
   volatile int muted;            /* global mute (Shift+Esc): the app fades the output to silence; the synth keeps running. Read by the audio thread, hence volatile. */
@@ -163,6 +184,8 @@ typedef struct Desk {
   struct { int row, field; Entry in; int adjusting; } pul;   /* PULSERS: the cell under the cursor, and a rate being typed */
 
   /* the system clipboard, supplied by the platform layer (may be NULL) */
+  void (*setup_scan)(struct Desk *d);               /* the platform layer lists the audio and MIDI devices (NULL: none, e.g. tests) */
+  void (*setup_apply)(struct Desk *d, int what);    /* ... and acts on a change: SETUP_AUDIO reopens the output, SETUP_MIDI the input; both save */
   void (*clip_set)(const char *text);
   int  (*clip_get)(char *buf, int max);      /* copies the clipboard text into buf; returns its length */
 } Desk;
@@ -216,8 +239,8 @@ void tab_editor_draw(Desk *d, View *v);   void tab_editor_key(Desk *d, int key, 
 void tab_patches_draw(Desk *d, View *v);  void tab_patches_key(Desk *d, int key, int mods);  void tab_patches_text(Desk *d, int ch);
 void tab_pulsers_draw(Desk *d, View *v);  void tab_pulsers_key(Desk *d, int key, int mods);  void tab_pulsers_text(Desk *d, int ch);
 void tab_devices_draw(Desk *d, View *v);  void tab_devices_key(Desk *d, int key, int mods);  void tab_devices_text(Desk *d, int ch);
-void tab_devices_stick(Desk *d, int x, int y);   /* the STICK page: the right stick moved (x right, y up, -32767..32767) */
-void tab_devices_stick_release(Desk *d);         /* let go of the stick's note and GATELEVEL (leaving the page) */
+void tab_devices_stick(Desk *d, int x, int y);   /* the STICKS tab: the left stick moved (x right, y up, -32767..32767) */
+void tab_devices_stick_release(Desk *d);         /* let go of the stick's note and GATELEVEL (leaving the tab) */
 extern const char KB_KEYS_LOW[13], KB_KEYS_HIGH[13];   /* the keyboard device's two rows of keys, in semitone order */
 int  desk_note_key(Desk *d, int ch, int down);   /* a physical key (lower-case US letter or digit) went down or up: 1 if the keyboard device took it */
 void desk_all_notes_off(Desk *d);            /* let go of every key (also when the window loses focus) */
@@ -227,9 +250,18 @@ void tab_matrix_draw(Desk *d, View *v);   void tab_matrix_key(Desk *d, int key, 
 void tab_seq_draw(Desk *d, View *v);      void tab_seq_key(Desk *d, int key, int mods);      void tab_seq_text(Desk *d, int ch);
 void tab_ctrl_draw(Desk *d, View *v);     void tab_ctrl_key(Desk *d, int key, int mods);     void tab_ctrl_text(Desk *d, int ch);
 void desk_help_draw(Desk *d);   int desk_help_key(Desk *d, int key);    /* help.c: the F1 page */
+enum { SETUP_SAVE, SETUP_AUDIO, SETUP_MIDI };
+void desk_setup_draw(Desk *d);  void desk_setup_key(Desk *d, int key, int mods);  void desk_setup_text(Desk *d, int ch);   /* setup.c: the F2 page */
+void desk_setup_open(Desk *d);
+void setup_defaults(Setup *s);
+int  setup_write(const Setup *s, char *out, int cap);  /* the setup as text; returns its length */
+void setup_read(Setup *s, const char *text);           /* and back (unknown or bad lines are skipped) */
+void desk_midi_bytes(Desk *d, const unsigned char *b, int n);   /* MIDI bytes as they arrived: notes play, CCs move pots. Call with the audio locked. */
 void ctrl_build_rows(Desk *d);            /* once, after d->regs is filled: the CTRL list with its headings */
 const char *ctrl_heading_name(int h);     /* the name of group heading h, where a heading row in d->crow is stored as -(h + 1) */
 void tab_scope_draw(Desk *d, View *v);    void tab_scope_key(Desk *d, int key, int mods);    void tab_scope_text(Desk *d, int ch);
-void tab_play_draw(Desk *d, View *v);     void tab_play_key(Desk *d, int key, int mods);     void tab_play_text(Desk *d, int ch);
+void tab_keys_draw(Desk *d, View *v);     void tab_keys_key(Desk *d, int key, int mods);     void tab_keys_text(Desk *d, int ch);     /* in tab_devices.c */
+void tab_sticks_draw(Desk *d, View *v);   void tab_sticks_key(Desk *d, int key, int mods);   void tab_sticks_text(Desk *d, int ch);   /* in tab_devices.c */
+int  desk_tab_shown(const Desk *d, int tab);   /* this machine has the tab: KEYS needs a keyboard, STICKS the handheld */
 
 #endif

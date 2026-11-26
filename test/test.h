@@ -12,5 +12,6 @@ void test_vm(void);
 void test_patchfile(void);
 void test_audio(void);
 void test_pad(void);
+void test_setup(void);
 
 #endif

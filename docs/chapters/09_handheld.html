@@ -31,7 +31,7 @@
 
 <h3 id="sticks">The analogue sticks</h3>
 
-<p>The two sticks are knobs. Each direction of each stick is one of the first four <b>modulation pots</b> (see <a href="#matrix">the matrix</a>), on every screen, all the time:</p>
+<p>The two sticks are knobs. Each direction of each stick is one of the first four <b>modulation pots</b> (see <a href="#matrix">the matrix</a>), on every screen but one: on the STICKS screen the left stick plays notes instead (see below).</p>
 
 <ul>
   <li><b>Left stick</b>: left and right is <code>MP0</code>, up and down is <code>MP1</code>.</li>
@@ -44,22 +44,24 @@
 
 <p>Loading a patch leaves the pots where they are, because they belong to your hands and not to the patch. The CTRL screen shows all sixteen under the POTS heading. <code>MP4</code> to <code>MP15</code> are not connected to anything yet.</p>
 
-<h3 id="stick-page">Playing tunes with the right stick</h3>
+<h3 id="stick-page">Playing tunes: the STICKS screen</h3>
 
-<p>The last page of the DEVICES screen, <b>STICK</b>, turns the right stick into an instrument. Its direction picks a note: straight up is the root, and each eighth of a turn clockwise is the next note of the scale, so the eight directions are the first eight notes. In a seven-note scale, up-left is the octave; in a five-note colour, the octave is down-left. The page draws the eight notes in a ring (for colours, their degree numbers, 0 to 7), with the root in green and the one you are holding lit. While this page is showing, the right stick plays and leaves <code>MP2</code> and <code>MP3</code> alone.</p>
+<p>The <b>STICKS</b> screen turns the handheld into an instrument: the left stick plays notes, and <b>A</b>, <b>B</b>, <b>X</b> and <b>Y</b> fire pulsers 0 to 3, so the right hand can set off blocks, the sequencer or grains while the left plays. A pad for each button lights up when its pulser fires. The right stick stays a pair of pots.</p>
 
-<p>Four settings choose the notes and how they sound:</p>
+<p>The left stick's Its direction picks a note: straight up is the root, and each eighth of a turn clockwise is the next note of the scale, so the eight directions are the first eight notes. In a seven-note scale, up-left is the octave; in a five-note colour, the octave is down-left. The screen draws the eight notes in a ring (for colours, their degree numbers, 0 to 7), with the root in green and the one you are holding lit. While this screen is showing, the left stick does not modulate: <code>MP0</code> and <code>MP1</code> keep the values they had when you arrived, so anything routed from them holds steady while you play, and on another screen the stick sets them again the next time it moves.</p>
+
+<p>Four settings choose the notes and how they sound. <b>Up</b> and <b>Down</b> pick one, and <b>Left</b> and <b>Right</b> change it:</p>
 
 <ul>
   <li><b>TYPE</b> (<code>STKTYPE</code>): <b>scales</b> (0), the quantiser's eight, as the word <code>SCALE</code> gives them; or <b>colours</b> (1), the sixteen five-note scales in just intonation that the word <code>COLOUR</code> gives.</li>
   <li><b>SCALE</b> (<code>STKSCALE</code>): which scale (0 to 7, major by default) or which colour (0 to 15).</li>
   <li><b>ROOT</b> (<code>STKROOT</code>): the note straight up plays, C4 by default, as on the quantiser page. Left and right step a semitone; with Y held, a fifth.</li>
-  <li><b>MODE</b> (<code>STKMODE</code>): how a note sounds. X switches between the two.</li>
+  <li><b>MODE</b> (<code>STKMODE</code>): how a note sounds, play or swell. The Menu's first tab can switch it too.</li>
 </ul>
 
 <p>In <b>play</b> mode (0) the stick works like a key. Pushing it out plays the note with a fresh attack, moving round to another direction plays the next note, and letting the stick spring back lets go, so the release runs. Because it goes through the keyboard device, <code>KBNOTE</code>, <code>KBGATE</code> and the pulsers in <code>KBPUL</code> follow the stick as they follow keys. A colour's just notes fall between the keys: <code>KBNOTE</code> holds the nearest key, and <code>PITCH</code> the exact note.</p>
 
-<p>In <b>swell</b> mode (1) the direction only moves <code>PITCH</code>, with no attack, and how far you push sets <code>GATELEVEL</code>, which holds the gate open by hand. Push gently for a quiet note, push to the edge for full volume, and let the stick return to fade it out. Turning the stick round while it is pushed out glides through the scale without a break. Swell mode owns <code>GATELEVEL</code>: leaving the page or switching mode sets it back to 0.</p>
+<p>In <b>swell</b> mode (1) the direction only moves <code>PITCH</code>, with no attack, and how far you push sets <code>GATELEVEL</code>, which holds the gate open by hand. Push gently for a quiet note, push to the edge for full volume, and let the stick return to fade it out. Turning the stick round while it is pushed out glides through the scale without a break. Swell mode owns <code>GATELEVEL</code>: leaving the screen or switching mode sets it back to 0.</p>
 
 <p>Near the border between two directions the stick keeps the note it has until you are clearly past the border, so a note does not flicker between two.</p>
 
@@ -71,7 +73,7 @@
 <tr><td>Patches</td><td>load the picked patch</td><td>delete it (asks first)</td><td>save (asks for a name)</td></tr>
 <tr><td>Control</td><td>step the value up (fires a write-only register)</td><td>step it down</td><td>units or raw numbers</td></tr>
 <tr><td>Matrix</td><td>pick or adjust a cell</td><td>cancel</td><td>delete the route</td></tr>
-<tr><td>Play</td><td>fire pulser 0</td><td>fire pulser 1</td><td>fire pulser 2 (Y fires pulser 3)</td></tr>
+<tr><td>Sticks</td><td>fire pulser 0</td><td>fire pulser 1</td><td>fire pulser 2 (Y fires pulser 3)</td></tr>
 <tr><td>Devices, Buffer, Pulsers, Sequencer</td><td>Enter: pick or adjust</td><td>Esc: cancel</td><td>Space: the screen's main action (step, freeze, toggle)</td></tr>
 <tr><td>Scope</td><td colspan="3">a picture of the sound; no actions</td></tr>
 </table>
@@ -127,6 +129,6 @@
 <h3 id="limits">What the Brick does not do</h3>
 
 <ul>
-  <li>There is no KEYS page. The <a href="#stick-page">STICK page</a> takes its place: the right stick plays the notes of a scale.</li>
+  <li>There is no KEYS screen. The <a href="#stick-page">STICKS screen</a> takes its place: the left stick plays the notes of a scale.</li>
   <li>The handheld screens are smaller, so a few details, such as the longest register help lines, are shortened.</li>
 </ul>

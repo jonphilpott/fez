@@ -24,7 +24,8 @@ static const TabDef TABS[TAB_COUNT] = {
   { "PULSERS", tab_pulsers_draw, tab_pulsers_key, tab_pulsers_text, "Left/Right cell  Space toggle  Enter on BPM: adjust  type BPM, Enter  F fire" },
   { "SEQ",     tab_seq_draw,     tab_seq_key,     tab_seq_text,     "Up/Down step  Left/Right value (Shift: snap to note)  Space on/off  type a note" },
   { "MATRIX",  tab_matrix_draw,  tab_matrix_key,  tab_matrix_text,  "Left/Right cell  Enter pick/adjust  type a weight  Backspace delete route" },
-  { "PLAY",    tab_play_draw,    tab_play_key,    tab_play_text,    "1 2 3 4 fire the pulsers  S clock the sequencer" },
+  { "KEYS",    tab_keys_draw,    tab_keys_key,    tab_keys_text,    "Z S X D C V... and Q 2 W 3 E... play  Space all off  Up/Down Left/Right settings" },
+  { "STICKS",  tab_sticks_draw,  tab_sticks_key,  tab_sticks_text,  "left stick plays  A B X Y fire P0 to P3" },
   { "SCOPE",   tab_scope_draw,   tab_scope_key,   tab_scope_text,   "the output waveform, triggered on a rising edge" },
 };
 
@@ -65,6 +66,7 @@ void desk_init(Desk *d, FezSynth *synth) {
   d->synth = synth;
   d->scale = 1; d->pulsers_on = 1;
   d->dev.stk_dir = d->dev.stk_note = -1;                  /* the stick: nothing held */
+  setup_defaults(&d->setup);
   init_layouts(d);
   d->nregs = regview_list(d->regs, MAX_LIST);
   d->npars = regview_params(d->pars, MAX_LIST);
@@ -175,8 +177,8 @@ int wrap_text(const char *s, int width, char lines[][64], int max_lines) {
 
 /* ---------------------------------------------------------------- drawing */
 
-/* PLAY (four pads for the face buttons) is the handheld's; on the desktop the PULSERS tab fires a pulser by hand (F). */
-static int tab_shown(const Desk *d, int t) { return d->handheld || t != TAB_PLAY; }
+/* KEYS plays the computer keyboard as a piano, which a handheld does not have; STICKS plays the handheld's left stick. */
+int desk_tab_shown(const Desk *d, int t) { return t == TAB_KEYS ? !d->handheld : t == TAB_STICKS ? d->handheld : 1; }
 
 static void draw_tile(Desk *d, int i) {
   Canvas *cv = &d->cv;
@@ -192,7 +194,7 @@ static void draw_tile(Desk *d, int i) {
      left) for as long as the bar has room. */
   gfx_fill(cv, x, y, w, th, gfx_colour(COL_PNL));
   int list[TAB_COUNT], n = 0, at = 0;                              /* the tabs this machine has, and where the showing one is among them */
-  for (int t = 0; t < TAB_COUNT; t++) if (tab_shown(d, t)) { if (t == tab) at = n; list[n++] = t; }
+  for (int t = 0; t < TAB_COUNT; t++) if (desk_tab_shown(d, t)) { if (t == tab) at = n; list[n++] = t; }
   int cw = GFX_CELL_W * s, room = (w - 8) / cw;                    /* the bar's width in cells */
   int first = at, last = at, used = (int)strlen(TABS[tab].name) + 1;
   for (int grew = 1; grew;) {
@@ -243,7 +245,8 @@ static void draw_status(Desk *d) {
   if (d->synth->audio.nan_count != d->nan_seen) { d->nan_seen = d->synth->audio.nan_count; d->nan_until = d->now_ms + 3000; }
   int nan = d->nan_until > d->now_ms;
   int flags_w = (nan && d->clip ? 2 : 1) * (clip_w + 4);                    /* room for CLIP; for NAN too only while both show (the handheld is narrow) */
-  const char *text = d->msg_until > d->now_ms ? d->msg : d->hint_override ? d->hint_override : TABS[d->layouts[d->layout].tab[d->focus]].hint;
+  const char *text = d->msg_until > d->now_ms ? d->msg : d->setup_open ? "Up/Down pick  Enter use device  Left/Right or type CC  Space mode  F2 close"
+                   : d->hint_override ? d->hint_override : TABS[d->layouts[d->layout].tab[d->focus]].hint;
 
   /* The head: layout, patch name, pulsers. The tab's key hints matter more (they are the only reminder of a tab's letter
      keys), so when both do not fit, the head goes and the hint gets the whole bar. */
@@ -307,6 +310,7 @@ void desk_draw(Desk *d) {
   if (d->focus >= l->ntiles) d->focus = 0;
   for (int i = 0; i < l->ntiles; i++) draw_tile(d, i);
   if (d->help) desk_help_draw(d);                         /* F1: the help page covers the tiles */
+  else if (d->setup_open) desk_setup_draw(d);             /* F2: so does the setup page */
   draw_status(d);
 }
 
@@ -351,10 +355,10 @@ int desk_note_key(Desk *d, int ch, int down) {
     d->kb_key_note[ch] = 0;
     return 1;
   }
-  if (d->help) return 0;                                        /* the help page is open: no notes */
+  if (d->help || d->setup_open) return 0;                       /* a page is open: no notes */
   int semi = kb_semitones(ch);
   const Layout *l = &d->layouts[d->layout];
-  if (semi < 0 || l->tab[d->focus] != TAB_DEVICES || d->dev.sub != DEV_KEYS) return 0;   /* only the KEYS page plays */
+  if (semi < 0 || l->tab[d->focus] != TAB_KEYS) return 0;   /* only the KEYS tab plays */
   if (d->kb_key_note[ch]) return 1;                             /* key repeat: the key is already down */
   int note = (fez_reg_read(d->synth, REG_KBOCT) + 1) * 12 + semi;      /* KBOCT 3: the bottom key is MIDI 48, C3 */
   if (note > 127) note = 127;
@@ -374,6 +378,8 @@ void desk_key(Desk *d, int key, int mods) {
   /* PANIC: Shift+Esc toggles the global mute from any tab, even in the middle of typing a number. Plain Esc is left alone,
      because most tabs use it to cancel an entry. */
   if (key == KEY_ESC && (mods & MOD_SHIFT)) { d->muted = !d->muted; return; }
+  if (key == KEY_F2 && !d->help && !d->handheld && !d->setup_open) { desk_setup_open(d); return; }   /* F2 opens the setup page ... */
+  if (d->setup_open) { desk_setup_key(d, key, mods); return; }                  /* ... which takes every key until F2 or Esc closes it */
   if (key == KEY_F1 && !d->help) { d->help = 1; d->help_top = 0; return; }       /* F1 opens the help page ... */
   if (d->help) { desk_help_key(d, key); return; }                               /* ... which takes every key until F1 or Esc closes it */
   if (mods & (MOD_CTRL | MOD_ALT)) {
@@ -382,8 +388,8 @@ void desk_key(Desk *d, int key, int mods) {
       case KEY_RIGHT: move_focus(d, 1, 0); return;
       case KEY_UP:    move_focus(d, 0, -1); return;
       case KEY_DOWN:  move_focus(d, 0, 1); return;
-      case '[': do *tab = (*tab + TAB_COUNT - 1) % TAB_COUNT; while (!tab_shown(d, *tab)); return;
-      case ']': do *tab = (*tab + 1) % TAB_COUNT; while (!tab_shown(d, *tab)); return;
+      case '[': do *tab = (*tab + TAB_COUNT - 1) % TAB_COUNT; while (!desk_tab_shown(d, *tab)); return;
+      case ']': do *tab = (*tab + 1) % TAB_COUNT; while (!desk_tab_shown(d, *tab)); return;
       case KEY_TAB:
         d->layout = (d->layout + 1) % 3;
         d->focus = d->focus < d->layouts[d->layout].ntiles ? d->focus : 0;
@@ -406,6 +412,7 @@ void desk_key(Desk *d, int key, int mods) {
 
 void desk_text(Desk *d, int ch) {
   if (d->help) return;                                          /* the help page is open: typing does nothing */
+  if (d->setup_open) { desk_setup_text(d, ch); return; }
   TABS[d->layouts[d->layout].tab[d->focus]].text(d, ch);
 }
 

@@ -13,10 +13,15 @@ SDL_LIBS   := $(shell sdl2-config --libs 2>/dev/null)
 all: fez
 
 # The app: a tiled desktop window, or with --brick the handheld version (256x192, Brick-style buttons) of the same screens.
+# PLATFORM is the part that talks to the operating system (SDL, MIDI); the tests and picture tools build the rest without it.
 DESK := $(wildcard desk/*.c)
+PLATFORM := desk/main.c desk/midi.c
+UI := $(filter-out $(PLATFORM),$(DESK))
+# MIDI on macOS is CoreMIDI, a system framework (Linux reads device files; Windows' winmm is linked in the win build)
+OS_LIBS := $(if $(filter Darwin,$(shell uname -s)),-framework CoreMIDI -framework CoreFoundation,)
 
 fez: $(CORE) $(DESK) core/*.h desk/*.h
-	$(CC) $(CFLAGS) -Icore -Idesk $(SDL_CFLAGS) $(CORE) $(DESK) -o $@ $(SDL_LIBS) -lm
+	$(CC) $(CFLAGS) -Icore -Idesk $(SDL_CFLAGS) $(CORE) $(DESK) -o $@ $(SDL_LIBS) $(OS_LIBS) -lm
 
 TESTS := $(wildcard test/*.c)
 
@@ -25,7 +30,7 @@ render: $(CORE) tools/render.c core/*.h
 
 # the tests also build the UI code (everything in desk/ except the SDL shell), to test the handheld controls
 test_core: $(CORE) $(DESK) $(TESTS) core/*.h desk/*.h test/test.h
-	$(CC) $(CFLAGS) -Icore -Idesk -Itest $(CORE) $(filter-out desk/main.c,$(DESK)) $(TESTS) -o $@ -lm
+	$(CC) $(CFLAGS) -Icore -Idesk -Itest $(CORE) $(UI) $(TESTS) -o $@ -lm
 
 test: test_core
 	./test_core
@@ -74,7 +79,7 @@ APP := dist/FEZ.app
 # SDL2 linked in as a library file (libSDL2.a, which Homebrew provides), so the program needs no SDL2 installed. macOS itself
 # can never be linked fully statically (libSystem and the system frameworks are always shared), but those are on every Mac.
 fez_mac: $(CORE) $(DESK) core/*.h desk/*.h
-	$(CC) $(CFLAGS) -Icore -Idesk $(SDL_CFLAGS) $(CORE) $(DESK) -o $@ $(shell sdl2-config --static-libs) -lm
+	$(CC) $(CFLAGS) -Icore -Idesk $(SDL_CFLAGS) $(CORE) $(DESK) -o $@ $(shell sdl2-config --static-libs) $(OS_LIBS) -lm
 
 mac/FEZ.icns: mac/make_icon.py
 	python3 mac/make_icon.py
@@ -136,12 +141,12 @@ win-zip: dist/FEZ.exe
 
 # Draws every handheld screen to a picture file without a window (see tools/padshot.c).
 padshot: $(CORE) $(DESK) tools/padshot.c core/*.h desk/*.h
-	$(CC) $(CFLAGS) -Icore -Idesk $(CORE) $(filter-out desk/main.c,$(DESK)) tools/padshot.c -o $@ -lm
+	$(CC) $(CFLAGS) -Icore -Idesk $(CORE) $(UI) tools/padshot.c -o $@ -lm
 
 # The 30 second portrait demo video: ./demo OUT_DIR   (needs ffmpeg; see tools/demo.c)
 demo: $(CORE) $(DESK) tools/demo.c core/*.h desk/*.h
-	$(CC) $(CFLAGS) -Icore -Idesk $(CORE) $(filter-out desk/main.c,$(DESK)) tools/demo.c -o $@ -lm
+	$(CC) $(CFLAGS) -Icore -Idesk $(CORE) $(UI) tools/demo.c -o $@ -lm
 
 # Draws the desktop layouts to picture files without a window (see tools/deskshot.c).
 deskshot: $(CORE) $(DESK) tools/deskshot.c core/*.h desk/*.h
-	$(CC) $(CFLAGS) -Icore -Idesk $(CORE) $(filter-out desk/main.c,$(DESK)) tools/deskshot.c -o $@ -lm
+	$(CC) $(CFLAGS) -Icore -Idesk $(CORE) $(UI) tools/deskshot.c -o $@ -lm
