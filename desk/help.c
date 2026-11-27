@@ -60,6 +60,7 @@ static const HelpLine RIGHT[] = {
   { "Ctrl+Enter",    "apply the code" },
   { "Ctrl+R",        "apply this block and run it once" },
   { "Tab",           "complete the word" },
+  { "F3",            "palette: find words, registers" },
   { "[  ]",          "previous / next block" },
   { "Ctrl+Z  Ctrl+Y", "undo / redo" },
   { "Ctrl+C X V",    "copy / cut / paste" },
@@ -100,6 +101,7 @@ void desk_help_draw(Desk *d) {
   gfx_clip(cv, 0, 0, cv->w, cv->h - status);
 
   view_text(&v, 0, 0, "FEZ HELP", COL_AMB);
+  view_text(&v, 9, 0, "version " FEZ_VERSION, COL_DIM);
   view_text_right(&v, 10, v.cols - 10, 0, "F1 or Esc: close", COL_DIM);
   gfx_fill(cv, v.x, v.y + v.rh - 2 * s, v.w, 1, gfx_colour(COL_LINE));
 

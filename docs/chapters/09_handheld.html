@@ -93,21 +93,25 @@
 <p>With no keyboard, code is built by picking words from a <b>palette</b>. In the editor, press <b>A</b>. A grid of words opens. <b>L2</b> and <b>R2</b> switch the page of the palette:</p>
 
 <ul>
-  <li><b>STACK</b>, <b>MATHS</b>, <b>LOGIC</b>, <b>MEMORY</b> and <b>FLOW</b>: the words of the language, grouped by what they do.</li>
+  <li><b>STACK</b>, <b>MATHS</b>, <b>CHANCE</b> (RND and P), <b>LOGIC</b>, <b>MEMORY</b> and <b>FLOW</b>: the words of the language, grouped by what they do.</li>
   <li><b>NOTES</b>: C1 to B5.</li>
   <li><b>NUMS</b>: the digits 0 to 9 and a few common numbers. Digits stick together as you pick them (1, then 2, makes 12), and <b>ENT</b> ends the number. There is no minus sign: write <code>5 NEG</code>.</li>
   <li><b>REGS</b>: every register, under its group heading.</li>
-  <li><b>PULSERS</b>: the names P0 to P3.</li>
+  <li><b>SCRATCH</b>: the scratch registers S0 to S15, which every block shares, and P0 to P15, which are private to each block.</li>
 </ul>
 
 <p>Move round the grid with the d-pad. <b>A</b> puts the word at the cursor in your program, <b>B</b> closes the palette, <b>X</b> applies the block and <b>Y</b> deletes the last word. Spaces and line breaks are put in for you.</p>
+
+<p>To look a word up, choose <b>Reference</b> in the editor's Menu. It opens the same palette, taller, with the highlighted word's help underneath: its stack picture and what it does, or what a register is for. A long description scrolls by itself. <b>A</b> still puts the word in, and <b>B</b> closes it.</p>
+
+<figure class="shot pad"><img src="shots/pad-palette-reference.png" alt="The palette opened as Reference, with DROP highlighted and its help below"><figcaption>Reference: the palette with each word's help.</figcaption></figure>
 
 <figure class="shot pad"><img src="shots/pad-palette.png" alt="The word palette, opened with A in the editor. The tab names run along the top"><figcaption>The word palette, opened with A in the editor. The tab names run along the top: L2 and R2 switch between them.</figcaption></figure>
 <figure class="shot pad"><img src="shots/pad-palette-regs.png" alt="The REGS page of the palette"><figcaption>The REGS page of the palette: every register, under its group heading.</figcaption></figure>
 
 <h3 id="menu">The menu</h3>
 
-<p>Press <b>Menu</b> for a box with two tabs. The first tab carries the name of the screen you are on (EDITOR, say) and lists the extra things that screen can do. <b>MENU</b> holds the things that belong to the whole machine. <b>Left</b> and <b>Right</b> (or <b>L1</b> and <b>R1</b>) switch tabs, <b>Up</b> and <b>Down</b> pick, <b>A</b> chooses, and <b>B</b> closes the box (or, inside Go to screen, goes back one step). A screen with no extra actions, such as Scope, opens on the MENU tab.</p>
+<p>Press <b>Menu</b> for a box with two tabs. The first tab carries the name of the screen you are on (EDITOR, say) and lists the extra things that screen can do. <b>MENU</b> holds the things that belong to the whole machine. <b>Left</b> and <b>Right</b> (or <b>L1</b> and <b>R1</b>) switch tabs, <b>Up</b> and <b>Down</b> pick, <b>A</b> chooses, and <b>B</b> closes the box (or, inside Go to screen, goes back one step). A screen with no extra actions, such as Scope, opens on the MENU tab. The version of FEZ is shown at the right of the MENU tab.</p>
 
 <ul>
   <li><b>Selecting and copying</b>: in the editor, hold <b>Y</b> and use the D-pad to select text, as Shift does on the desktop. Then open the menu and choose Copy or Cut; move the cursor, even to another block, and choose Paste. B deletes the selection if there is one, and otherwise the last word.</li>

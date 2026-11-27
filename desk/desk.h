@@ -23,7 +23,12 @@
 
 /* Keys the platform layer reports. Printable characters arrive separately, through desk_text(). Letters and symbols
    that are part of a Ctrl/Alt chord arrive in desk_key() as their lower-case ASCII code. */
-enum { KEY_NONE = 0, KEY_UP = 256, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_ESC, KEY_BACKSPACE, KEY_TAB, KEY_DELETE, KEY_F1, KEY_F2 };
+/* The version, from the file VERSION (the Makefile passes it as -DFEZ_VERSION="0.4.12"); "dev" for a build without it. */
+#ifndef FEZ_VERSION
+#define FEZ_VERSION "dev"
+#endif
+
+enum { KEY_NONE = 0, KEY_UP = 256, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_ENTER, KEY_ESC, KEY_BACKSPACE, KEY_TAB, KEY_DELETE, KEY_F1, KEY_F2, KEY_F3 };
 enum { MOD_SHIFT = 1, MOD_CTRL = 2, MOD_ALT = 4 };
 
 /* The order of the tabs, which is also the order Ctrl+[ ] and the handheld's L1/R1 walk through them. */
@@ -59,6 +64,7 @@ typedef struct {
   int typing;                    /* the last edit was typing, so the next character joins the same undo step */
   int cycle, cycle_idx, cycle_start, cycle_len; char cycle_prefix[16];   /* Tab is cycling through completions */
   double last_key_ms;            /* keeps the cursor solid while you type */
+  int cur_y;                     /* where the cursor was last drawn: the pixel row of its top, -1 if out of sight (the F3 palette keeps clear of it) */
   int seen_runs[NUM_BLOCKS];     /* each block's run count at the last look, to notice when it runs */
   double flash_at[NUM_BLOCKS];   /* when each block last ran (now_ms), for the flash in the block grid */
 } Editor;
@@ -151,6 +157,7 @@ typedef struct Desk {
     char names[MAX_USER_PATCHES][PATCH_NAME_MAX]; int nuser;
     PatchInfo info;                          /* description and listen text of the loaded patch, kept for the next save */
     char shown[PATCH_NAME_MAX]; PatchInfo shown_info;   /* the selected user patch's header, read from disk once, not every frame */
+    int text_key; double text_since;    /* which patch's text is shown (list and row), and since when: its scroll starts at the top */
   } pat;
   RegEntry regs[MAX_LIST]; int nregs;
   int pars[MAX_LIST];      int npars;
@@ -236,6 +243,9 @@ void view_pages(View *v, const char *const names[], int n, int showing);   /* th
 void view_fill(View *v, int col, int row, int cols, int rows, int colour);
 void view_bar(View *v, int col, int row, int cols, double value, int fg, int bg);
 void view_scrollbar(View *v, int top, int visible, int total, int row, int rows);
+/* n lines (each with its colour) in `rows` rows from (col, row). If they do not fit they scroll by themselves, one line at
+   a time; since_ms is when this text first showed, so it starts at the top. */
+void view_lines_scroll(View *v, int col, int row, int rows, char lines[][64], const int *colours, int n, double since_ms);
 int  desk_contains_nocase(const char *hay, const char *needle);   /* does hay contain needle, ignoring case (an empty needle matches) */
 int  wrap_text(const char *s, int width, char lines[][64], int max_lines);   /* returns the number of lines */
 

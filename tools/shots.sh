@@ -18,6 +18,7 @@ conv() { sips -s format png "$1" --out "docs/shots/$2.png" >/dev/null; }
 conv "$t/gb_00_editor.ppm"        pad-editor
 conv "$t/gb_10_palette.ppm"       pad-palette
 conv "$t/gb_11b_palette_regs.ppm" pad-palette-regs
+conv "$t/gb_11d_palette_reference.ppm" pad-palette-reference
 conv "$t/gb_12_menu.ppm"          pad-menu
 conv "$t/gb_12b_actions.ppm"      pad-actions
 conv "$t/gb_12c_menu_main.ppm"    pad-menu-main

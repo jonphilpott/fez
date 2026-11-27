@@ -77,7 +77,7 @@ void test_pad(void) {
 
   /* inserting keeps words apart wherever the cursor is: a 1 put in front of CASTEP must not give 1CASTEP */
   vm_set_block(&s.vm, d.ed.blk, "CASTEP"); desk_reload_editor(&d);
-  tap(BTN_A); for (int i = 0; i < 6; i++) tap(BTN_R2); tap(BTN_RIGHT);          /* palette, NUMS tab, the item "1" */
+  tap(BTN_A); for (int i = 0; i < 7; i++) tap(BTN_R2); tap(BTN_RIGHT);          /* palette, NUMS tab, the item "1" */
   tap(BTN_A); CHECK(!strcmp(d.ed.text[d.ed.blk], "1 CASTEP"), "a digit inserted before a word gets a space after it");
   tap(BTN_RIGHT); tap(BTN_A); CHECK(!strcmp(d.ed.text[d.ed.blk], "12 CASTEP"), "the next digit joins the number");
   tap(BTN_B); tap(BTN_LEFT); tap(BTN_LEFT); tap(BTN_LEFT);                      /* close the palette, cursor to the start */
@@ -92,7 +92,7 @@ void test_pad(void) {
   tap(BTN_B);
 
   /* the palette's register tab is grouped like CTRL: headings take rows of their own, and Up/Down skip them */
-  tap(BTN_A); pad.ptab = 7; pad.psel = 0;
+  tap(BTN_A); pad.ptab = 8; pad.psel = 0;
   CHECK(pad.nheads > 5 && pad.ncells > 100 && pad.cells[0].row == 1, "the REGS palette has headings, and the first register sits below the first heading");
   int r0 = pad.cells[pad.psel].row; tap(BTN_DOWN);
   CHECK(pad.cells[pad.psel].row > r0, "Down moves to a later row of registers");
@@ -110,7 +110,7 @@ void test_pad(void) {
   tap(BTN_RIGHT); tap(BTN_A); CHECK(pad.menu == 1, "Go to screen opens its list");
   tap(BTN_B); CHECK(pad.menu == 0, "B in the list goes back to the MENU tab");
   tap(BTN_LEFT);
-  for (int i = 0; i < 7; i++) tap(BTN_DOWN);                                    /* past Run, Undo, Redo, Copy, Cut, Paste, Clear: now on "Runs on P0" */
+  for (int i = 0; i < 8; i++) tap(BTN_DOWN);                                    /* past Run, Undo, Redo, Copy, Cut, Paste, Clear, Reference: now on "Runs on P0" */
   tap(BTN_A); CHECK(pad.menu == 2 && (s.mem[REG_BP0 + d.ed.blk] & 1), "A on Runs on P0 sets the bit and keeps the menu open");
   tap(BTN_DOWN); tap(BTN_DOWN); tap(BTN_A); CHECK(pad.menu == 2 && s.mem[REG_BP0 + d.ed.blk] == 5, "P2 can be added without closing the menu");
   tap(BTN_UP); tap(BTN_UP); tap(BTN_A); CHECK(s.mem[REG_BP0 + d.ed.blk] == 4, "A again clears the bit");
@@ -262,5 +262,35 @@ void test_pad(void) {
     tap(BTN_A);
     CHECK(d.pat.mode == PAT_NORMAL && strcmp(d.loaded_name, "(blank)") == 0 && d.ed.text[0][0] == '\0', "A says yes: a blank patch with empty blocks");
     CHECK(s.mem[REG_FOLD] != before && !s.pulsers[0].on, "the registers are back to the defaults and the pulsers are off");
+  }
+
+  /* the desktop palette (F3 in the editor): typed letters find a word in any list, Enter puts it in, Esc closes */
+  { static Desk dd; static Pad dp; static uint32_t big[1024 * 600];
+    desk_init(&dd, &s); desk_set_canvas(&dd, big, 1024, 600);
+    pad_palette_init(&dp, &dd);
+    dd.layouts[dd.layout].tab[dd.focus] = TAB_EDITOR;
+    dd.ed.text[dd.ed.blk][0] = 0; dd.ed.cursor = 0;
+    CHECK(pad_desk_key(&dp, KEY_F3, 0) && dp.pal, "F3 opens the palette");
+    pad_desk_text(&dp, 'c'); pad_desk_text(&dp, 'u'); pad_desk_text(&dp, 't');
+    CHECK(!strcmp(dp.find, "CUT"), "the typed letters are kept, in capitals");
+    pad_desk_text(&dp, 'q');
+    CHECK(!strcmp(dp.find, "CUT"), "a letter that finds nothing is not taken");
+    CHECK(pad_desk_key(&dp, KEY_ENTER, 0) && !strcmp(dd.ed.text[dd.ed.blk], "CUTOFF "), "Enter puts the found register in");
+    pad_desk_text(&dp, 'c'); pad_desk_text(&dp, 'o'); pad_desk_text(&dp, 'l');
+    pad_desk_key(&dp, KEY_ENTER, 0);
+    CHECK(!strcmp(dd.ed.text[dd.ed.blk], "CUTOFF COLOUR "), "COL finds COLOUR in another list");
+    CHECK(!pad_desk_key(&dp, KEY_ENTER, MOD_CTRL), "Ctrl keys still go to the editor");
+    pad_desk_key(&dp, KEY_ESC, 0);
+    CHECK(!dp.pal && !pad_desk_text(&dp, 'x'), "Esc closes it, and typing goes to the editor again");
+  }
+
+  /* the editor menu's Reference opens the palette taller, with each word's help */
+  { d.layouts[d.layout].tab[d.focus] = TAB_EDITOR; pad.menu = -1; pad.pal = 0;
+    editor_action(7);
+    CHECK(pad.pal && pad.ref && pad.menu == -1, "Reference opens the palette with help and closes the menu");
+    pad_draw(&pad);
+    tap(BTN_B); CHECK(!pad.pal, "B closes it");
+    tap(BTN_A); CHECK(pad.pal && !pad.ref, "A in the editor still opens the plain palette");
+    tap(BTN_B);
   }
 }

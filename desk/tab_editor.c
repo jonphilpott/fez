@@ -488,6 +488,7 @@ void tab_editor_draw(Desk *d, View *v) {
   /* 4. the cursor: a block that blinks. It stays solid for half a second after each key so you never lose it while
         typing. In an unfocused tile it is an outline. */
   int cx = cur_col, cy = cur_row - e->top;
+  e->cur_y = cy >= 0 && cy < vis_rows ? v->y + (HEADER_ROWS + cy) * v->rh : -1;
   if (cy >= 0 && cy < vis_rows && (d->now_ms - e->last_key_ms < 500 || ((long)(d->now_ms / 500)) % 2 == 0)) {
     int x = v->x + cx * v->cw, y = v->y + (HEADER_ROWS + cy) * v->rh;
     if (v->focused) {

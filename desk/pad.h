@@ -21,7 +21,7 @@ typedef enum {
   BTN_L1, BTN_R1, BTN_L2, BTN_R2, BTN_START, BTN_SELECT, BTN_MENU, BTN_VOLU, BTN_VOLD, BTN_COUNT
 } Button;
 
-#define PAD_PAL_TABS 9                 /* tabs in the editor's palette of words */
+#define PAD_PAL_TABS 10                /* tabs in the editor's palette of words */
 
 typedef struct Pad {
   Desk *d;
@@ -29,8 +29,10 @@ typedef struct Pad {
   double repeat_at[BTN_COUNT];         /* when a held button next repeats (now_ms) */
   int menu, msel, menu_top;            /* menu level (-1 closed, 0 main, 1 go to screen, 2 tab actions), the highlighted row, first row shown */
   int help, help_top;                  /* the button help page is open; its scroll */
-  int pal;                             /* the editor's palette of words is open */
+  int pal, ref;                        /* the editor's palette of words is open; ref: opened as Reference (taller, with each word's help) */
   int ptab, psel;                      /* palette tab, and the highlighted item in it */
+  char find[12];                       /* the desktop palette: the letters typed so far to find a word (empty: none) */
+  int help_key; double help_since;     /* which word's help is shown (list * 1000 + item), and since when: a long one scrolls from the top */
   int letter;                          /* the patch-name letter picker: index into the letters */
   /* The palette's REGS tab lists registers under the same group headings as the CTRL screen, laid out on a grid PAL_COLS wide:
      each register has a row and a column, and each heading takes a row of its own. Built once from CTRL's own list. */
@@ -47,5 +49,13 @@ void pad_button(Pad *p, Button b, int down);   /* a button went down (1) or up (
 void pad_stick(Pad *p, int axis, int raw);
 void pad_tick(Pad *p);                         /* key repeat for held buttons; call once a frame, after desk_tick */
 void pad_draw(Pad *p);                         /* after desk_draw: the menu, palette, picker and help page, and the status hint */
+
+/* The same palette of words on the desktop: F3 in the editor opens it over the window. pad_palette_init builds the lists
+   (pad_init does it too, for the handheld); the desktop calls nothing else of the pad. pad_desk_key and pad_desk_text take
+   a key or a typed letter first and return 1 if the palette used it (0: give it to desk_key or desk_text as usual). */
+void pad_palette_init(Pad *p, Desk *d);
+int pad_desk_key(Pad *p, int key, int mods);
+int pad_desk_text(Pad *p, int c);
+void pad_desk_draw(Pad *p);                    /* after desk_draw, when the palette is open */
 
 #endif

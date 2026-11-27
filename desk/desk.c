@@ -17,7 +17,7 @@ typedef struct {
 } TabDef;
 
 static const TabDef TABS[TAB_COUNT] = {
-  { "EDITOR",  tab_editor_draw,  tab_editor_key,  tab_editor_text,  "Ctrl+Enter apply  Ctrl+R apply+run  [ ] block  Tab complete" },
+  { "EDITOR",  tab_editor_draw,  tab_editor_key,  tab_editor_text,  "Ctrl+Enter apply  Ctrl+R apply+run  [ ] block  Tab complete  F3 words" },
   { "PATCHES", tab_patches_draw, tab_patches_key, tab_patches_text, "Up/Down pick  [ ] mine/examples  Enter load  Ctrl+S save  Ctrl+D delete  type to filter" },
   { "CTRL",    tab_ctrl_draw,    tab_ctrl_key,    tab_ctrl_text,    "Up/Down pick  Left/Right change (Shift: coarse)  type a number, Enter  Tab units/raw" },
   { "DEVICES", tab_devices_draw, tab_devices_key, tab_devices_text, "[ ] device  Up/Down setting  Left/Right change  Space step/reseed/freeze" },
@@ -162,6 +162,24 @@ void view_scrollbar(View *v, int top, int visible, int total, int row, int rows)
   int th = h * visible / total; if (th < 8) th = 8;
   int ty = y + (h - th) * top / (total - visible);
   gfx_fill(&v->d->cv, x, ty, 4, th, gfx_colour(COL_AMB));
+}
+
+/* Text too long for its space scrolls by itself, so nothing has to be cut off: 3 s still at the top (time to start
+   reading), then up one line every 1.2 s, 3 s still at the end, and back to the top. The time is d->now_ms, so the
+   drawing needs no state of its own: the caller only says when this text first showed. */
+#define SCROLL_HOLD_MS 3000.0
+#define SCROLL_LINE_MS 1200.0
+void view_lines_scroll(View *v, int col, int row, int rows, char lines[][64], const int *colours, int n, double since_ms) {
+  if (rows <= 0) return;
+  int extra = n - rows, top = 0;                     /* extra: how many lines do not fit */
+  if (extra > 0) {
+    double cycle = 2 * SCROLL_HOLD_MS + extra * SCROLL_LINE_MS;
+    double t = fmod(v->d->now_ms - since_ms, cycle);
+    if (t < 0) t = 0;
+    top = t < SCROLL_HOLD_MS ? 0 : (int)((t - SCROLL_HOLD_MS) / SCROLL_LINE_MS);
+    if (top > extra) top = extra;
+  }
+  for (int i = 0; i < rows && top + i < n; i++) view_text(v, col, row + i, lines[top + i], colours[top + i]);
 }
 
 /* Break text into lines of at most `width` characters at spaces. Returns the number of lines (at most max_lines). */

@@ -179,16 +179,25 @@ void tab_patches_draw(Desk *d, View *v) {
     }
   }
   int col = wide ? list_col_w + 2 : 0, row = wide ? 0 : top_rows + vis + 1, width = v->cols - col - 2;
-  char lines[24][64], buf[300];
+  static char lines[80][64];
+  int colours[80];
+  char buf[300];
   if (width >= 12 && n) {
+    /* The description, a blank line and "Listen: ...", as one list of lines; when they do not fit under the name they
+       scroll (view_lines_scroll), starting at the top each time another patch is picked. */
+    int key = sub * 1000 + rows[*sel];
+    if (key != d->pat.text_key) { d->pat.text_key = key; d->pat.text_since = d->now_ms; }
     view_text(v, col, row, name, COL_AMB);
-    int dl = wrap_text(desc, width, lines, 14);
-    for (int i = 0; i < dl && row + 1 + i < v->rows - 1; i++) view_text(v, col, row + 1 + i, lines[i], COL_FG);
+    int nl = wrap_text(desc, width, lines, 60);
+    for (int i = 0; i < nl; i++) colours[i] = COL_FG;
     if (listen[0]) {
       snprintf(buf, sizeof buf, "Listen: %s", listen);
-      int ll = wrap_text(buf, width, lines, 8);
-      for (int i = 0; i < ll && row + 2 + dl + i < v->rows - 1; i++) view_text(v, col, row + 2 + dl + i, lines[i], COL_GRN);
+      lines[nl][0] = '\0'; colours[nl++] = COL_FG;
+      int ll = wrap_text(buf, width, lines + nl, 80 - nl);
+      for (int i = 0; i < ll; i++) colours[nl + i] = COL_GRN;
+      nl += ll;
     }
+    view_lines_scroll(v, col, row + 1, v->rows - 1 - (row + 1), lines, colours, nl, d->pat.text_since);
   }
 
   /* the prompt line at the bottom */

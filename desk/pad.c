@@ -1,9 +1,12 @@
 /* The handheld's controls: see pad.h. Everything the buttons can do ends up as a call into the desktop UI
    (desk_key, desk_text), so a fix to a desktop tab is a fix to the handheld too. */
 #include "pad.h"
+#include "words.h"
+#include "tables.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 static int cur_tab(const Pad *p) { return p->d->layouts[p->d->layout].tab[p->d->focus]; }
 /* The analogue sticks: the same as a gamepad's on the desktop (desk_gamepad_axis in tab_devices.c). */
@@ -20,17 +23,22 @@ typedef struct { const char *name; const char *const *items; int n; } PalTab;
 static const char *const P_STK[] = { "DUP", "DROP", "SWAP", "OVER", "ROT", "?" };
 static const char *const P_MTH[] = { "+", "-", "*", "F*", "/", "*/", "NEG", "ABS", "MIN", "MAX", "MOD", "ST", "HZ", "COLOUR", "SCALE" };
 static const char *const P_LOG[] = { "AND", "OR", "XOR", "NOT", "SHL", "SHR", "ROL", "ROR", "=", "<", ">", "U<" };
-static const char *const P_MEM[] = { "@", "!", "TRIG", "ROUTE", "W", "RND", "P" };
+static const char *const P_CHC[] = { "RND", "P" };
+static const char *const P_MEM[] = { "@", "!", "TRIG", "ROUTE", "W" };
 static const char *const P_FLW[] = { "L", "JMP", "JZ", "JNZ", "SKIP", "EXIT", "YIELD" };
 static const char *const P_NUM[] = { "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "ENT", "100", "1000", "4096", "16384", "32767" };
-static const char *const P_PLS[] = { "P0", "P1", "P2", "P3" };
+/* S0..S15 are scratch registers every block shares; P0..P15 are private: each block has its own (the list was once
+   called PULSERS, wrongly: P0 is a register, not pulser 0) */
+static const char *const P_SCR[] = { "S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9", "S10", "S11", "S12", "S13", "S14", "S15",
+  "P0", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "P12", "P13", "P14", "P15" };
 static char note_text[60][5];                  /* C1 to B5, built once */
 static const char *note_items[60];
 static const PalTab PAL[PAD_PAL_TABS] = {
-  { "STACK", LIST(P_STK) }, { "MATHS", LIST(P_MTH) }, { "LOGIC", LIST(P_LOG) }, { "MEMORY", LIST(P_MEM) }, { "FLOW", LIST(P_FLW) },
-  { "NOTES", note_items, 60 }, { "NUMS", LIST(P_NUM) }, { "REGS", NULL, 0 }, { "PULSERS", LIST(P_PLS) } };
-#define PT_NUMS 6
-#define PT_REGS 7
+  { "STACK", LIST(P_STK) }, { "MATHS", LIST(P_MTH) }, { "CHANCE", LIST(P_CHC) }, { "LOGIC", LIST(P_LOG) }, { "MEMORY", LIST(P_MEM) }, { "FLOW", LIST(P_FLW) },
+  { "NOTES", note_items, 60 }, { "NUMS", LIST(P_NUM) }, { "REGS", NULL, 0 }, { "SCRATCH", LIST(P_SCR) } };
+#define PT_NOTES 6
+#define PT_NUMS 7
+#define PT_REGS 8
 #define PAL_COLS 6
 
 static int pal_count(const Pad *p, int tab) { return tab == PT_REGS ? p->ncells : PAL[tab].n; }
@@ -99,7 +107,7 @@ enum { MENU_CLOSED = -1, MENU_MAIN = 0, MENU_GOTO = 1, MENU_ACTIONS = 2 };
 /* What a tab can do that a plain button does not reach: each is a key the desktop tab already understands. */
 typedef struct { const char *label; int key, mods, text, check; } Action;   /* text: send the key as typed text, not a key press. check: a checkbox for "this block runs on pulser (key - '1')": it shows its state, and the menu stays open after A */
 static const Action A_EDITOR[]  = { { "Apply and run", 'r', MOD_CTRL, 0, 0 }, { "Undo", 'z', MOD_CTRL, 0, 0 }, { "Redo", 'y', MOD_CTRL, 0, 0 },
-  { "Copy", 'c', MOD_CTRL, 0, 0 }, { "Cut", 'x', MOD_CTRL, 0, 0 }, { "Paste", 'v', MOD_CTRL, 0, 0 }, { "Clear block", 0, 0, 0, 0 },
+  { "Copy", 'c', MOD_CTRL, 0, 0 }, { "Cut", 'x', MOD_CTRL, 0, 0 }, { "Paste", 'v', MOD_CTRL, 0, 0 }, { "Clear block", 0, 0, 0, 0 }, { "Reference", KEY_F3, 0, 0, 0 },
   { "Runs on P0", '1', MOD_CTRL, 0, 1 }, { "Runs on P1", '2', MOD_CTRL, 0, 1 }, { "Runs on P2", '3', MOD_CTRL, 0, 1 }, { "Runs on P3", '4', MOD_CTRL, 0, 1 } };
 static const Action A_PATCHES[] = { { "Save patch", 's', MOD_CTRL, 0, 0 }, { "Delete patch", 'd', MOD_CTRL, 0, 0 }, { "New blank patch", 'n', MOD_CTRL, 0, 0 }, { "Other list", '[', 0, 1, 0 } };
 static const Action A_CTRL[]    = { { "Units / raw", KEY_TAB, 0, 0, 0 } };
@@ -159,6 +167,7 @@ static const char *menu_label(const Pad *p, int row) {
 static void run_action(Pad *p, const Action *a) {
   Desk *d = p->d;
   if (!a->key) { vm_set_block(&d->synth->vm, d->ed.blk, ""); desk_reload_editor(d); desk_say(d, "BLOCK CLEARED"); return; }   /* Clear block */
+  if (a->key == KEY_F3) { p->pal = 1; p->ref = 1; p->psel = 0; return; }   /* Reference: the palette with each word's help, as F3 gives on the desktop */
   if (a->text) desk_text(d, a->key); else desk_key(d, a->key, a->mods);
 }
 
@@ -302,7 +311,7 @@ static void screen_key(Pad *p, Button b) {
   int overlay_q = tab == TAB_PATCHES && d->pat.mode != PAT_NORMAL;   /* a question (overwrite? delete?) is open: A says yes, B no */
   switch (tab) {
     case TAB_EDITOR:
-      if (b == BTN_A) { p->pal = 1; p->psel = 0; }
+      if (b == BTN_A) { p->pal = 1; p->ref = 0; p->psel = 0; }
       else if (b == BTN_B) delete_word(d);
       else if (b == BTN_X) desk_key(d, KEY_ENTER, MOD_CTRL);
       break;
@@ -362,7 +371,12 @@ static const char *tab_hint(const Pad *p);
 
 void pad_init(Pad *p, Desk *d) {
   for (int i = 0; i < 4; i++) fez_set_pot(d->synth, i, 16384);      /* the sticks start at rest, which sends no event until they move */
+  pad_palette_init(p, d);
+}
+
+void pad_palette_init(Pad *p, Desk *d) {
   memset(p, 0, sizeof *p);
+  p->help_key = -1;
   p->d = d; p->menu = MENU_CLOSED;
   static const char *const NN[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
   for (int i = 0; i < 60; i++) { snprintf(note_text[i], sizeof note_text[i], "%s%d", NN[i % 12], 1 + i / 12); note_items[i] = note_text[i]; }
@@ -467,6 +481,10 @@ static void draw_menu(Pad *p) {
       gfx_text(cv, tx + GFX_CELL_W / 2, y + 4, names[t], 1, gfx_colour(on ? COL_AMB : COL_DIM));
       tx += tw + 4;
     }
+    if (p->menu == MENU_MAIN) {                                             /* on the MENU tab: which FEZ this is, at the right */
+      const char *v = "v" FEZ_VERSION;
+      gfx_text(cv, x + w - 4 - (int)strlen(v) * GFX_CELL_W, y + 4, v, 1, gfx_colour(COL_DIM));
+    }
   }
   for (int i = 0; i < vis; i++) {
     int row = p->menu_top + i, yy = y + 14 + i * rh, sel = row == p->msel;
@@ -475,12 +493,69 @@ static void draw_menu(Pad *p) {
   }
 }
 
-static void draw_palette(Pad *p) {
+/* One word's help for the desktop palette: a word of the language gives its stack picture and what it does (words.c), a
+   register its line from HELP_TABLE, a note its pitch; the NUMS list explains itself. The same tables feed the manual. */
+static void word_help(const Pad *p, int tab, int i, char *out, size_t n) {
+  const char *w = pal_item(p, tab, i);
+  out[0] = 0;
+  if (tab == PT_NUMS) {
+    if (!strcmp(w, "ENT")) snprintf(out, n, "ENT ends the number being built, so the next digit starts a new one.");
+    else if (strlen(w) == 1) snprintf(out, n, "The digit %s. Digits put in one after another join into one number; ENT ends it.", w);
+    else snprintf(out, n, "The number %s.", w);
+    return;
+  }
+  if (tab == PT_NOTES) {                                         /* NOTES: C1 is MIDI note 24, and a pitch is 256 to a semitone */
+    snprintf(out, n, "%s: a pitch, %d (MIDI note %d times 256). Store it in PITCH to play it, or add ST semitones to it.", w, (24 + i) * 256, 24 + i);
+    return;
+  }
+  if (tab == PAD_PAL_TABS - 1) {                            /* SCRATCH */
+    if (w[0] == 'S') snprintf(out, n, "%s: a scratch register. Every block sees the same S0 to S15, so blocks can leave each other numbers here.", w);
+    else snprintf(out, n, "%s: a private register. Each block has its own P0 to P15, for a number kept between its runs (a step counter, say).", w);
+    return;
+  }
+  for (int k = 0; k < WORD_COUNT; k++)
+    if (!strcmp(WORD_TABLE[k].name, w)) { snprintf(out, n, "%s %s  %s", w, WORD_TABLE[k].stack, WORD_TABLE[k].text); return; }
+  for (int k = 0; k < HELP_COUNT; k++)
+    if (!strcmp(HELP_TABLE[k].name, w)) { snprintf(out, n, "%s: %s", w, HELP_TABLE[k].text); return; }
+}
+
+/* s is the text scale (1 on the handheld, the desktop's own size there) and rows the number of rows of words shown.
+   The handheld draws it full width over its status bar; the desktop over the bottom of the editor's tile (its status
+   lines included), with a line of keys at the bottom. */
+static void draw_palette(Pad *p, int s, int rows) {
   Desk *d = p->d; Canvas *cv = &d->cv;
-  int n = pal_count(p, p->ptab), rows = 4, cw = 41, rh = 10, x = 4, h = rows * rh + 24, y = cv->h - 13 - h, w = cv->w - 8;
+  int desk = !d->handheld, n = pal_count(p, p->ptab), cw = 41 * s, rh = 10 * s;
+  int help = desk ? 3 : p->ref ? 5 : 0;                     /* lines for the highlighted word's help: the desktop, and the handheld's Reference */
+  int h = rows * rh + 24 * s + (help ? (help + 1) * rh : 0); /* (+1: the line of keys under the help) */
+  int x = 4, w = cv->w - 8, y = cv->h - 13 - h;
+  if (desk) {                                               /* at the bottom of the tile, or at its top if the cursor is down there */
+    x = d->rect[d->focus].x; w = d->rect[d->focus].w; y = d->rect[d->focus].y + d->rect[d->focus].h - h;
+    if (d->ed.cur_y >= 0 && d->ed.cur_y + rh > y) y = d->rect[d->focus].y;
+  }
   panel(d, x, y, w, h);
-  char t[64]; snprintf(t, sizeof t, "%s  (L2/R2 tab)", PAL[p->ptab].name);
-  gfx_text(cv, x + 4, y + 3, t, 1, gfx_colour(COL_MAG));
+  char t[64];
+  if (!desk) snprintf(t, sizeof t, "%s  (L2/R2 tab)", PAL[p->ptab].name);
+  else snprintf(t, sizeof t, "%s %d/%d", PAL[p->ptab].name, p->ptab + 1, PAD_PAL_TABS);
+  gfx_text(cv, x + 4 * s, y + 3 * s, t, s, gfx_colour(COL_MAG));
+  if (desk) {                                               /* the letters typed so far, on the right of the title */
+    char f[32]; snprintf(f, sizeof f, "find: %s_", p->find);
+    gfx_text(cv, x + w - 4 * s - (int)strlen(f) * GFX_CELL_W * s, y + 3 * s, f, s, gfx_colour(p->find[0] ? COL_AMB : COL_DIM));
+  }
+  if (help) {                                               /* the keys along the bottom */
+    gfx_text(cv, x + 4 * s, y + h - rh, desk ? "type: find  Tab: list  Enter: put in  Esc: close" : "A put in  L2/R2 list  B close", s, gfx_colour(COL_DIM));
+    /* the highlighted word's help, wrapped onto its lines over the key line, under a rule; a longer one scrolls
+       (view_lines_scroll, as on the PATCHES tab), from the top each time another word is highlighted */
+    char text[512]; word_help(p, p->ptab, p->psel, text, sizeof text);
+    int key = p->ptab * 1000 + p->psel, hy = y + h - (help + 1) * rh;
+    if (key != p->help_key) { p->help_key = key; p->help_since = d->now_ms; }
+    gfx_fill(cv, x + 4 * s, hy - 3 * s, w - 8 * s, 1, gfx_colour(COL_LINE));
+    View hv = { d, x + 4 * s, hy, w - 8 * s, help * rh, 0, help, GFX_CELL_W * s, rh, 1 };
+    hv.cols = hv.w / hv.cw;
+    static char lines[24][64]; int colours[24];
+    int nl = wrap_text(text, hv.cols, lines, 24);
+    for (int i = 0; i < nl; i++) colours[i] = i == 0 ? COL_CYN : COL_FG;
+    view_lines_scroll(&hv, 0, 0, help, lines, colours, nl, p->help_since);
+  }
   if (p->ptab == PT_REGS) {                                 /* grouped under CTRL's headings: each cell and heading has its own grid row */
     int sel_row = p->cells[p->psel].row, top = sel_row - rows / 2;
     if (top > p->reg_rows - rows) top = p->reg_rows - rows;
@@ -488,16 +563,16 @@ static void draw_palette(Pad *p) {
     for (int i = 0; i < p->nheads; i++) {
       int r = p->heads[i].row - top;
       if (r < 0 || r >= rows) continue;
-      int hy = y + 16 + r * rh, len = (int)strlen(p->heads[i].name);
-      gfx_text(cv, x + 4, hy, p->heads[i].name, 1, gfx_colour(COL_MAG));
-      gfx_fill(cv, x + 4 + (len + 1) * GFX_CELL_W, hy + 4, w - 12 - (len + 1) * GFX_CELL_W, 1, gfx_colour(COL_LINE));
+      int hy = y + 16 * s + r * rh, len = (int)strlen(p->heads[i].name);
+      gfx_text(cv, x + 4 * s, hy, p->heads[i].name, s, gfx_colour(COL_MAG));
+      gfx_fill(cv, x + 4 * s + (len + 1) * GFX_CELL_W * s, hy + 4 * s, w - 12 * s - (len + 1) * GFX_CELL_W * s, 1, gfx_colour(COL_LINE));
     }
     for (int i = 0; i < p->ncells; i++) {
       int r = p->cells[i].row - top;
       if (r < 0 || r >= rows) continue;
-      int cx = x + 4 + p->cells[i].col * cw, cy = y + 16 + r * rh, sel = i == p->psel;
+      int cx = x + 4 * s + p->cells[i].col * cw, cy = y + 16 * s + r * rh, sel = i == p->psel;
       if (sel) gfx_fill(cv, cx - 1, cy - 1, cw - 1, rh, gfx_colour(COL_AMBD));
-      gfx_text(cv, cx, cy, p->cells[i].name, 1, gfx_colour(sel ? COL_AMB : COL_FG));
+      gfx_text(cv, cx, cy, p->cells[i].name, s, gfx_colour(sel ? COL_AMB : COL_FG));
     }
     return;
   }
@@ -505,9 +580,9 @@ static void draw_palette(Pad *p) {
   int total_rows = (n + PAL_COLS - 1) / PAL_COLS;
   if (top > total_rows - rows) top = total_rows > rows ? total_rows - rows : 0;
   for (int i = top * PAL_COLS; i < n && i < (top + rows) * PAL_COLS; i++) {
-    int cx = x + 4 + (i % PAL_COLS) * cw, cy = y + 16 + (i / PAL_COLS - top) * rh, sel = i == p->psel;
+    int cx = x + 4 * s + (i % PAL_COLS) * cw, cy = y + 16 * s + (i / PAL_COLS - top) * rh, sel = i == p->psel;
     if (sel) gfx_fill(cv, cx - 1, cy - 1, cw - 1, rh, gfx_colour(COL_AMBD));
-    gfx_text(cv, cx, cy, pal_item(p, p->ptab, i), 1, gfx_colour(sel ? COL_AMB : COL_FG));
+    gfx_text(cv, cx, cy, pal_item(p, p->ptab, i), s, gfx_colour(sel ? COL_AMB : COL_FG));
   }
 }
 
@@ -565,6 +640,68 @@ void pad_draw(Pad *p) {
   if (p->help) draw_help(p);
   else if (cur_tab(p) == TAB_PATCHES && d->pat.mode == PAT_NAMING) draw_name(p);
   else if (cur_tab(p) == TAB_PATCHES && d->pat.mode != PAT_NORMAL) draw_confirm(p);
-  else if (p->pal && cur_tab(p) == TAB_EDITOR) draw_palette(p);
+  else if (p->pal && cur_tab(p) == TAB_EDITOR) draw_palette(p, 1, p->ref ? 7 : 4);   /* Reference: taller, with the help */
   if (p->menu != MENU_CLOSED) draw_menu(p);
+}
+
+/* ---------------------------------------------------------------- the palette on the desktop */
+
+/* Find the first word that starts with the letters typed so far: in the open list first, then in the others in order,
+   so typing CU finds CUTOFF in REGS and COL finds COLOUR in MATHS. Upper and lower case are the same. Returns 0 if none. */
+static int starts_with(const char *w, const char *f) {
+  for (; *f; f++, w++) if (toupper((unsigned char)*w) != toupper((unsigned char)*f)) return 0;
+  return 1;
+}
+static int find_word(Pad *p) {
+  for (int k = 0; k < PAD_PAL_TABS; k++) {
+    int tab = (p->ptab + k) % PAD_PAL_TABS;
+    for (int i = 0; i < pal_count(p, tab); i++)
+      if (starts_with(pal_item(p, tab, i), p->find)) { p->ptab = tab; p->psel = i; return 1; }
+  }
+  return 0;
+}
+
+int pad_desk_key(Pad *p, int key, int mods) {
+  Desk *d = p->d;
+  if (d->help || d->setup_open || cur_tab(p) != TAB_EDITOR) { p->pal = 0; return 0; }   /* the palette belongs to the editor */
+  if (key == KEY_F3) { p->pal = !p->pal; p->find[0] = 0; return 1; }                 /* F3 opens and closes it */
+  if (!p->pal) return 0;
+  if (mods & (MOD_CTRL | MOD_ALT)) return 0;                     /* Ctrl+Enter applies, Ctrl+Z undoes ... as usual */
+  if (key == KEY_ESC && (mods & MOD_SHIFT)) return 0;            /* Shift+Esc still mutes */
+  if (key == KEY_F1 || key == KEY_F2) return 0;
+  size_t nf = strlen(p->find);
+  switch (key) {
+    case KEY_ESC:   p->pal = 0; break;
+    case KEY_UP:    palette_key(p, BTN_UP); break;
+    case KEY_DOWN:  palette_key(p, BTN_DOWN); break;
+    case KEY_LEFT:  palette_key(p, BTN_LEFT); break;
+    case KEY_RIGHT: palette_key(p, BTN_RIGHT); break;
+    case KEY_TAB:   palette_key(p, (mods & MOD_SHIFT) ? BTN_L2 : BTN_R2); break;   /* the next list (Shift: the one before) */
+    case KEY_ENTER: palette_key(p, BTN_A); break;                                  /* put the word in at the cursor */
+    case KEY_BACKSPACE:                                          /* takes back a typed letter; with none, deletes the word before the cursor */
+      if (nf > 0) { p->find[nf - 1] = 0; if (nf > 1) find_word(p); }
+      else palette_key(p, BTN_Y);
+      return 1;
+    default: return 1;                                           /* any other key does nothing while it is open */
+  }
+  p->find[0] = 0;                                                /* moving or putting a word in starts a new search */
+  return 1;
+}
+
+int pad_desk_text(Pad *p, int c) {
+  if (!p->pal || cur_tab(p) != TAB_EDITOR) return 0;
+  if (c == '[' || c == ']') { palette_key(p, c == ']' ? BTN_R2 : BTN_L2); p->find[0] = 0; return 1; }   /* as on the handheld's L2 / R2 */
+  if (c == ' ') return 1;
+  size_t nf = strlen(p->find);
+  if (nf + 1 < sizeof p->find) {
+    p->find[nf] = (char)toupper(c); p->find[nf + 1] = 0;
+    if (!find_word(p)) p->find[nf] = 0;                          /* no word starts so: the letter is not taken */
+  }
+  return 1;
+}
+
+void pad_desk_draw(Pad *p) {
+  if (!p->pal || cur_tab(p) != TAB_EDITOR || p->d->help || p->d->setup_open) return;
+  gfx_unclip(&p->d->cv);
+  draw_palette(p, p->d->scale, 6);
 }

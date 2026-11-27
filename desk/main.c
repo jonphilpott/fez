@@ -244,6 +244,7 @@ static int translate_key(SDL_Keycode k) {
     case SDLK_ESCAPE: return KEY_ESC;    case SDLK_BACKSPACE: return KEY_BACKSPACE;
     case SDLK_TAB: return KEY_TAB;       case SDLK_DELETE: return KEY_DELETE;
     case SDLK_F1: return KEY_F1;         case SDLK_F2: return KEY_F2;
+    case SDLK_F3: return KEY_F3;
     default: return k > 32 && k < 127 ? (int)k : KEY_NONE;
   }
 }
@@ -311,6 +312,7 @@ int main(int argc, char **argv) {
   fez_init(&synth, (uint32_t)SDL_GetTicks() | 1);            /* seed the random generator from the clock */
   desk_init(&desk, &synth);
   if (brick_mode) { desk_set_handheld(&desk); pad_init(&pad, &desk); }
+  else pad_palette_init(&pad, &desk);                        /* the desktop uses only the pad's palette of words (F3 in the editor) */
   desk.scope = scope_ring; desk.scope_head = &scope_head;
   desk.clip_set = clip_set; desk.clip_get = clip_get;
   {                                                           /* one visible folder: ~/FEZ/patches/ and ~/FEZ/recordings/ (easy to find, back up and share) */
@@ -412,7 +414,7 @@ int main(int argc, char **argv) {
         } else if (key != KEY_NONE && (key >= 256 || (mods & (MOD_CTRL | MOD_ALT)))) {
           /* Plain letters arrive as text instead, so shifted and non-US keyboards just work. */
           SDL_LockAudioDevice(dev);
-          desk_key(&desk, key, mods);
+          if (!pad_desk_key(&pad, key, mods)) desk_key(&desk, key, mods);   /* the palette, while it is open, takes the keys first */
           SDL_UnlockAudioDevice(dev);
         }
       } else if (ev.type == SDL_KEYUP) {
@@ -431,7 +433,7 @@ int main(int argc, char **argv) {
       } else if (ev.type == SDL_TEXTINPUT) {
         const char *t = ev.text.text;
         SDL_LockAudioDevice(dev);
-        for (; *t; t++) if ((unsigned char)*t >= 32 && (unsigned char)*t < 127) desk_text(&desk, *t);
+        for (; *t; t++) if ((unsigned char)*t >= 32 && (unsigned char)*t < 127 && !pad_desk_text(&pad, *t)) desk_text(&desk, *t);
         SDL_UnlockAudioDevice(dev);
       }
       got = SDL_PollEvent(&ev);
@@ -485,6 +487,7 @@ int main(int argc, char **argv) {
     Uint64 draw_t0 = SDL_GetPerformanceCounter();
     desk_draw(&desk);
     if (brick_mode) pad_draw(&pad);
+    else pad_desk_draw(&pad);
     double draw_secs = (double)(SDL_GetPerformanceCounter() - draw_t0) / (double)SDL_GetPerformanceFrequency();
     {                                                        /* the lock just held, kept as the worst for CPU_PEAK_HOLD seconds */
       double held = (double)(draw_t0 - lock_t0) / (double)SDL_GetPerformanceFrequency();
