@@ -39,6 +39,17 @@ test_core: $(CORE) $(DESK) $(TESTS) core/*.h desk/*.h test/test.h
 test: test_core
 	./test_core
 
+# Install the desktop app (Linux and macOS): make install, or make install PREFIX=~/.local. DESTDIR is for packagers.
+# Only the program is installed; patches and recordings live in ~/FEZ, made on first run.
+PREFIX ?= /usr/local
+
+install: fez
+	install -d $(DESTDIR)$(PREFIX)/bin
+	install -m 755 fez $(DESTDIR)$(PREFIX)/bin/fez
+
+uninstall:
+	rm -f $(DESTDIR)$(PREFIX)/bin/fez
+
 clean:
 	rm -rf fez fez_mac demo deskshot padshot test_core render tools/manual_gen dist *.dSYM *.ppm
 
@@ -143,7 +154,7 @@ win-zip: dist/FEZ.exe
 	cd dist && zip -q FEZ-win-v$(VERSION).zip FEZ.exe
 	@echo "made dist/FEZ-win-v$(VERSION).zip"
 
-.PHONY: all test clean brick manual brick-zip mac-app mac-zip mac-dmg win-sdl win-zip
+.PHONY: all test install uninstall clean brick manual brick-zip mac-app mac-zip mac-dmg win-sdl win-zip
 
 # Draws every handheld screen to a picture file without a window (see tools/padshot.c).
 padshot: $(CORE) $(DESK) tools/padshot.c core/*.h desk/*.h
