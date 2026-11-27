@@ -69,7 +69,7 @@ Build the Brick pak (`brick/build.sh`), then `make brick-zip`, `make mac-dmg` an
 
 ## Documentation
 
-Open `docs/manual.html` in a browser. It is one page: a first-sound walkthrough, the language, the voice, devices, playing, the handheld, the example patches, and a full word and register reference (generated from the code, so it cannot drift).
+Read it online at **https://jonphilpott.github.io/fez/**, or open `docs/manual.html` in a browser. It is one page: a first-sound walkthrough, the language, the voice, devices, playing, the handheld, the example patches, and a full word and register reference (generated from the code, so it cannot drift).
 
 `CLAUDE.md` describes the layout of the source and the rules of the code, for anyone (or any agent) who works on it.
 
