@@ -68,7 +68,7 @@ static int lz_out(double v, double scale, double offset) {
 
 int fez_lz_read(const FezSynth *s, int addr) {
   switch (addr) {
-    case REG_LZRATE: return s->lz.rate;
+    case REG_LZRATE: return s->mem[REG_LZRATE];
     case REG_LZRHO: return s->lz.rho;
     case REG_LZX: return lz_out(s->lz.x, 1600.0, 0.0);
     case REG_LZY: return lz_out(s->lz.y, 1200.0, 0.0);
@@ -80,7 +80,7 @@ int fez_lz_read(const FezSynth *s, int addr) {
 
 void fez_lz_write(FezSynth *s, int addr, int v, unsigned *fault) {
   switch (addr) {
-    case REG_LZRATE: s->lz.rate = fez_clamp(v, 0, 32767); break;
+    case REG_LZRATE: s->mem[REG_LZRATE] = (int16_t)fez_clamp(v, 0, 32767); break;
     case REG_LZRHO: s->lz.rho = fez_clamp(v, 0, 32767); break;
     case REG_LZTRIG: s->lz.trig = fez_clamp(v, 0, 4); break;
     case REG_LZSEED: s->lz.x = 0.1 + (v & 0x7fff) / 3277.0; s->lz.y = 1; s->lz.z = 1; break;   /* restart from a new point */
@@ -92,7 +92,7 @@ static double clampd(double x, double lo, double hi) { return x < lo ? lo : x > 
 
 void fez_lz_advance(FezSynth *s, double dt_ms) {
   double rho = lz_rho(s->lz.rho);
-  double sim_t = (dt_ms / 1000.0) * lz_units_per_sec(s->lz.rate);             /* simulated time this tick */
+  double sim_t = (dt_ms / 1000.0) * lz_units_per_sec(s->eff[REG_LZRATE]);             /* simulated time this tick */
   int n = (int)ceil(sim_t / 0.005);                                           /* sub-steps of at most 0.005 */
   if (n < 1) n = 1;
   if (n > 400) n = 400;

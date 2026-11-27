@@ -85,6 +85,7 @@ int patchfile_write(const FezSynth *s, const PatchInfo *info, char *out, size_t 
     int value = a == REG_TMBITS ? (int16_t)s->tm.bits : s->mem[a], dflt = a == REG_TMBITS ? 0x5ac3 : def[a];
     if (list[i].ro || list[i].wo || value == dflt) continue;
     if (a >= REG_PRATE0 && a <= REG_PRATE3) continue;           /* the pulser lines above already hold the rates */
+    if (a == REG_LZRATE) continue;                              /* and the lz line below holds the Lorenz speed */
     put(&o, "reg %s %d\n", list[i].name, value);
   }
   for (int i = 0; i < s->nroutes; i++) {
@@ -92,7 +93,7 @@ int patchfile_write(const FezSynth *s, const PatchInfo *info, char *out, size_t 
     put(&o, "route %s %s %d\n", SRC_TABLE[s->routes[i].src].name, dst ? dst : "?", s->routes[i].w);
   }
   put(&o, "ca %d %d %d %d\n", s->ca.rule, s->ca.row, s->ca.tap, s->ca.trig);
-  put(&o, "lz %d %d %d\n", s->lz.rate, s->lz.rho, s->lz.trig);
+  put(&o, "lz %d %d %d\n", s->mem[REG_LZRATE], s->lz.rho, s->lz.trig);
   for (int i = 0; i < NUM_BLOCKS; i++) put_source(&o, "block", i, s->vm.blocks[i].src);
   for (int i = 0; i < NUM_WORDS; i++) put_source(&o, "word", i, s->vm.word_src[i]);
   return o.over ? -1 : (int)o.n;
@@ -171,7 +172,7 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
     else if (!strcmp(word, "level") && sscanf(rest, "%d", &a) == 1) s->master_level = fez_clamp(a, 0, 32767);
     else if (!strcmp(word, "cutoff")) { }                       /* files before 0.4.9 carry an unused "cutoff 0" line: read and ignored */
     else if (!strcmp(word, "pulser") && sscanf(rest, "%d on %d rate %d", &a, &b, &c) == 3 && a >= 0 && a < NUM_PULSERS) {
-      s->pulsers[a].on = b != 0; s->mem[REG_PRATE0 + a] = (int16_t)fez_clamp(c, 10, 600);
+      s->pulsers[a].on = b != 0; s->mem[REG_PRATE0 + a] = (int16_t)fez_clamp(c, PRATE_MIN, PRATE_MAX);
     }
     else if (!strcmp(word, "grains") && sscanf(rest, "%d", &a) == 1) grains = a & 255;
     else if (!strcmp(word, "reg") && sscanf(rest, "%31s %d", nm, &a) == 2 && !strcmp(nm, "FMRATE")) fmrate = a;   /* gone: see step 3 */

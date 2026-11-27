@@ -4,6 +4,7 @@
 #include "fez.h"
 #include "reg_names.h"
 #include "vm.h"
+#include "scales.h"
 #include "test.h"
 
 static Compiled c;
@@ -52,6 +53,35 @@ void test_vm(void) {
     s.pulsers[0].on = 1; s.pulsers[0].acc = 0;
     for (int i = 0; i < 200; i++) fez_tick(&s, 5);
     CHECK(fez_reg_read(&s, REG_S1) == 10, "a pulser follows the rate a block wrote"); }
+
+  /* every destination the matrix accepts really moves (ATK, REL and LFORATE once took routes and ignored them) */
+  { static FezSynth s; unsigned f = 0;
+    fez_init(&s, 1);
+    s.nroutes = 0; s.mem[REG_PRATE0] = 120;                            /* start clear of the example patch fez_init loads */
+    fez_set_pot(&s, 0, 32767);                                         /* MP0 full up: the source for these routes */
+    fez_set_route(&s, REG_MP0, REG_PRATE0, 16384, &f);                 /* half weight: half the pulser range on top of 120 */
+    fez_set_route(&s, REG_MP0, REG_LFORATE, 4096, &f);
+    fez_set_route(&s, REG_MP0, REG_LZRATE, 8192, &f);
+    fez_set_route(&s, REG_MP0, REG_GPOS3, 8192, &f);
+    fez_set_route(&s, REG_MP0, REG_GLVL7, 8192, &f);
+    fez_set_route(&s, REG_MP0, REG_ATK, 8192, &f);
+    CHECK(f == 0 && s.nroutes == 6, "the new destinations take routes");
+    fez_tick(&s, 5);
+    CHECK(s.eff[REG_PRATE0] == fez_round(120 + 16384 * 32767.0 / 32768 * 590 / 32767), "PRATE's modulation is scaled to 10..600 per minute");
+    CHECK(s.eff[REG_LFORATE] > s.mem[REG_LFORATE] && s.eff[REG_LZRATE] > s.mem[REG_LZRATE], "LFORATE and LZRATE are modulated");
+    CHECK(s.eff[REG_GPOS3] > 8000 && s.eff[REG_GLVL0 + 7] > 8000, "buffer voices other than 0 are modulated");
+    vm_set_block(&s.vm, 0, "100 ATK ! 1 GATE !");
+    fez_reg_write(&s, REG_RUN, 0); fez_tick(&s, 5);
+    CHECK(s.env.atk > atk_sec(100) * 2, "the gate takes ATK with its modulation, at once, even when the block just wrote ATK");
+    fez_set_route(&s, REG_MP0, REG_PRATE0, 32767, &f); fez_tick(&s, 5);
+    CHECK(s.eff[REG_PRATE0] == PRATE_MAX, "a pulser rate stops at 600 however much is routed to it");
+    s.nroutes = 0; f = 0;
+    fez_set_route(&s, REG_GATELEVEL, REG_CUTOFF, 16384, &f);           /* SWELL (the GATELEVEL register) moves the cutoff */
+    s.mem[REG_CUTOFF] = 0; s.mem[REG_GATELEVEL] = 0; fez_tick(&s, 5);
+    int shut = s.eff[REG_CUTOFF];
+    s.mem[REG_GATELEVEL] = 32767; fez_tick(&s, 5);
+    CHECK(f == 0 && fez_source_index("SWELL") > 0 && s.eff[REG_CUTOFF] - shut > 16000, "SWELL is a source: an open swell lifts what it is routed to");
+  }
   CHECK(!strcmp(why_of("5 0 / DROP 1 !", ""), "! needs 2, stack had 1"), "a halt replaces an earlier fault that did not stop the block");
 
   /* note names: one reader for the compiler, the editor's colours and the sequencer */

@@ -59,7 +59,9 @@
 ENV FMAMT 8000 ROUTE        \ each note starts bright
 ENV CUTOFF 6000 NEG ROUTE   \ a negative weight</pre>
 
-<p>The word takes the source, the destination and the weight, in that order. Routing the same pair again just changes the weight. Any register that shapes the sound can be a destination, except <code>GATE</code>. A full matrix, or an unknown source or destination, is a fault.</p>
+<p>The word takes the source, the destination and the weight, in that order. Routing the same pair again just changes the weight. Any register that shapes the sound can be a destination, except <code>GATE</code>: the voice, the mixer, the mod voice, the delay and spring, all eight buffer voices' position, speed and level, and three speeds, the LFO's (<code>LFORATE</code>), the Lorenz attractor's (<code>LZRATE</code>) and the pulsers' (<code>PRATE0</code> to <code>PRATE3</code>). The pulser rates are pulses per minute, 10 to 600, so for them the weight is a share of that range: a weight of 32767 on a source at full adds the whole 590. A full matrix, or an unknown source or destination, is a fault.</p>
+
+<p>In the MATRIX tab, the lists you pick a source and a destination from are grouped under headings, as on the CTRL tab, with the highlighted entry explained underneath. A destination shows its value now; a source shows what it is doing now, as a bar either side of zero.</p>
 
 <figure class="shot pad"><img src="shots/pad-matrix.png" alt="The matrix on the handheld, one route to a row"><figcaption>The matrix on the handheld, one route to a row: a source, a destination and a weight. These are the routes of Glass Bells.</figcaption></figure>
 

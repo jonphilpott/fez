@@ -190,6 +190,7 @@ typedef struct Desk {
     int row, cell, mode;                     /* the route under the cursor; its cell (0 source, 1 destination, 2 weight); what the keys do now */
     int adding;                              /* a new route is being built: Esc while picking removes it */
     char filter[24]; int flen, psel;         /* pick lists: typed filter, and the highlighted row of the filtered list */
+    int help_key; double help_since;         /* pick lists: which entry's help is showing, and since when (a long one scrolls) */
     Entry in;                                /* a weight being typed */
   } mtx;
   struct { int row, field; Entry in; int adjusting; } pul;   /* PULSERS: the cell under the cursor, and a rate being typed */

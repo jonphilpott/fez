@@ -39,7 +39,6 @@ void fez_init(FezSynth *s, uint32_t seed) {
 void fez_default_registers(int16_t mem[NUM_REGS]) {
   static const int seq_default[8] = { 15360, 15872, 16384, 17152, 17664, 17152, 16384, 15872 };   /* C4 D4 E4 G4 A4 G4 E4 D4 */
   for (int i = 0; i < PARAM_COUNT; i++) mem[PARAM_TABLE[i].addr] = (int16_t)PARAM_TABLE[i].def;
-  for (int i = 0; i < NUM_PULSERS; i++) mem[REG_PRATE0 + i] = 120;                   /* pulsers: two a second */
   mem[REG_QSCALE] = 1; mem[REG_QROOT] = 15360;                             /* QSCALE major, QROOT C4 */
   mem[REG_TMCHANCE] = 4096; mem[REG_TMLEN] = 16;                             /* TMCHANCE about 12 percent, TMLEN 16 */
   mem[REG_KBOCT] = 3;                                                        /* the keyboard's bottom key is C3 */
@@ -49,7 +48,6 @@ void fez_default_registers(int16_t mem[NUM_REGS]) {
   mem[REG_SQEN] = 255; mem[REG_SQLEN] = 8; mem[REG_SQDRV] = 3;                 /* SQEN all on, SQLEN 8, SQDRV pitch and gate */
   for (int i = 0; i < 8; i++) mem[REG_SQ0 + i] = (int16_t)seq_default[i];
   mem[REG_BWMODE] = 1; mem[REG_BWSRC] = 0; mem[REG_BWLEN] = 32767; mem[REG_BUFMS] = 2000; mem[REG_BIN] = 32767; mem[REG_GWIN] = 16000;
-  for (int i = 1; i < 8; i++) mem[REG_GRATE0 + i] = 15360;           /* every grain voice starts at unity speed */
 }
 
 /* Everything a patch load resets, whatever patch comes next: registers to their defaults (the pots excepted), every block
@@ -123,7 +121,7 @@ void fez_load_patch(FezSynth *s, int index) {
   }
   s->master_level = p->level;
   s->ca.rule = p->ca.rule; s->ca.row = p->ca.row; s->ca.tap = p->ca.tap; s->ca.trig = p->ca.trig;
-  s->lz.rate = p->lz.rate; s->lz.rho = p->lz.rho; s->lz.trig = p->lz.trig;
+  s->mem[REG_LZRATE] = (int16_t)p->lz.rate; s->lz.rho = p->lz.rho; s->lz.trig = p->lz.trig;
   s->bw.state = s->mem[REG_BWMODE] == 1 ? 1 : 0;
 
   /* 5) setup blocks run once (they fill scratch registers with scales, chords and so on) */
@@ -140,7 +138,7 @@ void fez_load_blank(FezSynth *s) {
      (trig 4). Lorenz: sigma 10 and beta 8/3 are fixed in the equations; rho 28 is the classic chaotic setting (register
      15291 is 27.9995 on the scale of lz_rho, the nearest the 15-bit register can get); start point (1, 1, 1); no pulser. */
   s->ca.rule = 30; s->ca.row = 0x2a54; s->ca.tap = 0; s->ca.trig = 4;
-  s->lz.rate = 8000; s->lz.rho = 15291; s->lz.trig = 4;
+  s->mem[REG_LZRATE] = 8000; s->lz.rho = 15291; s->lz.trig = 4;
   s->bw.state = s->mem[REG_BWMODE] == 1 ? 1 : 0;
   fez_compute_eff(s);
 }
@@ -150,7 +148,7 @@ void fez_clear_buffer(FezSynth *s) { fez_push_buf_event(s, EV_CLEAR, 0); }
 /* ---------------------------------------------------------------- envelope gate */
 
 void fez_fire_gate(FezSynth *s) {
-  double atk = atk_sec(s->mem[REG_ATK]), rel = rel_sec(s->mem[REG_REL]);
+  double atk = atk_sec(fez_modulated_now(s, REG_ATK)), rel = rel_sec(fez_modulated_now(s, REG_REL));   /* with their modulation (ENV to REL, a pot to ATK ...) */
   if (s->gate_q_count < GATE_Q_SIZE) {
     GateEvent *g = &s->gate_q[(s->gate_q_head + s->gate_q_count++) % GATE_Q_SIZE];
     g->atk = atk; g->rel = rel; g->v0 = s->env.v;
@@ -224,19 +222,35 @@ int fez_matrix_source(const FezSynth *s, int src) {
   return src >= 0 && src < NUM_SOURCES ? sv[src] : 0;
 }
 
-/* eff[a] = the register's value plus every route aimed at it (weight/32768 times the source), clamped to a
-   register's range. The voice and effects read eff, not the raw registers. */
+/* One register as the synth uses it: its value plus every route aimed at it (weight/32768 times the source), clamped to
+   the register's range. sv holds the sources' values (matrix_sources). The pulser rates are pulses per minute, not
+   0..32767, so their modulation is scaled to their own range: a full weight on a full source sweeps the whole of it, as
+   it does for every other register. */
+static int modulated(const FezSynth *s, const int *sv, int a) {
+  double base = a == REG_LEVEL ? s->master_level : s->mem[a], sum = 0;
+  for (int r = 0; r < s->nroutes; r++)
+    if (s->routes[r].dst == a) sum += ((double)s->routes[r].w * sv[s->routes[r].src]) / 32768.0;
+  if (a >= REG_PRATE0 && a <= REG_PRATE3)
+    return fez_clamp(fez_round(base + sum * (PRATE_MAX - PRATE_MIN) / 32767.0), PRATE_MIN, PRATE_MAX);
+  return fez_clamp(fez_round(base + sum), 0, 32767);
+}
+
+/* One register's modulated value right now, worked out on the spot rather than read from eff (which is updated at the
+   end of each tick). For a gate: a block that writes ATK and then fires GATE must get the new attack at once. */
+int fez_modulated_now(const FezSynth *s, int a) {
+  int sv[NUM_SOURCES];
+  matrix_sources(s, sv);
+  return modulated(s, sv, a);
+}
+
+/* eff[a] for every parameter. The voice, the effects and the devices read eff, not the raw registers. */
 void fez_compute_eff(FezSynth *s) {
   int sv[NUM_SOURCES];
   matrix_sources(s, sv);
   for (int i = 0; i < PARAM_COUNT; i++) {
     int a = PARAM_TABLE[i].addr;
     if (a == REG_GATE) continue;                                     /* GATE has no continuous value */
-    double base = a == REG_LEVEL ? s->master_level : s->mem[a];
-    double sum = 0;
-    for (int r = 0; r < s->nroutes; r++)
-      if (s->routes[r].dst == a) sum += ((double)s->routes[r].w * sv[s->routes[r].src]) / 32768.0;
-    s->eff[a] = fez_clamp(fez_round(base + sum), 0, 32767);
+    s->eff[a] = modulated(s, sv, a);
   }
   if (s->mem[REG_QON]) s->eff[REG_PITCH] = fez_quantise(s->eff[REG_PITCH], s->mem[REG_QSCALE], s->mem[REG_QROOT]);   /* the quantiser snaps what the voice hears */
 }
@@ -247,7 +261,7 @@ void fez_compute_eff(FezSynth *s) {
 static void grain_trigger(FezSynth *s) {
   for (int k = 0; k < 8; k++) {
     int i = (s->grn_next + k) % 8;
-    int lvl = i == 0 ? s->eff[REG_GLVL0] : s->mem[REG_GLVL0 + i];           /* voice 0's level can be modulated */
+    int lvl = s->eff[REG_GLVL0 + i];                                         /* the level as modulated */
     if (s->mem[REG_GLEN0 + i] > 0 && lvl > 0) { fez_push_buf_event(s, EV_TRIG, 1 << i); s->grn_next = (i + 1) % 8; return; }
   }
 }
@@ -266,7 +280,7 @@ static void advance(FezSynth *s, double dt_ms) {
   }
 
   /* LFO: a sine, rate set by LFORATE */
-  s->lfo_phase += (2 * FEZ_PI * lfo_hz(s->mem[REG_LFORATE]) * dt_ms) / 1000.0;
+  s->lfo_phase += (2 * FEZ_PI * lfo_hz(s->eff[REG_LFORATE]) * dt_ms) / 1000.0;
   if (s->lfo_phase > 1e6) s->lfo_phase = 0;                     /* keep the phase small so sin() stays accurate */
   s->lfo_val = fez_round(sin(s->lfo_phase) * 32767);
 
@@ -304,7 +318,7 @@ void fez_tick(FezSynth *s, double dt_ms) {
   for (int i = 0; i < NUM_PULSERS; i++) {
     if (!s->pulsers[i].on) continue;
     s->pulsers[i].acc += dt_ms;
-    double period = 60000.0 / s->mem[REG_PRATE0 + i];             /* read every tick, so a block writing PRATE changes the rhythm at once */
+    double period = 60000.0 / s->eff[REG_PRATE0 + i];             /* read every tick (with its modulation), so a block writing PRATE changes the rhythm at once */
     if (s->pulsers[i].acc >= period) {
       s->pulsers[i].acc -= period;
       if (s->pulsers[i].acc > period) s->pulsers[i].acc = 0;    /* we fell far behind: do not fire a burst */

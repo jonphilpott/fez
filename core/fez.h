@@ -20,10 +20,12 @@
 #define NUM_REGS     640       /* the register file: addresses 0..639 */
 #define NUM_PULSERS  4
 #define NUM_SLEW     4          /* slew generators: CV0..CV3 smoothed into SLO0..SLO3 */
+#define PRATE_MIN    10         /* pulser rates, pulses per minute: the slowest (slower events: a block that acts by chance) */
+#define PRATE_MAX    600        /* ... and the fastest, ten a second */
 #define MAX_ROUTES   16         /* modulation matrix size */
 #define BUF_Q_SIZE   64         /* events waiting for the audio side; extra events are dropped */
 #define GATE_Q_SIZE  16
-#define NUM_SOURCES  34         /* matrix sources, 0 (none) to 33 (KB); test_core checks it against SRC_TABLE */
+#define NUM_SOURCES  35         /* matrix sources, 0 (none) to 34 (SWELL); test_core checks it against SRC_TABLE */
 #define KB_MAX_HELD  16         /* keys the keyboard device tracks at once */
 
 /* Events the control side hands to the audio side. */
@@ -62,7 +64,7 @@ typedef struct FezSynth {
 
   /* ---- devices ---- */
   struct { int rule, row, tap, trig; } ca;                /* cellular automaton: 16 cells in a ring */
-  struct { double x, y, z; int rate, rho, trig; } lz;     /* Lorenz attractor */
+  struct { double x, y, z; int rho, trig; } lz;    /* (its speed is the register LZRATE, a matrix destination) */     /* Lorenz attractor */
   int sq_cur, sq_count;           /* step sequencer position, number of clocks so far */
   struct { int bits; } tm;        /* Turing machine: the 16-bit ring (only the low TMLEN bits are used) */
   int kb_held[KB_MAX_HELD], kb_n; /* keyboard device: MIDI notes held, oldest first; the newest one sounds */
@@ -112,6 +114,7 @@ int  fez_read(FezSynth *s, int addr, int block, unsigned *fault);
 void fez_write(FezSynth *s, int addr, int value, int block, unsigned *fault);
 void fez_set_route(FezSynth *s, int src, int dst, int w, unsigned *fault);
 int  fez_source_index(const char *name);                /* a matrix source's number from its name (any case), or -1 */
+int fez_modulated_now(const FezSynth *s, int addr);   /* one register plus its routes, worked out now (eff is a tick old) */
 void fez_compute_eff(FezSynth *s);
 int  fez_matrix_source(const FezSynth *s, int src);     /* a matrix source's current value, -32768..32767 */
 void fez_fire_gate(FezSynth *s);

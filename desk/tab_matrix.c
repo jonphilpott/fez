@@ -1,7 +1,8 @@
 /* The MATRIX tab: the modulation routes.
 
-   A route says "add (weight / 32768) x SOURCE to DESTINATION". The source is one of 19 moving values (LFO0, ENV, CV0..3,
-   the pots, the automaton, the Lorenz axes, the sequencer ...); the destination is any parameter register. Up to 16
+   A route says "add (weight / 32768) x SOURCE to DESTINATION". The source is one of 34 moving values (LFO0, ENV, CV0..3,
+   the pots, the automaton, the Lorenz axes, the sequencer ...); the destination is any parameter register. Both are
+   picked from lists grouped and explained like the CTRL tab. Up to 16
    routes. The voice hears the register plus everything routed to it; the register itself never changes.
 
      #  SOURCE  DEST      WEIGHT  [bar centred on zero]     NOW
@@ -21,7 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define LIST_MAX 40                     /* the longest pick list: 33 sources, 31 parameters */
+#define LIST_MAX 80                     /* the longest pick list: 34 sources, 66 parameters */
 #define WEIGHT_STEP 256
 #define WEIGHT_COARSE 4096
 
@@ -33,11 +34,38 @@ static const char *dst_name(const Desk *d, int addr) {
   return addr >= 0 && addr < NUM_REGS && d->synth->param_index[addr] >= 0 ? regview_param_name(d->synth, addr) : "?";
 }
 
-/* ---- pick lists. A list is the sources (1..33) or the parameters; each entry is a source number or a register address. */
+/* ---- pick lists. A list is the sources (1..34) or the parameters; each entry is a source number or a register address.
+   Both are shown like the CTRL tab: under group headings, with a help line for the highlighted entry. The sources keep
+   SRC_TABLE's order and its groups; the parameters are put in address order, so they fall under the same headings as on
+   CTRL (REG_GROUPS). */
+
+static int sorted_pars(const Desk *d, int *out) {            /* the parameters in address order (a plain insertion sort) */
+  int n = d->npars;
+  for (int i = 0; i < n; i++) {
+    int a = d->pars[i], k = i;
+    while (k > 0 && out[k - 1] > a) { out[k] = out[k - 1]; k--; }
+    out[k] = a;
+  }
+  return n;
+}
 
 static int pick_item_count(const Desk *d) { return d->mtx.mode == MTX_PICK_SRC ? SRC_COUNT - 1 : d->npars; }
-static int pick_item(const Desk *d, int i) { return d->mtx.mode == MTX_PICK_SRC ? i + 1 : d->pars[i]; }
-static const char *pick_item_name(const Desk *d, int i) { return d->mtx.mode == MTX_PICK_SRC ? SRC_TABLE[i + 1].name : dst_name(d, d->pars[i]); }
+static int pick_item(const Desk *d, int i) {
+  if (d->mtx.mode == MTX_PICK_SRC) return i + 1;
+  int pars[LIST_MAX]; sorted_pars(d, pars); return pars[i];
+}
+static const char *pick_item_name(const Desk *d, int i) { return d->mtx.mode == MTX_PICK_SRC ? SRC_TABLE[i + 1].name : dst_name(d, pick_item(d, i)); }
+
+/* The heading an entry sits under, and what it is for. */
+static const char *pick_item_group(const Desk *d, int i) {
+  if (d->mtx.mode == MTX_PICK_SRC) return SRC_TABLE[i + 1].group;
+  int a = pick_item(d, i), g = 0;
+  for (int k = 0; k < REG_GROUP_COUNT; k++) if (REG_GROUPS[k].first <= a) g = k;
+  return REG_GROUPS[g].name;
+}
+static const char *pick_item_help(const Desk *d, int i) {
+  return d->mtx.mode == MTX_PICK_SRC ? SRC_TABLE[i + 1].help : regview_help(pick_item_name(d, i));
+}
 
 /* The entries matching the typed filter, as indexes into the full list. */
 static int pick_filtered(const Desk *d, int *out) {
@@ -49,43 +77,84 @@ static int pick_filtered(const Desk *d, int *out) {
 
 /* ---------------------------------------------------------------- drawing */
 
-static void draw_pick(Desk *d, View *v) {
-  int list[LIST_MAX], n = pick_filtered(d, list);
-  int vis = v->rows - 3;
-  if (vis < 1) return;
-  if (vis > n) vis = n;
-  if (d->mtx.psel >= n) d->mtx.psel = n ? n - 1 : 0;
-  int top = fez_clamp(d->mtx.psel - vis / 2, 0, n > vis ? n - vis : 0);
-  char buf[64];
+/* The pick list on screen, as CTRL draws its registers:
 
+     PICK A DESTINATION                 filter: _
+     VOICE ------------------------------------
+     PITCH        C4
+     CUTOFF       4.2k          <- the highlighted entry
+     ...
+     ------------------------------------------
+     Lowpass gate cutoff, 40 Hz to 14 kHz          <- its help (two lines; a longer one scrolls)
+     Up/Down  Enter choose  Esc cancel
+
+   Destinations show their value now (in CTRL's units); sources show what they are doing now, as a bar centred on zero.
+   Headings are rows of their own and are never selected: the selection moves over the entries, as before. */
+static void draw_weight_bar(Desk *d, View *v, int col, int cols, int row, int w, int live);
+
+static void draw_pick(Desk *d, View *v) {
+  FezSynth *s = d->synth;
+  int list[LIST_MAX], n = pick_filtered(d, list);
+  if (d->mtx.psel >= n) d->mtx.psel = n ? n - 1 : 0;
+  int first = d->handheld ? 1 : 2;                           /* the list's first row: under the title and (desktop) the filter line */
+  int vis = v->rows - 3 - first;                             /* below it: a rule, two help lines and the keys */
+  if (vis < 1) return;
+
+  /* 1) the rows: an entry is its position in the filtered list (>= 0); a heading is -(that entry's position + 1),
+        placed before the first entry of each group */
+  static int rows[2 * LIST_MAX]; int nr = 0, sel_row = 0;
+  for (int k = 0; k < n; k++) {
+    if (k == 0 || strcmp(pick_item_group(d, list[k]), pick_item_group(d, list[k - 1])) != 0) rows[nr++] = -(k + 1);
+    if (k == d->mtx.psel) sel_row = nr;
+    rows[nr++] = k;
+  }
+  int top = fez_clamp(sel_row - vis / 2, 0, nr > vis ? nr - vis : 0);
+
+  /* 2) title and filter */
+  char buf[64];
   view_text(v, 0, 0, d->mtx.mode == MTX_PICK_SRC ? "PICK A SOURCE" : "PICK A DESTINATION", COL_AMB);
   snprintf(buf, sizeof buf, d->mtx.flen ? "filter: %s_" : d->handheld ? "%s" : "filter: _", d->mtx.filter);   /* the empty field looks like one, not like a list entry */
-  view_text(v, 0, 1, buf, d->mtx.flen ? COL_CYN : COL_DIM);
-  for (int r = 0; r < vis; r++) {
-    int sel = top + r == d->mtx.psel;
-    if (sel) view_fill(v, 0, 2 + r, 12, 1, COL_AMBD);
-    view_text(v, 0, 2 + r, pick_item_name(d, list[top + r]), sel ? COL_AMB : COL_FG);
-  }
-  if (!n) view_text(v, 0, 2, "no match", COL_DIM);
-  if (n > vis) view_scrollbar(v, top, vis, n, 2, vis);
-  if (n && d->mtx.mode == MTX_PICK_DST) {
-    /* what the parameter does, word-wrapped in the space to the right of the list (a long line would run off the screen) */
-    const char *t = regview_help(pick_item_name(d, list[d->mtx.psel]));
-    int width = v->cols - 14 - 2;                                    /* leave a column for the scrollbar */
-    for (int row = 2; row < v->rows - 1 && width > 4 && *t; row++) {
-      while (*t == ' ') t++;
-      int len = (int)strlen(t);
-      if (len > width) {                                             /* break at the last space that fits, or mid-word if there is none */
-        len = width;
-        while (len > 0 && t[len] != ' ') len--;
-        if (len == 0) len = width;
-      }
-      char line[80]; snprintf(line, sizeof line, "%.*s", len, t);
-      view_text(v, 14, row, line, COL_DIM);
-      t += len;
+  if (!d->handheld) view_text(v, 0, 1, buf, d->mtx.flen ? COL_CYN : COL_DIM);   /* (the handheld cannot type) */
+
+  /* 3) the list */
+  const int VAL_COL = 11;
+  int bar_cols = v->cols - VAL_COL - 2;
+  if (bar_cols > 20) bar_cols = 20;
+  for (int r = 0; r < vis && top + r < nr; r++) {
+    int code = rows[top + r], row = first + r;
+    if (code < 0) {                                           /* a heading, with a rule along to the edge */
+      const char *name = pick_item_group(d, list[-code - 1]);
+      int len = (int)strlen(name);
+      view_text(v, 0, row, name, COL_MAG);
+      gfx_fill(&d->cv, v->x + (len + 1) * v->cw, v->y + row * v->rh + v->rh / 2, v->w - (len + 1) * v->cw - 6, 1, gfx_colour(COL_LINE));
+      continue;
+    }
+    int item = list[code], sel = code == d->mtx.psel;
+    if (sel) view_fill(v, 0, row, v->cols - 1, 1, COL_SEL);
+    view_text(v, 0, row, pick_item_name(d, item), sel ? COL_AMB : COL_FG);
+    if (d->mtx.mode == MTX_PICK_SRC) {                       /* what the source is doing now */
+      if (bar_cols >= 4) draw_weight_bar(d, v, VAL_COL, bar_cols, row, fez_matrix_source(s, item + 1), 1);
+    } else {                                                  /* the parameter's value now, as CTRL shows it */
+      int a = pick_item(d, item), val = regview_read(s, a);
+      if (a == REG_MDPITCH && s->mem[REG_MDTRACK] >= 16384) regview_fmt_interval(buf, sizeof buf, val);
+      else if (!regview_fmt_grain(buf, sizeof buf, s, a, val)) regview_fmt_param(buf, sizeof buf, a, val);
+      view_text(v, VAL_COL, row, buf, sel ? COL_AMB : COL_DIM);
     }
   }
-  view_text(v, 0, v->rows - 1, d->handheld ? "Up/Down  A choose  B cancel" : "Up/Down  Enter choose  Esc cancel", COL_DIM);
+  if (!n) view_text(v, 0, first, "no match", COL_DIM);
+  if (nr > vis) view_scrollbar(v, top, vis, nr, first, vis);
+
+  /* 4) the highlighted entry's help under a rule (two lines; a longer one scrolls), then the keys */
+  gfx_fill(&d->cv, v->x, v->y + (v->rows - 3) * v->rh - d->scale, v->w, 1, gfx_colour(COL_LINE));   /* just above the help, clear of the last entry's letters */
+  if (n) {
+    int key = d->mtx.mode * 1000 + list[d->mtx.psel];
+    if (key != d->mtx.help_key) { d->mtx.help_key = key; d->mtx.help_since = d->now_ms; }
+    static char lines[8][64]; int colours[8];
+    int nl = wrap_text(pick_item_help(d, list[d->mtx.psel]), v->cols - 2, lines, 8);
+    for (int i = 0; i < nl; i++) colours[i] = COL_FG;
+    view_lines_scroll(v, 0, v->rows - 3, 2, lines, colours, nl, d->mtx.help_since);
+  }
+  view_text(v, 0, v->rows - 1, d->handheld ? "Up/Down  A choose  B cancel" : "Up/Down  type to filter  Enter choose  Esc cancel", COL_DIM);
 }
 
 /* A weight bar centred on zero: it fills right (magenta, when live) for positive, left (red) for negative. */

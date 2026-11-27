@@ -9,7 +9,7 @@
 
 #define CHUNK        16                 /* samples per control update of the audio parameters (0.33 ms) */
 #define TICK_CHUNKS  15                 /* chunks per control tick: 15 x 16 = 240 samples = 5 ms */
-#define PARAM_MAX    48                 /* room for every parameter register */
+#define PARAM_MAX    80                 /* room for every parameter register (67 on 27 Nov 2026) */
 #define DLY_SAMPLES  (FEZ_SAMPLE_RATE * 12 + 8)      /* longest delay time is 12 s (2.3 MB as floats) */
 #define SPR_SAMPLES  2048               /* each spring tank's loop is 34 or 41 ms (1632 and 1968 samples) */
 #define SPR_ALLPASS  7

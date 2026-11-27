@@ -84,6 +84,7 @@ void regview_fmt_param(char *o, size_t n, int a, int v) {
     case REG_DLYLP: fmt_hz(o, n, dly_lp_hz(v)); break;
     case REG_DLYFRZ: snprintf(o, n, "%s", v >= 16384 ? "FROZEN" : "off"); break;
     case REG_MDTRACK: snprintf(o, n, "%s", v >= 16384 ? "on" : "off"); break;
+    case REG_PRATE0: case REG_PRATE1: case REG_PRATE2: case REG_PRATE3: snprintf(o, n, "%d/min", v); break;
     default: regview_fmt_pct(o, n, v);
   }
 }
@@ -132,7 +133,7 @@ void regview_write(FezSynth *s, int a, int v) {
 int regview_pget(FezSynth *s, int a) { return a == REG_LEVEL ? s->master_level : s->mem[a]; }
 
 void regview_pset(FezSynth *s, int a, int v) {
-  v = fez_clamp(v, 0, 32767);
+  v = a >= REG_PRATE0 && a <= REG_PRATE3 ? fez_clamp(v, PRATE_MIN, PRATE_MAX) : fez_clamp(v, 0, 32767);
   if (a == REG_LEVEL) s->master_level = v; else s->mem[a] = (int16_t)v;
 }
 
@@ -149,7 +150,10 @@ void regview_pstep(FezSynth *s, int a, int dir, int coarse) {
     regview_pset(s, a, (2 * c + 1) * 32768 / (2 * n));                      /* the middle of the new band */
     return;
   }
-  regview_pset(s, a, regview_pget(s, a) + dir * (a == REG_PITCH || a == REG_MDPITCH ? 256 * (coarse ? 12 : 1) : coarse ? 4096 : 512));
+  int step = a == REG_PITCH || a == REG_MDPITCH ? 256 * (coarse ? 12 : 1)       /* a semitone, or an octave */
+           : a >= REG_PRATE0 && a <= REG_PRATE3 ? (coarse ? 10 : 1)            /* pulses per minute */
+           : coarse ? 4096 : 512;
+  regview_pset(s, a, regview_pget(s, a) + dir * step);
 }
 
 /* ---------------------------------------------------------------- source words */

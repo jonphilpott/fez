@@ -33,7 +33,8 @@ typedef struct {
 extern const ParamDef PARAM_TABLE[];  extern const int PARAM_COUNT;
 extern const NameDef  NAME_TABLE[];   extern const int NAME_COUNT;
 extern const HelpDef  HELP_TABLE[];   extern const int HELP_COUNT;
-extern const NameDef  SRC_TABLE[];    extern const int SRC_COUNT;   /* matrix sources by number (0 is "", none): name and register address */
+typedef struct { const char *name; int addr; const char *group, *help; } SrcDef;
+extern const SrcDef   SRC_TABLE[];    extern const int SRC_COUNT;   /* matrix sources by number (0 is "", none): name and register address */
 extern const PatchDef PATCH_TABLE[];  extern const int PATCH_COUNT;
 
 extern const int HZ_TAB[257];

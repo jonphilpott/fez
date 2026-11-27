@@ -49,10 +49,10 @@ static const char FLAG_LABEL[4] = { 'R', 'V', 'T', 'L' };   /* bits 0..3 of GFLG
 
 static int voice_addr(int base, int voice) { return base + voice; }
 
-/* What the voice actually uses: voice 0's position, rate and level are matrix targets, so read their effective values. */
+/* What the voice actually uses: position, rate and level are matrix targets, so read their effective values. */
 static int voice_value(const FezSynth *s, int c, int voice) {
   int a = voice_addr(COLS[c].base, voice);
-  return (voice == 0 && (c == 0 || c == 1 || c == 3)) ? s->eff[a] : s->mem[a];
+  return (c == 0 || c == 1 || c == 3) ? s->eff[a] : s->mem[a];
 }
 
 /* ---------------------------------------------------------------- friendly text */

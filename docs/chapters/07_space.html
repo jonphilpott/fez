@@ -68,7 +68,7 @@
 
 <p><code>GRATE</code> is written as a pitch: C4 (15360) plays at the original speed, and each octave (3072) up doubles the speed and raises the pitch of the sound, within four octaves either way. The flags are added together: 1 <code>REL</code> (position is behind the head), 2 <code>REV</code> (play backwards), 4 <code>TRK</code> (follow the pitch of the voice, so the buffer can be played like an instrument) and 8 <code>LOOP</code> (a grain repeats until stopped, and <code>GSTOP</code> stops it).</p>
 
-<p>Only voice 0 can be modulated by the matrix (<code>GPOS0</code>, <code>GRATE0</code> and <code>GLVL0</code>); the other seven use their plain register values.</p>
+<p>The matrix can move every voice's position, speed and level (<code>GPOS0</code> to <code>GPOS7</code>, <code>GRATE0</code> to <code>GRATE7</code>, <code>GLVL0</code> to <code>GLVL7</code>), so each grain can drift on its own: an LFO on one, the Lorenz attractor on another. Length and flags cannot be modulated.</p>
 
 <h4>Getting the sound back</h4>
 

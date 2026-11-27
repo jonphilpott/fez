@@ -20,7 +20,7 @@ static int same_setup(const FezSynth *a, const FezSynth *b) {
   if (a->tm.bits != b->tm.bits) return 0;
   if (a->master_level != b->master_level) return 0;
   if (a->ca.rule != b->ca.rule || a->ca.row != b->ca.row || a->ca.tap != b->ca.tap || a->ca.trig != b->ca.trig) return 0;
-  if (a->lz.rate != b->lz.rate || a->lz.rho != b->lz.rho || a->lz.trig != b->lz.trig) return 0;
+  if (a->mem[REG_LZRATE] != b->mem[REG_LZRATE] || a->lz.rho != b->lz.rho || a->lz.trig != b->lz.trig) return 0;
   for (int i = 0; i < NUM_BLOCKS; i++)
     if (strcmp(a->vm.blocks[i].src, b->vm.blocks[i].src) || strcmp(a->vm.word_src[i], b->vm.word_src[i])) return 0;
   return 1;
@@ -69,7 +69,7 @@ void test_patchfile(void) {
   /* the blank patch starts the devices from their standard settings */
   fez_load_blank(&copy);
   CHECK(lz_rho(copy.lz.rho) > 27.999 && lz_rho(copy.lz.rho) < 28.001, "blank Lorenz: rho is 28");
-  CHECK(copy.lz.rate == 8000 && copy.lz.trig == 4 && copy.lz.x == 1 && copy.lz.y == 1 && copy.lz.z == 1, "blank Lorenz: default speed, no pulser, start at (1, 1, 1)");
+  CHECK(copy.mem[REG_LZRATE] == 8000 && copy.lz.trig == 4 && copy.lz.x == 1 && copy.lz.y == 1 && copy.lz.z == 1, "blank Lorenz: default speed, no pulser, start at (1, 1, 1)");
   CHECK(copy.ca.rule == 30 && copy.ca.row == 0x2a54 && copy.ca.trig == 4, "blank automaton: rule 30, the usual seed, no pulser");
   CHECK(copy.nroutes == 0 && !copy.pulsers[0].on, "blank patch has no routes and no running pulsers");
 

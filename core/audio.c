@@ -142,11 +142,11 @@ static void service_events(FezSynth *s) {
   c.bwlen = s->mem[REG_BWLEN];
   c.win = s->mem[REG_GWIN] / 32767.0;
   c.pitch = s->eff[REG_PITCH];
-  for (int i = 0; i < BUF_VOICES; i++) {                     /* voice 0's position, rate and level can be modulated */
-    c.v[i].pos   = i == 0 ? s->eff[REG_GPOS0] : s->mem[REG_GPOS0 + i];
-    c.v[i].rate  = i == 0 ? s->eff[REG_GRATE0] : s->mem[REG_GRATE0 + i];
+  for (int i = 0; i < BUF_VOICES; i++) {                     /* every voice's position, rate and level can be modulated */
+    c.v[i].pos   = s->eff[REG_GPOS0 + i];
+    c.v[i].rate  = s->eff[REG_GRATE0 + i];
     c.v[i].len   = s->mem[REG_GLEN0 + i];
-    c.v[i].lvl   = i == 0 ? s->eff[REG_GLVL0] : s->mem[REG_GLVL0 + i];
+    c.v[i].lvl   = s->eff[REG_GLVL0 + i];
     c.v[i].flags = s->mem[REG_GFLG0 + i];
   }
   buf_set_cfg(&a->buf, &c);
