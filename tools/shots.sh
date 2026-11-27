@@ -41,5 +41,7 @@ FEZ_SHOT_CLEAN=1 ./deskshot 3 648 380 "$t/dkc" >/dev/null
 conv "$t/dk_layout1.ppm"  desk-layout1
 conv "$t/dk_layout2.ppm"  desk-layout2
 conv "$t/dkc_layout3.ppm" desk-layout3
+FEZ_SHOT_CLEAN=1 ./deskshot 14 1296 380 "$t/dkw" >/dev/null      # layout 4 is for wide screens, so its picture is twice as wide
+conv "$t/dkw_layout4.ppm" desk-layout4
 rm -rf "$t"
 ls -l docs/shots

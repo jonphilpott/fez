@@ -43,9 +43,9 @@ int main(int argc, char **argv) {
   if (desk.layouts[0].tab[0] == TAB_EDITOR && !getenv("FEZ_SHOT_CLEAN")) { desk.ed.cursor = (int)strlen(desk.ed.text[0]); desk_text(&desk, '\n'); desk_text(&desk, 'C'); desk_text(&desk, 'U'); }   /* a half-typed word, so the completion popup shows */
   desk.ed.last_key_ms = 999;
   printf("scale %d, layout tiles: ", desk.scale);
-  for (int l = 0; l < 3; l++) {
+  for (int l = 0; l < DESK_LAYOUTS; l++) {
     desk_draw(&desk);
-    static const char *names[] = { "layout1", "layout2", "layout3" };
+    static const char *names[] = { "layout1", "layout2", "layout3", "layout4" };
     dump(prefix, names[l], px, w, h);
     desk_key(&desk, KEY_TAB, MOD_CTRL);                 /* next layout */
   }

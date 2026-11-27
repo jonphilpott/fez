@@ -30,7 +30,7 @@ void test_pad(void) {
   desk_set_canvas(&d, px, 256, 192);
   desk_set_handheld(&d);
   pad_init(&pad, &d);
-  d.layouts[3].tab[0] = TAB_EDITOR;
+  d.layouts[LAYOUT_HAND].tab[0] = TAB_EDITOR;
 
   /* the editor's Ctrl+/ with a selection comments the line and keeps the text (it once deleted the selection and left the
      cursor past the end, so the next key moved memory with a negative length) */
@@ -57,7 +57,7 @@ void test_pad(void) {
   int v0 = s.master_level; tap(BTN_VOLD); CHECK(s.master_level < v0, "Vol- lowers the level"); tap(BTN_VOLU); CHECK(s.master_level == v0, "Vol+ raises it again");
 
   /* STICKS: A B X Y fire the four pulsers */
-  d.layouts[3].tab[0] = TAB_STICKS;
+  d.layouts[LAYOUT_HAND].tab[0] = TAB_STICKS;
   s.vm.pending = 0; tap(BTN_A); CHECK(s.vm.pending == 1, "A fires P0");
   s.vm.pending = 0; tap(BTN_B); CHECK(s.vm.pending == 2, "B fires P1");
   s.vm.pending = 0; tap(BTN_X); CHECK(s.vm.pending == 4, "X fires P2");
@@ -68,7 +68,7 @@ void test_pad(void) {
   s.vm.pending = 0; tap(BTN_DOWN); tap(BTN_B); CHECK(s.vm.pending == 0 && pad.menu == -1, "B closes the menu and does not fire a pulser");
 
   /* the editor palette: A opens it, A inserts a word into the block's text, B closes it */
-  d.layouts[3].tab[0] = TAB_EDITOR; desk_reload_editor(&d);
+  d.layouts[LAYOUT_HAND].tab[0] = TAB_EDITOR; desk_reload_editor(&d);
   vm_set_block(&s.vm, d.ed.blk, ""); desk_reload_editor(&d);
   tap(BTN_A); CHECK(pad.pal, "A in the editor opens the palette");
   tap(BTN_A); CHECK(strncmp(d.ed.text[d.ed.blk], "DUP ", 4) == 0, "A in the palette types the highlighted word and a space");
@@ -102,7 +102,7 @@ void test_pad(void) {
   tap(BTN_B);
 
   /* the editor's "Runs on P#" checkboxes change the block's pulser mask and leave the menu open */
-  d.layouts[3].tab[0] = TAB_EDITOR; s.mem[REG_BP0 + d.ed.blk] = 0;
+  d.layouts[LAYOUT_HAND].tab[0] = TAB_EDITOR; s.mem[REG_BP0 + d.ed.blk] = 0;
   tap(BTN_MENU); CHECK(pad.menu == 2, "the menu opens on this screen's actions when it has some");
   tap(BTN_RIGHT); CHECK(pad.menu == 0, "Right switches to the MENU tab");
   tap(BTN_L1); CHECK(pad.menu == 2, "L1 switches back to the actions");
@@ -120,7 +120,7 @@ void test_pad(void) {
   s.env.phase = ENV_IDLE; tap(BTN_START); CHECK(s.env.phase == ENV_ATT, "Start fires the gate (the envelope starts its attack)");
 
   /* naming a patch with the letter picker, then saving */
-  d.layouts[3].tab[0] = TAB_PATCHES;
+  d.layouts[LAYOUT_HAND].tab[0] = TAB_PATCHES;
   tap(BTN_X); CHECK(d.pat.mode == PAT_NAMING, "X on the Patches screen starts a save");
   d.pat.nlen = 0; d.pat.name[0] = '\0';
   tap(BTN_A); tap(BTN_RIGHT); tap(BTN_A);                         /* "a" then "b" */
@@ -129,10 +129,10 @@ void test_pad(void) {
   tap(BTN_Y); CHECK(d.pat.mode == PAT_NORMAL, "Y cancels the name");
 
   /* every screen draws without trouble, with every overlay */
-  for (int t = 0; t < TAB_COUNT; t++) { d.layouts[3].tab[0] = t; tap(BTN_MENU); desk_draw(&d); pad_draw(&pad); tap(BTN_B); desk_draw(&d); pad_draw(&pad); }
+  for (int t = 0; t < TAB_COUNT; t++) { d.layouts[LAYOUT_HAND].tab[0] = t; tap(BTN_MENU); desk_draw(&d); pad_draw(&pad); tap(BTN_B); desk_draw(&d); pad_draw(&pad); }
 
   /* the Devices screen has five pages: R2 walks round them (KEYS and STICKS are screens of their own) */
-  d.layouts[3].tab[0] = TAB_DEVICES; d.dev.sub = DEV_DELAY;
+  d.layouts[LAYOUT_HAND].tab[0] = TAB_DEVICES; d.dev.sub = DEV_DELAY;
   int pages_seen = 0;
   for (int i = 0; i < 12; i++) { tap(BTN_R2); pages_seen |= 1 << d.dev.sub; }
   CHECK(pages_seen == (1 << DEV_PAGES) - 1, "R2 visits the five device pages and no others");
@@ -150,7 +150,7 @@ void test_pad(void) {
   pad_stick(&pad, 2, 0); pad_stick(&pad, 3, 0);
 
   /* the STICKS screen: the left stick's direction picks a degree of the scale (C major from C4 by default) */
-  d.layouts[3].tab[0] = TAB_STICKS;
+  d.layouts[LAYOUT_HAND].tab[0] = TAB_STICKS;
   int mp0 = fez_reg_read(&s, REG_MP0), mp2 = fez_reg_read(&s, REG_MP2);
   pad_stick(&pad, 1, -32767);  CHECK(s.mem[REG_KBGATE] == 1 && s.mem[REG_KBNOTE] == 60 * 256, "up plays the root, C4");
   CHECK(fez_reg_read(&s, REG_MP0) == mp0, "and the left stick's pots do not move");
@@ -165,7 +165,7 @@ void test_pad(void) {
   pad_stick(&pad, 0, 16000);   CHECK(fez_reg_read(&s, REG_GATELEVEL) > 10000 && fez_reg_read(&s, REG_GATELEVEL) < 20000, "half way is about half open");
   tap(BTN_R1); desk_tick(&d, 16); CHECK(fez_reg_read(&s, REG_GATELEVEL) == 0, "leaving the screen closes the gate it opened");
   fez_reg_write(&s, REG_STKMODE, 0);
-  d.layouts[3].tab[0] = TAB_STICKS;
+  d.layouts[LAYOUT_HAND].tab[0] = TAB_STICKS;
   fez_reg_write(&s, REG_STKTYPE, 1); fez_reg_write(&s, REG_STKSCALE, 10); fez_reg_write(&s, REG_STKROOT, 57 * 256);   /* colour 10 from A3 */
   pad_stick(&pad, 0, 32767);   CHECK(fez_reg_read(&s, REG_PITCH) == 57 * 256 + 1275 && s.mem[REG_KBGATE] == 1, "colours: right is degree 2, a just fourth above the root, played exactly");
   pad_stick(&pad, 0, 0);       CHECK(s.mem[REG_KBGATE] == 0, "and lets go at the centre");
@@ -209,7 +209,7 @@ void test_pad(void) {
     DOWN(BTN_UP); desk_tick(&d, 200); tap(BTN_R1); desk_tick(&d, 16);
     CHECK(fez_reg_read(&s, REG_GATELEVEL) == 0 && d.dev.dpad == 0, "leaving the screen mid-swell closes the gate");
     UP(BTN_UP); fez_reg_write(&s, REG_STKMODE, 0);
-    d.layouts[3].tab[0] = TAB_DEVICES;
+    d.layouts[LAYOUT_HAND].tab[0] = TAB_DEVICES;
     #undef DOWN
     #undef UP
   }
@@ -219,7 +219,7 @@ void test_pad(void) {
   /* the editor on the handheld: select with Y + D-pad, then copy, cut and paste from the Screen actions menu */
   {
     d.clip_set = test_clip_set; d.clip_get = test_clip_get;
-    d.layouts[3].tab[0] = TAB_EDITOR; d.ed.blk = 0;
+    d.layouts[LAYOUT_HAND].tab[0] = TAB_EDITOR; d.ed.blk = 0;
     if (pad.menu != -1) tap(BTN_B);
     snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta");
     d.ed.cursor = 10; d.ed.anchor = -1;
@@ -247,7 +247,7 @@ void test_pad(void) {
   /* New blank patch: asks first, and changes nothing until the answer is yes */
   {
     if (pad.menu != -1) tap(BTN_B);
-    d.layouts[3].tab[0] = TAB_EDITOR;
+    d.layouts[LAYOUT_HAND].tab[0] = TAB_EDITOR;
     desk_patches_loaded_example(&d, 0); desk_reload_editor(&d);
     int before = s.mem[REG_FOLD];
     CHECK(before == 6000 && strcmp(d.loaded_name, "Glass Bells") == 0, "Glass Bells is loaded for the test (FOLD 6000)");

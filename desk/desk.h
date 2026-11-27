@@ -35,6 +35,8 @@ enum { MOD_SHIFT = 1, MOD_CTRL = 2, MOD_ALT = 4 };
 enum { TAB_EDITOR, TAB_PATCHES, TAB_CTRL, TAB_DEVICES, TAB_BUFFER, TAB_PULSERS, TAB_SEQ, TAB_MATRIX, TAB_KEYS, TAB_STICKS, TAB_SCOPE, TAB_COUNT };   /* KEYS on the desktop only, STICKS on the handheld only (desk_tab_shown) */
 
 #define MAX_TILES  4
+#define DESK_LAYOUTS 4                 /* the layouts Ctrl+Tab cycles through on the desktop (numbered 1 to 4) */
+#define LAYOUT_HAND  DESK_LAYOUTS      /* the handheld's layout comes after them */
 #define MAX_LIST   256
 #define SCOPE_RING 16384         /* frames kept for the scope (each a left and a right sample); a power of two so indexes can wrap with a mask */
 
@@ -109,7 +111,7 @@ typedef struct Desk {
   Canvas cv;
   int scale, scale_user;         /* text scale now; and the user's own choice (0 = pick from the window size) */
 
-  Layout layouts[4];             /* three for the desktop window, and the handheld's single full-screen tile (see desk_set_handheld) */
+  Layout layouts[DESK_LAYOUTS + 1];   /* the desktop window's layouts, then the handheld's single full-screen tile (LAYOUT_HAND, see desk_set_handheld) */
   int layout, focus;             /* current layout, and the focused tile within it */
   struct { int x, y, w, h; } rect[MAX_TILES];   /* the tiles in pixels, from the layout and the window size */
 

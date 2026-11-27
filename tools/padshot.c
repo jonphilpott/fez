@@ -51,16 +51,16 @@ int main(int argc, char **argv) {
   }
   desk.cpu = 0.35f; desk.cpu_peak = 0.5f; desk.now_ms = 1000;
   static const char *names[TAB_COUNT] = { "editor", "patches", "ctrl", "devices", "buffer", "pulsers", "seq", "matrix", "keys", "sticks", "scope" };
-  desk.layouts[3].tab[0] = TAB_EDITOR;
+  desk.layouts[LAYOUT_HAND].tab[0] = TAB_EDITOR;
   for (int i = 0; i < TAB_COUNT - 1; i++) {              /* R1 walks the screens, as on the device (there is no KEYS screen) */
-    int t = desk.layouts[3].tab[0];
+    int t = desk.layouts[LAYOUT_HAND].tab[0];
     if (t == TAB_STICKS) { pad_stick(&pad, 0, 26000); pad_stick(&pad, 1, -26000); }   /* the left stick pushed up and right: degree 1 lit */
     char n[32]; snprintf(n, sizeof n, "%02d_%s", t, names[t]);
     dump(prefix, n);
     if (t == TAB_STICKS) { pad_stick(&pad, 0, 0); pad_stick(&pad, 1, 0); }
     tap(BTN_R1);
   }
-  desk.layouts[3].tab[0] = TAB_DEVICES;                  /* every page of the Devices tab (R2 is the next page) */
+  desk.layouts[LAYOUT_HAND].tab[0] = TAB_DEVICES;                  /* every page of the Devices tab (R2 is the next page) */
   for (int p = 1; p < DEV_PAGES; p++) {
     static const char *const pages[] = { "delay", "cellular", "lorenz", "quantiser", "turing" };
     tap(BTN_R2);
@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
     char n[32]; snprintf(n, sizeof n, "03%c_%s", 'a' + p, pages[p]);
     dump(prefix, n);
   }
-  desk.layouts[3].tab[0] = TAB_EDITOR;
+  desk.layouts[LAYOUT_HAND].tab[0] = TAB_EDITOR;
   tap(BTN_A); dump(prefix, "10_palette");                  /* A in the editor opens the palette */
   tap(BTN_R2); tap(BTN_R2); tap(BTN_R2); tap(BTN_R2); tap(BTN_R2); tap(BTN_R2); dump(prefix, "11_palette_notes");
   tap(BTN_R2); tap(BTN_R2); dump(prefix, "11b_palette_regs");
@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
   tap(BTN_RIGHT); dump(prefix, "12c_menu_main");           /* the MENU tab */
   tap(BTN_A); dump(prefix, "13_goto");
   tap(BTN_B); tap(BTN_B);
-  desk.layouts[3].tab[0] = TAB_PATCHES; tap(BTN_X); dump(prefix, "14_name");
+  desk.layouts[LAYOUT_HAND].tab[0] = TAB_PATCHES; tap(BTN_X); dump(prefix, "14_name");
   tap(BTN_Y);
   tap(BTN_MENU); tap(BTN_RIGHT); tap(BTN_DOWN); tap(BTN_A); dump(prefix, "16_confirm");   /* MENU tab, second row: New blank patch */
   tap(BTN_B);

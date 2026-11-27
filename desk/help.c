@@ -16,7 +16,7 @@ static const HelpLine LEFT[] = {
   { "Ctrl+Arrows",   "jump to the tile that way" },
   { "Ctrl+[  Ctrl+]", "previous / next tab" },
   { "[  ]",          "previous / next page in a tab" },
-  { "Ctrl+Tab",      "next window layout (there are 3)" },
+  { "Ctrl+Tab",      "next window layout (there are 4)" },
   { "Up / Down",     "pick a row" },
   { "Left / Right",  "change it (Shift: big steps)" },
   { "0-9, Enter",    "type an exact number, store it" },

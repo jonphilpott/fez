@@ -32,15 +32,17 @@ static const TabDef TABS[TAB_COUNT] = {
 
 /* ---------------------------------------------------------------- layouts */
 
-/* Three ways to cut the window up, named 1, 2 and 3 like workspaces in a tiling window manager. Rectangles are in thousandths of
+/* Four ways to cut the window up, named 1 to 4 like workspaces in a tiling window manager. Rectangles are in thousandths of
    the window (see Frac). Ctrl+Tab cycles through them. Each tile starts on a sensible tab and can be changed with Ctrl+[ ]. */
 static void init_layouts(Desk *d) {
   Layout one   = { "LAYOUT 1", 3, { { 0, 0, 580, 1000 }, { 580, 0, 1000, 400 }, { 580, 400, 1000, 1000 } }, { TAB_EDITOR, TAB_SCOPE, TAB_CTRL } };     /* a tall tile and two small ones */
   Layout two   = { "LAYOUT 2", 2, { { 0, 0, 500, 1000 }, { 500, 0, 1000, 1000 } }, { TAB_EDITOR, TAB_CTRL } };                                             /* a 50/50 split */
   Layout three = { "LAYOUT 3", 3, { { 0, 0, 1000, 340 }, { 0, 340, 500, 1000 }, { 500, 340, 1000, 1000 } }, { TAB_SCOPE, TAB_CTRL, TAB_DEVICES } };      /* a wide strip over two halves */
-  d->layouts[0] = one; d->layouts[1] = two; d->layouts[2] = three;
+  /* Three equal columns for a big or very wide screen: the editor, the CTRL list, and the scope over the devices. */
+  Layout four  = { "LAYOUT 4", 4, { { 0, 0, 340, 1000 }, { 340, 0, 670, 1000 }, { 670, 0, 1000, 400 }, { 670, 400, 1000, 1000 } }, { TAB_EDITOR, TAB_CTRL, TAB_SCOPE, TAB_DEVICES } };
+  d->layouts[0] = one; d->layouts[1] = two; d->layouts[2] = three; d->layouts[3] = four;
   Layout hand = { "HAND", 1, { { 0, 0, 1000, 1000 } }, { TAB_PATCHES } };   /* the handheld: one tile, the whole screen */
-  d->layouts[3] = hand;
+  d->layouts[LAYOUT_HAND] = hand;
 }
 
 static int status_height(const Desk *d) { return GFX_CELL_H * d->scale + 4; }
@@ -57,8 +59,8 @@ static void compute_rects(Desk *d) {
   }
 }
 
-/* The handheld: layout 3, and nothing in the keys cycles away from it (Ctrl+Tab wraps within the first three). */
-void desk_set_handheld(Desk *d) { d->handheld = 1; d->layout = 3; d->focus = 0; compute_rects(d); }
+/* The handheld: LAYOUT_HAND, and nothing in the keys cycles away from it (Ctrl+Tab wraps within the desktop layouts). */
+void desk_set_handheld(Desk *d) { d->handheld = 1; d->layout = LAYOUT_HAND; d->focus = 0; compute_rects(d); }
 
 /* ---------------------------------------------------------------- set-up */
 
@@ -470,7 +472,7 @@ void desk_key(Desk *d, int key, int mods) {
       case '[': do *tab = (*tab + TAB_COUNT - 1) % TAB_COUNT; while (!desk_tab_shown(d, *tab)); return;
       case ']': do *tab = (*tab + 1) % TAB_COUNT; while (!desk_tab_shown(d, *tab)); return;
       case KEY_TAB:
-        d->layout = (d->layout + 1) % 3;
+        d->layout = (d->layout + 1) % DESK_LAYOUTS;
         d->focus = d->focus < d->layouts[d->layout].ntiles ? d->focus : 0;
         compute_rects(d);
         desk_say(d, d->layouts[d->layout].name);
