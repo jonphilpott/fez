@@ -123,7 +123,7 @@ void test_pad(void) {
   d.layouts[3].tab[0] = TAB_PATCHES;
   tap(BTN_X); CHECK(d.pat.mode == PAT_NAMING, "X on the Patches screen starts a save");
   d.pat.nlen = 0; d.pat.name[0] = '\0';
-  tap(BTN_A); tap(BTN_DOWN); tap(BTN_A);                          /* "a" then "b" */
+  tap(BTN_A); tap(BTN_RIGHT); tap(BTN_A);                         /* "a" then "b" */
   CHECK(strcmp(d.pat.name, "ab") == 0, "the letter picker adds a, then b");
   tap(BTN_B); CHECK(strcmp(d.pat.name, "a") == 0, "B removes the last letter");
   tap(BTN_Y); CHECK(d.pat.mode == PAT_NORMAL, "Y cancels the name");

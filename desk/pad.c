@@ -197,13 +197,14 @@ static void menu_key(Pad *p, Button b) {
 static const char LETTERS[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -_.";
 #define NLETTERS ((int)(sizeof LETTERS - 1))
 
-/* Up/Down move one letter, Left/Right five. A adds the letter, B removes the last one, X saves, Y gives up. */
+/* Left/Right move one letter (the picker is drawn as a row, so they move the way it looks), Up/Down jump five.
+   A adds the letter, B removes the last one, X saves, Y gives up. */
 static void name_key(Pad *p, Button b) {
   Desk *d = p->d;
-  if (b == BTN_UP) p->letter = (p->letter + NLETTERS - 1) % NLETTERS;
-  else if (b == BTN_DOWN) p->letter = (p->letter + 1) % NLETTERS;
-  else if (b == BTN_LEFT) p->letter = (p->letter + NLETTERS - 5) % NLETTERS;
-  else if (b == BTN_RIGHT) p->letter = (p->letter + 5) % NLETTERS;
+  if (b == BTN_LEFT) p->letter = (p->letter + NLETTERS - 1) % NLETTERS;
+  else if (b == BTN_RIGHT) p->letter = (p->letter + 1) % NLETTERS;
+  else if (b == BTN_UP) p->letter = (p->letter + NLETTERS - 5) % NLETTERS;
+  else if (b == BTN_DOWN) p->letter = (p->letter + 5) % NLETTERS;
   else if (b == BTN_A) desk_text(d, LETTERS[p->letter]);
   else if (b == BTN_B) desk_key(d, KEY_BACKSPACE, 0);
   else if (b == BTN_X) desk_key(d, KEY_ENTER, 0);
@@ -421,7 +422,7 @@ static const char *tab_hint(const Pad *p) {
   if (p->help) return "Up/Down scroll  B close";
   if (p->menu == MENU_GOTO) return "Up/Down  A choose  B back";
   if (p->menu != MENU_CLOSED) return "L/R tab  A choose  B close";
-  if (cur_tab(p) == TAB_PATCHES && d->pat.mode == PAT_NAMING) return "Up/Dn A add B del X ok Y no";
+  if (cur_tab(p) == TAB_PATCHES && d->pat.mode == PAT_NAMING) return "L/R A add B del X ok Y no";
   if (cur_tab(p) == TAB_PATCHES && d->pat.mode != PAT_NORMAL) return "A yes  B no";
   if (p->pal && cur_tab(p) == TAB_EDITOR) return "A insert B close X apply Y del";
   switch (cur_tab(p)) {

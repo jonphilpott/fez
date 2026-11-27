@@ -31,6 +31,8 @@ static const Setting TAPE[] = {
   { "FEEDBACK",REG_BWFB, 0, 32767, 512, 4096 }, /* BWFB */
   { "WINDOW",  REG_GWIN, 0, 32767, 512, 4096 }, /* GWIN */
   { "ONE-SHOT",REG_BWLEN, 1, 32767, 512, 4096 }, /* BWLEN */
+  { "TO FX",   REG_MIXBF, 0, 32767, 512, 4096 }, /* MIXBF: the mixer's own registers, here so the tape's level is at hand */
+  { "TO VCA",  REG_MIXBP, 0, 32767, 512, 4096 }, /* MIXBP */
 };
 #define NTAPE ((int)(sizeof TAPE / sizeof *TAPE))
 
@@ -134,9 +136,13 @@ static void draw_tape_page(Desk *d, View *v) {
   int ry = 2 + ph;
   snprintf(buf, sizeof buf, "0"); view_text(v, 0, ry, buf, COL_DIM);
   snprintf(buf, sizeof buf, "%d ms", s->mem[REG_BUFMS]); view_text_right(v, 0, v->cols - 1, ry, buf, COL_DIM);
-  static const char *const STATE[3] = { "frozen", "running", "recording" };
-  snprintf(buf, sizeof buf, "head %s  voice %d selected", STATE[fez_clamp(s->bw.state, 0, 2)], d->bf.voice);
+  static const char *const STATE[3] = { "frozen", "running", "rec." };
+  /* only the head's state goes red while recording; the selected voice is just the cursor, so it stays dim.
+     %-7s pads the state to the longest word, so the voice text never moves when the state changes */
+  int n = snprintf(buf, sizeof buf, "%-7s  ", STATE[fez_clamp(s->bw.state, 0, 2)]);
   view_text(v, 6, ry, buf, s->bw.state == 2 ? COL_RED : COL_DIM);
+  snprintf(buf, sizeof buf, "voice %d selected", d->bf.voice);
+  view_text(v, 6 + n, ry, buf, COL_DIM);
 
   /* settings */
   int first = 3 + ph, vis = v->rows - first - 2;
