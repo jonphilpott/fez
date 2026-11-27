@@ -13,7 +13,7 @@ int test_fails = 0;
 
 void test_tables(void) {
   CHECK(PARAM_COUNT > 30, "param table has entries");
-  CHECK(PATCH_COUNT == 13, "thirteen example patches");
+  CHECK(PATCH_COUNT == 14, "fourteen example patches");
   CHECK(strcmp(PATCH_TABLE[0].name, "Glass Bells") == 0, "first patch is Glass Bells");
   for (int i = 0; i < HELP_COUNT; i++)
     CHECK(strlen(HELP_TABLE[i].text) <= 49, "help line fits the Brick screen (49 characters)");

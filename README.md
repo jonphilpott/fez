@@ -29,7 +29,7 @@ Downloads are on the GitHub releases page.
 - **Four pulsers** that fire blocks on their own clocks, and a **modulation matrix** of 16 routes.
 - **Devices that make notes and movement**: a cellular automaton, a Lorenz attractor, an 8-step sequencer, a scale quantiser, a Turing machine and a keyboard.
 - **Sixteen modulation pots** (`MP0` to `MP15`), ready for knobs and, later, MIDI. On the handheld the two analogue sticks are `MP0` to `MP3`.
-- **Thirteen example patches**, and patches saved as plain text files.
+- **Fourteen example patches**, and patches saved as plain text files.
 
 The core is portable C with no allocation and no operating system calls. Two front ends sit on top of it: a desktop app (macOS, Windows, Linux) and a handheld version for the TrimUI Brick. Both draw the same screens into a pixel array.
 

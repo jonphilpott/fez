@@ -797,8 +797,36 @@ const PatchDef PATCH_TABLE[] = {
     {30,10836,0,4}, {8000,15300,4},
     24000
   },
+  {
+    "Grainkrell",
+    "A dark, slowly moving texture. The buffer records the raw mixer, before the gate (BWSRC 0): a saw-like complex wave and noise that never stop, so the 5.6 s tape always holds a drone. Three continuous voices loop it backwards at three pitches (as recorded, a fifth down, an octave down) and five looping grains of 250 to 350 ms sit at points along it; pulser 3 records over the tape again every 6 s. The Lorenz attractor runs slowly and fires pulser 1 each time X crosses zero: a soft note from colour 10 (minor pentatonic) over D3, its blend set by the attractor, and every grain jumps to a new place. Under it all the mod voice holds a C2 saw through the ladder filter, and a 10 s delay at 93 percent feedback smears the lot. The KEYS tab is set up to join in: swell mode, colour 10 from D3.",
+    "A drone first; the first note arrives only when the attractor first crosses zero, about half a minute in, and later ones at chaotic times, each one shifting the grain cloud. On the KEYS tab, hold white keys to swell notes in the same colour.",
+    { {REG_ATK,20000}, {REG_REL,24000}, {REG_CXWAVE,30000}, {REG_CXBLEND,18}, {REG_MIXCX,17920}, {REG_MIXNZ,18944}, {REG_NZTONE,13311}, {REG_MIXBF,2559}, {REG_MDPITCH,9216}, {REG_MDWAVE,30000}, {REG_MDCUT,8000}, {REG_MDLVL,16000}, {REG_DLYTIME,28124}, {REG_DLYFB,30384}, {REG_DLYMIX,24576}, {REG_DLYLP,19904}, {REG_DLYWOB,8704}, {REG_DLYNZ,3072}, {REG_DLYIN,13311}, {REG_SPRMIX,15360}, {REG_SPRWID,26624}, {REG_SPRTONE,28672}, {REG_BUFMS,5600}, {REG_GPOS0,5407}, {REG_GPOS1,9101}, {REG_GPOS2,9480}, {REG_GPOS3,2411}, {REG_GPOS4,1024}, {REG_GPOS5,5349}, {REG_GPOS6,9526}, {REG_GPOS7,6389}, {REG_GRATE1,14080}, {REG_GRATE2,12288}, {REG_GLEN3,300}, {REG_GLEN4,250}, {REG_GLEN5,350}, {REG_GLEN6,300}, {REG_GLEN7,250}, {REG_GLVL0,13312}, {REG_GLVL1,14848}, {REG_GLVL2,22016}, {REG_GLVL3,6144}, {REG_GLVL4,8192}, {REG_GLVL5,5632}, {REG_GLVL6,3072}, {REG_GLVL7,4608}, {REG_GFLG0,10}, {REG_GFLG1,10}, {REG_GFLG2,10}, {REG_GFLG3,8}, {REG_GFLG4,8}, {REG_GFLG5,8}, {REG_GFLG6,8}, {REG_GFLG7,8}, {REG_GWIN,11392}, {REG_KBMODE,1}, {REG_KBTYPE,1}, {REG_KBCOL,10}, {REG_KBROOT,12800}, {REG_BWSRC,0}, {REG_BP1,2} },
+    { "\\ a note at each zero crossing of the Lorenz X (LZTRIG fires pulser 1): colour 10, minor pentatonic, over D3\nLZX @ CXBLEND !     \\ the attractor sets the timbre\n8 RND 10 COLOUR D3 + PITCH !\n1 GATE !",
+      "\\ at the same moment, every grain jumps to a new place in the first 1.7 s of the tape\n10000 RND GPOS0 !\n10000 RND GPOS1 !\n10000 RND GPOS2 !\n10000 RND GPOS3 !\n10000 RND GPOS4 !\n10000 RND GPOS5 !\n10000 RND GPOS6 !\n10000 RND GPOS7 !",
+      "\\ every 6 s (pulser 3): record over the tape again, from the head\n1 BWTRIG !",
+      "\\ setup, run once at load: start the five looping grains (voices 3 to 7)\n248 GTRIG !",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "" },
+    { "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "" },
+    { {0,60,0}, {0,120,0}, {0,120,0}, {1,10,2} },       /* pulser 1 (fired by the attractor) runs blocks 0 and 1: BP1 is preset; 0 and 2 are unused */
+    0, { { 0 } },
+    1, { 3 },
+    {30,36653,0,4}, {3904,15291,1},
+    29696
+  },
 };
-const int PATCH_COUNT = 13;
+const int PATCH_COUNT = 14;
 
 const int HZ_TAB[257] = { 0, 369, 736, 1102, 1466, 1829, 2190, 2551, 2909, 3267, 3623, 3978, 4331, 4683, 5034, 5384, 5732, 6079, 6425, 6769, 7112, 7454, 7795, 8134, 8473, 8810, 9146, 9480, 9814, 10146, 10477, 10807, 11136, 11464, 11791, 12116, 12440, 12764, 13086, 13407, 13727, 14046, 14363, 14680, 14996, 15310, 15624, 15937, 16248, 16559, 16868, 17177, 17484, 17791, 18096, 18401, 18704, 19007, 19308, 19609, 19909, 20207, 20505, 20802, 21098, 21393, 21687, 21980, 22272, 22564, 22854, 23144, 23433, 23720, 24007, 24293, 24579, 24863, 25146, 25429, 25711, 25992, 26272, 26551, 26830, 27108, 27384, 27660, 27936, 28210, 28484, 28757, 29029, 29300, 29571, 29840, 30109, 30378, 30645, 30912, 31178, 31443, 31707, 31971, 32234, 32496, 32758, 33019, 33279, 33538, 33797, 34055, 34312, 34569, 34825, 35080, 35334, 35588, 35841, 36094, 36346, 36597, 36847, 37097, 37346, 37595, 37842, 38090, 38336, 38582, 38827, 39072, 39316, 39559, 39802, 40044, 40286, 40527, 40767, 41006, 41246, 41484, 41722, 41959, 42196, 42432, 42667, 42902, 43137, 43370, 43603, 43836, 44068, 44300, 44530, 44761, 44990, 45220, 45448, 45676, 45904, 46131, 46357, 46583, 46809, 47034, 47258, 47482, 47705, 47928, 48150, 48372, 48593, 48813, 49034, 49253, 49472, 49691, 49909, 50127, 50344, 50560, 50776, 50992, 51207, 51422, 51636, 51850, 52063, 52276, 52488, 52700, 52911, 53122, 53332, 53542, 53751, 53960, 54169, 54377, 54584, 54791, 54998, 55204, 55410, 55615, 55820, 56025, 56229, 56432, 56635, 56838, 57040, 57242, 57443, 57644, 57845, 58045, 58245, 58444, 58643, 58841, 59039, 59237, 59434, 59631, 59827, 60023, 60219, 60414, 60609, 60803, 60997, 61190, 61384, 61576, 61769, 61961, 62152, 62343, 62534, 62725, 62915, 63104, 63294, 63483, 63671, 63859, 64047, 64234, 64421, 64608, 64794, 64980, 65166, 65351, 65536 };   /* log2(1 + i/256) in Q16 */
 const int HZ_K = 793201;   /* log2(4400) in Q16: 4400 tenths of a hertz is A4 */
