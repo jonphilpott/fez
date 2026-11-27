@@ -62,8 +62,8 @@ void desk_patches_loaded_example(Desk *d, int index) {
   snprintf(d->pat.info.listen, sizeof d->pat.info.listen, "%s", p->listen);
 }
 
-static void load_user(Desk *d, const char *name) {
-  if (userpatch_read(d->pat.dir, name, file_buf, sizeof file_buf) < 0) { desk_say(d, "CANNOT READ THAT FILE"); return; }
+/* Load the text already in file_buf as a user patch called `name`. Shared by the list and the command line. */
+static void load_text(Desk *d, const char *name) {
   char err[96];
   int bad = patchfile_read(d->synth, file_buf, &d->pat.info, err, sizeof err);
   if (bad < 0) { desk_say(d, "NOT A FEZ PATCH FILE"); return; }
@@ -73,6 +73,24 @@ static void load_user(Desk *d, const char *name) {
   char m[48];
   if (bad) snprintf(m, sizeof m, "LOADED, %d LINES SKIPPED", bad); else snprintf(m, sizeof m, "LOADED %.36s", name);
   desk_say(d, m);
+}
+
+static void load_user(Desk *d, const char *name) {
+  if (userpatch_read(d->pat.dir, name, file_buf, sizeof file_buf) < 0) { desk_say(d, "CANNOT READ THAT FILE"); return; }
+  load_text(d, name);
+}
+
+/* A patch file given on the command line: any path. Its name is the file name without the folder and ".fez",
+   so a later Ctrl+S offers that name and saves into ~/FEZ/patches/. */
+void desk_patches_load_path(Desk *d, const char *path) {
+  if (userpatch_read_path(path, file_buf, sizeof file_buf) < 0) { desk_say(d, "CANNOT READ THAT FILE"); return; }
+  const char *base = path;
+  for (const char *c = path; *c; c++) if (*c == '/' || *c == '\\') base = c + 1;    /* \ too, for Windows paths */
+  char name[PATCH_NAME_MAX];
+  snprintf(name, sizeof name, "%s", base);
+  size_t n = strlen(name);
+  if (n > 4 && !strcmp(name + n - 4, ".fez")) name[n - 4] = '\0';
+  load_text(d, name);
 }
 
 static void do_save(Desk *d) {

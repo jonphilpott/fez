@@ -292,7 +292,13 @@ static Button controller_to_button(Uint8 b) {
 }
 
 int main(int argc, char **argv) {
-  brick_mode = argc > 1 && !strcmp(argv[1], "--brick");
+  /* Arguments, in any order: --brick for the handheld UI, and a patch file to load at start (fez my.fez). */
+  const char *patch_arg = NULL;
+  for (int i = 1; i < argc; i++) {
+    if (!strcmp(argv[i], "--brick")) brick_mode = 1;
+    else if (argv[i][0] != '-') patch_arg = argv[i];
+    /* other "-" options (macOS adds -psn_... when launched from Finder) are ignored */
+  }
   if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
   SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
   /* 1024x600 is the Raspberry Pi LCD; the window can be resized, or taken full screen with Ctrl+F */
@@ -338,6 +344,7 @@ int main(int argc, char **argv) {
 
   /* The F2 setup page (desktop only): the saved choices, then the devices they name. */
   if (!brick_mode) { desk.setup_scan = setup_scan; desk.setup_apply = setup_apply; setup_load(); }
+  if (patch_arg) desk_patches_load_path(&desk, patch_arg);   /* before the audio starts, so the first sound is the patch's */
   if (open_audio(desk.setup.audio) < 0) { fprintf(stderr, "audio: %s\n", SDL_GetError()); SDL_Quit(); return 1; }
   if (desk.setup.midi[0] && midi_open(desk.setup.midi) != 0) desk_say(&desk, "THE SAVED MIDI INPUT IS NOT THERE (F2 TO CHOOSE)");
 
@@ -411,6 +418,11 @@ int main(int argc, char **argv) {
       } else if (ev.type == SDL_KEYUP) {
         int nk = note_key_char(ev.key.keysym.scancode);
         if (nk) { SDL_LockAudioDevice(dev); desk_note_key(&desk, nk, 0); SDL_UnlockAudioDevice(dev); }
+      } else if (ev.type == SDL_DROPFILE) {
+        /* A file dragged onto the window, or (macOS) a .fez double-clicked in Finder: Finder does not pass it as an
+           argument but sends an "open file" message, which SDL delivers as a drop, also at start-up. */
+        SDL_LockAudioDevice(dev); desk_patches_load_path(&desk, ev.drop.file); SDL_UnlockAudioDevice(dev);
+        SDL_free(ev.drop.file);
       } else if (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
         SDL_LockAudioDevice(dev); desk_all_notes_off(&desk); SDL_UnlockAudioDevice(dev);   /* the key-ups will never arrive: do not leave a note hanging */
       } else if (ev.type == SDL_TEXTINPUT) {

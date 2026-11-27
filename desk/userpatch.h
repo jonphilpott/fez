@@ -13,6 +13,7 @@
 int  userpatch_list(const char *dir, char names[][PATCH_NAME_MAX], int max);
 int  userpatch_exists(const char *dir, const char *name);
 int  userpatch_read(const char *dir, const char *name, char *buf, size_t cap);     /* length, or -1 */
+int  userpatch_read_path(const char *path, char *buf, size_t cap);                 /* the same, for a file anywhere */
 int  userpatch_write(const char *dir, const char *name, const char *text);         /* 0 ok, -1 failed */
 int  userpatch_delete(const char *dir, const char *name);                          /* 0 ok, -1 failed */
 int  userpatch_name_char_ok(int ch);

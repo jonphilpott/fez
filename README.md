@@ -23,7 +23,7 @@ Downloads are on the GitHub releases page.
 ## What is in it
 
 - **A language of 46 words** with a stack, sixteen blocks of code, sixteen scratch registers and saturating 16-bit arithmetic (numbers stick at the ends instead of wrapping, which is what you want for sound).
-- **A voice** in the Buchla and Music Easel tradition: a complex oscillator with FM from a second oscillator, a wavefolder and a vactrol-style lowpass gate. A separate, never-gated mod voice (oscillator or noise through a Moog-style ladder filter) handles drones and sweeps.
+- **A voice** in the west-coast tradition: a complex oscillator with FM from a second oscillator, a wavefolder and a vactrol-style lowpass gate. A separate, never-gated mod voice (oscillator or noise through a Moog-style ladder filter) handles drones and sweeps.
 - **Space**: a tape delay (up to 12 seconds, with wow, hiss, a feedback lowpass and freeze), a stereo spring, and a fixed compressor.
 - **A buffer device** that records and replays up to 30 seconds, with grains.
 - **Four pulsers** that fire blocks on their own clocks, and a **modulation matrix** of 16 routes.

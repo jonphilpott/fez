@@ -1,6 +1,6 @@
 /* The audio side: turns the control side's effective parameters into sound.
 
-   Signal flow (a Buchla/Music Easel style voice with a second, "mod" voice):
+   Signal flow (a west-coast style voice with a second, "mod" voice):
 
      complex osc (sine + a shaped wave, blended) --> wavefolder --> mixer --+
      mod osc ---------------------------------------------------> mixer ----+--> vactrol lowpass gate --> bus
@@ -265,7 +265,7 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
 
   /* ---- sources ---- */
   double dt_md = fabs(a->f_md) / FEZ_SAMPLE_RATE;
-  /* The mod oscillator, as on a Music Easel: one oscillator that is both the FM source (it moves the complex oscillator's
+  /* The mod oscillator, as in west-coast synthesis: one oscillator that is both the FM source (it moves the complex oscillator's
      pitch, by FMAMT) and the mod voice's sound. MDPITCH tunes it like PITCH. */
   double m = wave(a->md_shape, a->ph_md, dt_md);
   a->ph_md = advance_phase(a->ph_md, a->f_md);
@@ -307,7 +307,7 @@ static void render_sample(FezSynth *s, double *out_l, double *out_r) {
   /* GATELEVEL holds the gate open by a fixed amount; the envelope (the vactrol above) adds to it. 0 is the old behaviour, full is a
      gate that is always wide open, so the voice drones. Both limits are 0 and 1, the vactrol's own range. */
   y = clampd(y + P(s, REG_GATELEVEL) / 32767.0, 0.0, 1.0);
-  /* one gate state drives both the level and the cutoff, like a Buchla 292: closing the gate also dulls the sound */
+  /* one gate state drives both the level and the cutoff, as in a west-coast lowpass gate: closing the gate also dulls the sound */
   double gate_hz = 40.0 * exp(y * a->lpg_ln_ratio);
   double lpg_in = mix + a->buf_prev * ramp_next(&a->out_bp);
   double vca = onepole_run(&a->lpg_lp, onepole_coef(gate_hz), lpg_in) * y;

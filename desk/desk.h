@@ -219,6 +219,7 @@ void desk_fire_gate(Desk *d);
 void desk_toggle_pulsers(Desk *d);
 void desk_reload_editor(Desk *d);            /* after a patch load: take every block's source from the synth */
 void desk_patches_refresh(Desk *d);          /* re-read the user patch folder */
+void desk_patches_load_path(Desk *d, const char *path);   /* load a patch file from anywhere (the command line) */
 void desk_patches_begin_save(Desk *d);       /* Ctrl+S: ask for a name */
 void desk_patches_begin_new(Desk *d);        /* Ctrl+N: ask whether to throw this patch away and start a blank one */
 const char *desk_tab_name(int tab);

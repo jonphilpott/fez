@@ -502,7 +502,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <h4>The lowpass gate</h4>
 
-<p>Next comes the part that gives the voice its character. A <b>lowpass gate</b> is a filter and a volume control in one, and the same signal drives both. When it is open, the sound passes at full level and bright. As it closes, the sound grows quieter <em>and</em> duller at once, as a plucked string or a struck bell does. It is modelled on the vactrol, a small lamp and light-sensitive resistor used in Buchla synthesisers. The lamp lights quickly and fades slowly, and the fade slows down the closer to dark it gets. That long tail is the sound.</p>
+<p>Next comes the part that gives the voice its character. A <b>lowpass gate</b> is a filter and a volume control in one, and the same signal drives both. When it is open, the sound passes at full level and bright. As it closes, the sound grows quieter <em>and</em> duller at once, as a plucked string or a struck bell does. It is modelled on the vactrol, a small lamp and light-sensitive resistor used in the lowpass gates of west-coast synthesisers. The lamp lights quickly and fades slowly, and the fade slows down the closer to dark it gets. That long tail is the sound.</p>
 
 <p>You control it with five registers:</p>
 
@@ -1105,6 +1105,8 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 <h3 id="using">Loading, saving and sharing</h3>
 
 <p>On the PATCHES tab there are two lists. <b>MY PATCHES</b> holds the files in <code>~/FEZ/patches/</code>, and <b>EXAMPLES</b> holds the thirteen that come built in. <b>Left</b> and <b>Right</b> (or <b>[</b> and <b>]</b>) switch lists, typing letters narrows the list, <b>Up</b> and <b>Down</b> pick, and <b>Enter</b> loads. <b>Ctrl+S</b> saves the current state under a name, from any tab, and always asks for the name; if the name exists, it asks before overwriting. <b>Ctrl+D</b> or <b>Delete</b> removes a patch, after asking. <b>Ctrl+N</b> throws the current patch away and starts a blank one, from any tab; it asks first, because nothing is saved automatically. On the handheld the same thing is <b>New blank patch</b> on the Menu's MENU tab, and on the PATCHES tab of the Patches screen; answer with <b>A</b> for yes and <b>B</b> for no.</p>
+
+<p>A patch file can also be opened from anywhere when FEZ starts: <code>fez path/to/patch.fez</code> (or <code>fez --brick path/to/patch.fez</code>). It loads as if picked from MY PATCHES; <b>Ctrl+S</b> saves it into <code>~/FEZ/patches/</code>, not back where it came from. A patch file dragged onto the window loads the same way, and so does a double-click on one in the Finder once the Mac app is installed. On Windows, pick <b>Open with</b> and choose FEZ once. Loading this way replaces the current patch without asking, as picking from the list does.</p>
 
 <p>FEZ never saves by itself. A patch you have not saved is gone when you quit. This is a choice: it means the example you load is always the one you hear, and your own patches change only when you say so.</p>
 

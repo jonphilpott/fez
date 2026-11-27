@@ -4,7 +4,7 @@
 <dict>
   <key>CFBundleName</key>               <string>FEZ</string>
   <key>CFBundleDisplayName</key>        <string>FEZ</string>
-  <key>CFBundleIdentifier</key>         <string>org.spareheads.fez</string>
+  <key>CFBundleIdentifier</key>         <string>com.fezmaster.fez</string>
   <key>CFBundleExecutable</key>         <string>fez</string>
   <key>CFBundleIconFile</key>           <string>FEZ</string>
   <key>CFBundlePackageType</key>        <string>APPL</string>
@@ -13,5 +13,26 @@
   <key>LSMinimumSystemVersion</key>     <string>11.0</string>
   <key>LSApplicationCategoryType</key>  <string>public.app-category.music</string>
   <key>NSHighResolutionCapable</key>    <true/>
+  <!-- .fez patch files: FEZ is their owner, so a double-click in Finder opens them here (main.c: SDL_DROPFILE) -->
+  <key>CFBundleDocumentTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeName</key>        <string>FEZ Patch</string>
+      <key>CFBundleTypeRole</key>        <string>Editor</string>
+      <key>LSHandlerRank</key>           <string>Owner</string>
+      <key>LSItemContentTypes</key>      <array><string>com.fezmaster.fez.patch</string></array>
+    </dict>
+  </array>
+  <!-- the file type itself: plain text ending in .fez -->
+  <key>UTExportedTypeDeclarations</key>
+  <array>
+    <dict>
+      <key>UTTypeIdentifier</key>        <string>com.fezmaster.fez.patch</string>
+      <key>UTTypeDescription</key>       <string>FEZ Patch</string>
+      <key>UTTypeConformsTo</key>        <array><string>public.plain-text</string></array>
+      <key>UTTypeTagSpecification</key>
+      <dict><key>public.filename-extension</key> <array><string>fez</string></array></dict>
+    </dict>
+  </array>
 </dict>
 </plist>

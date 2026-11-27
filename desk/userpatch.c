@@ -42,6 +42,11 @@ int userpatch_exists(const char *dir, const char *name) {
 int userpatch_read(const char *dir, const char *name, char *buf, size_t cap) {
   char path[600];
   if (path_for(path, sizeof path, dir, name) != 0) return -1;
+  return userpatch_read_path(path, buf, cap);
+}
+
+/* Any file by its full path (a patch given on the command line, which may live anywhere). */
+int userpatch_read_path(const char *path, char *buf, size_t cap) {
   FILE *f = fopen(path, "rb");
   if (!f) return -1;
   size_t n = fread(buf, 1, cap - 1, f);
