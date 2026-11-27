@@ -2,6 +2,7 @@
    What goes inside a tile is in tab_*.c. */
 #include "desk.h"
 #include <ctype.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -98,8 +99,10 @@ int desk_contains_nocase(const char *hay, const char *needle) {
 }
 
 void desk_say(Desk *d, const char *msg) { snprintf(d->msg, sizeof d->msg, "%s", msg); d->msg_until = d->now_ms + 1600; }
+static void kb_swell_tick(Desk *d, double dt_ms);   /* below, with the keys */
 void desk_tick(Desk *d, double dt_ms) {
   d->now_ms += dt_ms; editor_watch_blocks(d); devices_watch(d);
+  kb_swell_tick(d, dt_ms);
   if (d->layouts[d->layout].tab[d->focus] != TAB_STICKS) {
     if (d->dev.stk_dir >= 0 || d->dev.stk_note >= 0 || d->dev.stk_swell || d->dev.dpad) tab_devices_stick_release(d);   /* STICKS left the front while playing: let go */
   } else tab_devices_dpad_tick(d, dt_ms);
@@ -370,8 +373,9 @@ static int kb_semitones(int ch) {
 int desk_note_key(Desk *d, int ch, int down) {
   if (ch < 0 || ch >= 128) return 0;
   if (!down) {                                                  /* a key up is always honoured, even if the page was left meanwhile, or the note would hang */
-    if (!d->kb_key_note[ch]) return 0;
-    fez_note_off(d->synth, d->kb_key_note[ch] - 1);
+    int k = d->kb_key_note[ch];
+    if (!k) return 0;
+    if (k > 0) fez_note_off(d->synth, k - 1);                   /* a swell key (negative) only stops holding the swell open */
     d->kb_key_note[ch] = 0;
     return 1;
   }
@@ -380,11 +384,48 @@ int desk_note_key(Desk *d, int ch, int down) {
   const Layout *l = &d->layouts[d->layout];
   if (semi < 0 || l->tab[d->focus] != TAB_KEYS) return 0;   /* only the KEYS tab plays */
   if (d->kb_key_note[ch]) return 1;                             /* key repeat: the key is already down */
-  int note = (fez_reg_read(d->synth, REG_KBOCT) + 1) * 12 + semi;      /* KBOCT 3: the bottom key is MIDI 48, C3 */
-  if (note > 127) note = 127;
+
+  /* 1) the pitch (8.8) this key plays */
+  int base = (fez_reg_read(d->synth, REG_KBOCT) + 1) * 12;     /* KBOCT 3: the bottom key is MIDI 48, C3 */
+  int pitch;
+  if (fez_reg_read(d->synth, REG_KBTYPE)) {
+    /* Colour mode: the white keys are steps of the colour, in order up the keyboard (Z X C V B N M are degrees 0 to 6,
+       Q W E R T Y U go on from 7), above KBROOT (any note; KBOCT is for chromatic mode only). The black keys are silent. A colour is just-intoned, so
+       its notes fall between the keys: step 3 presses the nearest whole note, then sets PITCH exactly, as STICKS does. */
+    static const int WHITE_INDEX[12] = { 0, -1, 1, -1, 2, 3, -1, 4, -1, 5, -1, 6 };   /* semitone in the octave -> white key 0..6 */
+    int w = WHITE_INDEX[semi % 12];
+    if (w < 0) return 1;                                         /* a black key: taken (it is not typing), but silent */
+    pitch = fez_reg_read(d->synth, REG_KBROOT) + fez_colour_degree(fez_reg_read(d->synth, REG_KBCOL), (semi / 12) * 7 + w);
+  } else pitch = (base + semi) * 256;
+  pitch = fez_clamp(pitch, 0, 127 * 256);
+  int note = (pitch + 128) / 256;
+
+  /* 2) swell mode: the key only moves PITCH, with no attack; kb_swell_tick opens GATELEVEL while any such key is held.
+        The key is remembered as a negative number, so its key up knows there is no note to let go of. */
+  if (fez_reg_read(d->synth, REG_KBMODE)) {
+    fez_reg_write(d->synth, REG_PITCH, pitch);
+    d->kb_key_note[ch] = -(note + 1);
+    return 1;
+  }
+
+  /* 3) play mode: a note through the keyboard device (the attack, KBNOTE, KBPUL), then the exact pitch */
   fez_note_on(d->synth, note);
+  fez_reg_write(d->synth, REG_PITCH, pitch);
   d->kb_key_note[ch] = note + 1;                                /* remembered, so the key up lets go of this note even if KBOCT changes meanwhile */
   return 1;
+}
+
+/* KEYS in swell mode: GATELEVEL opens over KBSWELL ms while any swell key is held, and closes over the same time once none
+   is. It runs on every tick, whichever tab is in front: key ups always arrive (or losing focus lets go of them all), so a
+   swell left open closes by itself. */
+static void kb_swell_tick(Desk *d, double dt_ms) {
+  int held = 0;
+  for (int i = 0; i < 128 && !held; i++) held = d->kb_key_note[i] < 0;
+  if (!held && d->kb_swell <= 0) return;                        /* closed and nothing held: leave GATELEVEL alone */
+  double step = dt_ms / fez_reg_read(d->synth, REG_KBSWELL);
+  d->kb_swell += held ? step : -step;
+  d->kb_swell = d->kb_swell < 0 ? 0 : d->kb_swell > 1 ? 1 : d->kb_swell;
+  fez_reg_write(d->synth, REG_GATELEVEL, (int)lround(d->kb_swell * 32767));
 }
 
 void desk_all_notes_off(Desk *d) {

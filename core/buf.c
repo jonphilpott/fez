@@ -1,5 +1,5 @@
 /* The buffer device. See buf.h. It makes one call per sample (buf_process), which suits the voice that feeds it
-   sample by sample. (It began as a port of a JavaScript BufEngine, which is why a few comments mention JS.) */
+   sample by sample. */
 #include "buf.h"
 #include "filters.h"   /* flush_denormal */
 #include <math.h>

@@ -130,7 +130,8 @@ typedef struct Desk {
   volatile int muted;            /* global mute (Shift+Esc): the app fades the output to silence; the synth keeps running. Read by the audio thread, hence volatile. */
   unsigned char pul_was[NUM_PULSERS];   /* each pulser's own on/off, kept while "all off" is in force */
   char loaded_name[PATCH_NAME_MAX]; int loaded_user;   /* the patch last loaded or saved, and whether it is a user patch (not an example) */
-  int kb_key_note[128];           /* the keyboard device: the note each computer key started, plus one (0 means the key is up) */
+  int kb_key_note[128];           /* the keyboard device: the note each computer key started, plus one (0: the key is up; negative: held in swell mode) */
+  double kb_swell;                /* KEYS swell mode: how far GATELEVEL is open, 0..1 */
   int quit;                      /* set when the user asks to quit */
   int handheld;                  /* 1 on the small screen (256x192): one tile, a shorter status bar, hints supplied by pad.c */
   const char *hint_override;     /* if set, the status bar shows this instead of the tab's own key hint (the handheld's button hints) */

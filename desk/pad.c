@@ -281,7 +281,7 @@ static void help_key(Pad *p, Button b) {
 
 static void say_volume(Pad *p) {
   char m[48], v[16];
-  regview_fmt_pct(v, sizeof v, p->d->synth->level_pot);
+  regview_fmt_pct(v, sizeof v, p->d->synth->master_level);
   snprintf(m, sizeof m, "VOLUME %s", v);
   desk_say(p->d, m);
 }
@@ -340,7 +340,7 @@ static void press(Pad *p, Button b) {
   if (b == BTN_MENU) { p->menu = ACTIONS[cur_tab(p)].n ? MENU_ACTIONS : MENU_MAIN; p->msel = 0; return; }     /* opens on this screen's actions, if it has any */
   if (b == BTN_SELECT) { d->muted = !d->muted; return; }
   if (b == BTN_VOLU || b == BTN_VOLD) {
-    d->synth->level_pot = fez_clamp(d->synth->level_pot + (b == BTN_VOLU ? 1 : -1) * 1500, 0, 32767);
+    d->synth->master_level = fez_clamp(d->synth->master_level + (b == BTN_VOLU ? 1 : -1) * 1500, 0, 32767);
     say_volume(p);
     return;
   }

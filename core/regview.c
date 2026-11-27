@@ -12,11 +12,11 @@ const RegGroup REG_GROUPS[] = {
   { "MOD VOICE", REG_MDPITCH }, { "DELAY", REG_DLYTIME },  { "SLEW", REG_SLT0 },        { "SCRATCH", REG_S0 },
   { "CELLULAR", REG_CARULE },  { "LORENZ", REG_LZRATE },  { "SEQUENCER", REG_SQSTEP }, { "BUFFER", REG_BWMODE },
   { "GRAINS", REG_GPOS0 },     { "PULSERS", REG_PRATE0 },    { "QUANTISER", REG_QON },    { "TURING", REG_TMPUL },
-  { "KEYBOARD", REG_KBNOTE }, { "STICK", REG_STKTYPE }, { "POTS", REG_MP0 } };
+  { "KEYBOARD", REG_KBMODE }, { "STICK", REG_STKTYPE }, { "POTS", REG_MP0 } };
 const int REG_GROUP_COUNT = (int)(sizeof REG_GROUPS / sizeof REG_GROUPS[0]);
 
 int regview_list(RegEntry *out, int max) {
-  /* NAME_TABLE is in the JS's definition order. A stable insertion sort by address keeps equal addresses in order. */
+  /* NAME_TABLE is in no particular order. A stable insertion sort by address keeps equal addresses in order. */
   int n = 0;
   for (int i = 0; i < NAME_COUNT && n < max; i++) {
     int a = NAME_TABLE[i].addr;
@@ -108,20 +108,20 @@ const char *regview_help(const char *name) {
 /* ---------------------------------------------------------------- access */
 
 int regview_read(FezSynth *s, int a) {
-  if (a == REG_LEVEL) return s->level_pot;
+  if (a == REG_LEVEL) return s->master_level;
   if (s->param_index[a] >= 0 && a != REG_GATE) return s->mem[a];
   return fez_reg_read(s, a);
 }
 
 void regview_write(FezSynth *s, int a, int v) {
-  if (a == REG_LEVEL) s->level_pot = fez_clamp(v, 0, 32767); else fez_reg_write(s, a, v);
+  if (a == REG_LEVEL) s->master_level = fez_clamp(v, 0, 32767); else fez_reg_write(s, a, v);
 }
 
-int regview_pget(FezSynth *s, int a) { return a == REG_LEVEL ? s->level_pot : s->mem[a]; }
+int regview_pget(FezSynth *s, int a) { return a == REG_LEVEL ? s->master_level : s->mem[a]; }
 
 void regview_pset(FezSynth *s, int a, int v) {
   v = fez_clamp(v, 0, 32767);
-  if (a == REG_LEVEL) s->level_pot = v; else s->mem[a] = (int16_t)v;
+  if (a == REG_LEVEL) s->master_level = v; else s->mem[a] = (int16_t)v;
 }
 
 /* A register that selects one of a few shapes (CXWAVE: 3, MDWAVE: 4; MDTRACK: off or on) is a switch, not a knob: the value is cut into equal bands

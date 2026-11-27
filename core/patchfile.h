@@ -3,19 +3,18 @@
    Pure functions on memory: no files, no malloc, so the same code runs on a desktop, a Pi or a microcontroller.
    The app decides where the text lives (a folder of .fez files on a computer, flash on hardware).
 
-   What is saved: the registers that differ from the defaults, the knob positions, the pulsers, the matrix routes,
+   What is saved: the registers that differ from the defaults, the master volume, the pulsers, the matrix routes,
    the cellular automaton and Lorenz settings, and the source of every block and word. What is not saved: the
    recorded buffer audio, and anything that is only in motion (the sequencer position, the LFO phase, the
    envelope). Loading a file therefore starts those from rest, like loading a built-in patch does.
 
    File shape (every line is "keyword values"; blank lines and lines starting with # are ignored):
 
-     FEZ PATCH 1
+     FEZ PATCH 3
      name Glass Bells
      desc A few words about the patch
      listen What to listen for
-     level 20000                  <- the master level knob
-     cutoff 0                     <- the cutoff offset knob
+     level 20000                  <- the master volume (LEVEL)
      pulser 0 on 1 rate 120       <- pulser number, on (0 or 1), rate in pulses per minute
      reg CUTOFF 12000             <- a register by name (or by address); only those that differ from the default
      route ENV CUTOFF 4000        <- matrix: source name, destination register, weight

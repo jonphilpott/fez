@@ -39,7 +39,7 @@ typedef struct FezSynth {
   int16_t priv[NUM_BLOCKS][16];   /* P0..P15: private to each block */
   int8_t param_index[NUM_REGS];   /* address -> row of PARAM_TABLE, or -1 if the register is not a parameter */
   int eff[NUM_REGS];              /* effective value of each parameter: register + modulation matrix. Voice reads these. */
-  int level_pot, cutoff_add;      /* knob positions (the LEVEL register is knob-owned; CUTOFF has an offset knob) */
+  int master_level;               /* the master volume: LEVEL reads this, not the register, so blocks cannot set it (CTRL and Vol +/- do) */
 
   /* ---- the VM and its random numbers ---- */
   Vm vm;
@@ -135,7 +135,7 @@ int  fez_colour_degree(int col, int k);                  /* degree k (any intege
 int  fez_quantise(int pitch, int scale, int root);       /* snap a pitch (8.8 semitones) to a scale over a root */
 void fez_push_buf_event(FezSynth *s, int type, int mask);
 int  fez_clamp(int x, int lo, int hi);
-int  fez_round(double x);                               /* round half up, like JS Math.round (C round() differs for -0.5) */
+int  fez_round(double x);                               /* round half up (C round() differs for -0.5) */
 int  fez_floor_div(int a, int b);                       /* a / b rounded toward minus infinity (C's / rounds toward zero) */
 int  fez_i16(int x);                                    /* wrap into -32768..32767, as a 16-bit register would */
 

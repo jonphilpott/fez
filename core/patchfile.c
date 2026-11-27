@@ -66,7 +66,7 @@ int patchfile_write(const FezSynth *s, const PatchInfo *info, char *out, size_t 
 
   put(&o, "FEZ PATCH %d\n", PATCH_FILE_VERSION);
   put(&o, "name %s\ndesc %s\nlisten %s\n", info->name, info->desc, info->listen);
-  put(&o, "level %d\ncutoff %d\n", s->level_pot, s->cutoff_add);
+  put(&o, "level %d\n", s->master_level);
   for (int i = 0; i < NUM_PULSERS; i++)
     put(&o, "pulser %d on %d rate %d\n", i, s->pulsers[i].on ? 1 : 0, s->mem[REG_PRATE0 + i]);
 
@@ -161,8 +161,8 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
     if (!strcmp(word, "name")) copy_text(info->name, sizeof info->name, rest);
     else if (!strcmp(word, "desc")) copy_text(info->desc, sizeof info->desc, rest);
     else if (!strcmp(word, "listen")) copy_text(info->listen, sizeof info->listen, rest);
-    else if (!strcmp(word, "level") && sscanf(rest, "%d", &a) == 1) s->level_pot = fez_clamp(a, 0, 32767);
-    else if (!strcmp(word, "cutoff") && sscanf(rest, "%d", &a) == 1) s->cutoff_add = fez_clamp(a, -32768, 32767);
+    else if (!strcmp(word, "level") && sscanf(rest, "%d", &a) == 1) s->master_level = fez_clamp(a, 0, 32767);
+    else if (!strcmp(word, "cutoff")) { }                       /* files before 0.4.9 carry an unused "cutoff 0" line: read and ignored */
     else if (!strcmp(word, "pulser") && sscanf(rest, "%d on %d rate %d", &a, &b, &c) == 3 && a >= 0 && a < NUM_PULSERS) {
       s->pulsers[a].on = b != 0; s->mem[REG_PRATE0 + a] = (int16_t)fez_clamp(c, 10, 600);
     }

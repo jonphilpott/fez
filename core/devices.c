@@ -100,8 +100,8 @@ void fez_lz_advance(FezSynth *s, double dt_ms) {
   double x0 = s->lz.x;
   for (int i = 0; i < n; i++) {
     double x = s->lz.x, y = s->lz.y, z = s->lz.z;
-    /* slope at the start (k1), then at the midpoint (k2). Written out one term at a time in the same order as
-       the JS, so the two give identical results even though floating point is not associative. */
+    /* slope at the start (k1), then at the midpoint (k2). Written out one term at a time in a fixed order,
+       so every machine gives identical results (floating point is not associative: a reordering would change them). */
     double k1x = LZ_SIGMA * (y - x), k1y = x * (rho - z) - y, k1z = x * y - LZ_BETA * z;
     double mx = x + 0.5 * h * k1x, my = y + 0.5 * h * k1y, mz = z + 0.5 * h * k1z;
     double k2x = LZ_SIGMA * (my - mx), k2y = mx * (rho - mz) - my, k2z = mx * my - LZ_BETA * mz;
@@ -116,7 +116,7 @@ void fez_lz_advance(FezSynth *s, double dt_ms) {
 /* ---------------------------------------------------------------- quantiser
    Snaps a pitch to the nearest allowed note of a scale. A scale is a 12-bit mask: bit k set means "k semitones above
    the root is allowed". We walk down from the pitch to the nearest allowed semitone and up to the nearest one above;
-   the closer wins and a tie goes down. Integers only, so the JS and C agree exactly. */
+   the closer wins and a tie goes down. Integers only, so every machine agrees exactly. */
 
 static const int QT_SCALES[8] = { 0xFFF, 0xAB5, 0x5AD, 0x6AD, 0x295, 0x4A9, 0x4E9, 0x555 };
    /* chromatic, major, natural minor, dorian, major pentatonic, minor pentatonic, blues, whole tone */
@@ -162,7 +162,7 @@ int fez_quantise(int p, int scale, int root) {
 /* ---------------------------------------------------------------- Turing machine
    A ring of TMLEN bits. A step takes the oldest bit, flips it with probability TMCHANCE / 32768, and pushes it in as
    the newest. Chance 0 repeats the pattern forever; 16384 makes it random. One random number is used per step, always,
-   so the JS and C stay in step. */
+   so the random numbers the rest of the synth draws never depend on TMCHANCE. */
 
 void fez_tm_step(FezSynth *s) {
   int len = fez_clamp(s->mem[REG_TMLEN], 2, 16), mask = (1 << len) - 1, bits = s->tm.bits & mask;

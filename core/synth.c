@@ -1,5 +1,5 @@
 /* The control side of the synth: loading a patch, the clock (pulsers and ticks), the modulation matrix and the
-   slow modulators (LFO, slew generators, control envelope). (Ported from the JavaScript prototype.) */
+   slow modulators (LFO, slew generators, control envelope). */
 #include "fez.h"
 #include "scales.h"
 #include <math.h>
@@ -43,6 +43,8 @@ void fez_default_registers(int16_t mem[NUM_REGS]) {
   mem[REG_QSCALE] = 1; mem[REG_QROOT] = 15360;                             /* QSCALE major, QROOT C4 */
   mem[REG_TMCHANCE] = 4096; mem[REG_TMLEN] = 16;                             /* TMCHANCE about 12 percent, TMLEN 16 */
   mem[REG_KBOCT] = 3;                                                        /* the keyboard's bottom key is C3 */
+  mem[REG_KBSWELL] = 1000;                                                   /* a key swell takes a second */
+  mem[REG_KBROOT] = 12288;                                                   /* colour mode starts from C3, the old fixed root */
   mem[REG_STKSCALE] = 1; mem[REG_STKROOT] = 15360; mem[REG_STKSWELL] = 1000;   /* the stick: C major from C4; a D-pad swell takes a second */
   mem[REG_SQEN] = 255; mem[REG_SQLEN] = 8; mem[REG_SQDRV] = 3;                 /* SQEN all on, SQLEN 8, SQDRV pitch and gate */
   for (int i = 0; i < 8; i++) mem[REG_SQ0 + i] = (int16_t)seq_default[i];
@@ -112,14 +114,14 @@ void fez_load_patch(FezSynth *s, int index) {
     else if (blk == 17) s->mem[REG_GRPUL] |= (int16_t)(1 << i);
   }
 
-  /* 4) matrix, knobs, devices */
+  /* 4) matrix, master volume, devices */
   s->nroutes = 0;
   for (int i = 0; i < p->nroutes; i++) {                       /* sources are named in the table; the live matrix holds their numbers */
     int src = fez_source_index(p->routes[i].src);
     if (src < 1) continue;                                      /* a misspelt name: test_core catches it, so this never happens */
     s->routes[s->nroutes].src = src; s->routes[s->nroutes].dst = p->routes[i].dst; s->routes[s->nroutes].w = p->routes[i].w; s->nroutes++;
   }
-  s->level_pot = p->level; s->cutoff_add = p->cutoff;
+  s->master_level = p->level;
   s->ca.rule = p->ca.rule; s->ca.row = p->ca.row; s->ca.tap = p->ca.tap; s->ca.trig = p->ca.trig;
   s->lz.rate = p->lz.rate; s->lz.rho = p->lz.rho; s->lz.trig = p->lz.trig;
   s->bw.state = s->mem[REG_BWMODE] == 1 ? 1 : 0;
@@ -129,11 +131,11 @@ void fez_load_patch(FezSynth *s, int index) {
   fez_compute_eff(s);
 }
 
-/* A blank patch: default registers, no code, no matrix routes, every pulser off, the level knob at half. The starting
+/* A blank patch: default registers, no code, no matrix routes, every pulser off, the master volume at half. The starting
    point for a new patch, and for reading a patch file (a file only lists what differs). */
 void fez_load_blank(FezSynth *s) {
   reset_machine(s);
-  s->level_pot = 16384; s->cutoff_add = 0;
+  s->master_level = 16384;
   /* The devices start from their standard settings. Automaton: rule 30, the usual seed row, watching cell 0, no pulser
      (trig 4). Lorenz: sigma 10 and beta 8/3 are fixed in the equations; rho 28 is the classic chaotic setting (register
      15291 is 27.9995 on the scale of lz_rho, the nearest the 15-bit register can get); start point (1, 1, 1); no pulser. */
@@ -230,8 +232,7 @@ void fez_compute_eff(FezSynth *s) {
   for (int i = 0; i < PARAM_COUNT; i++) {
     int a = PARAM_TABLE[i].addr;
     if (a == REG_GATE) continue;                                     /* GATE has no continuous value */
-    double base = a == REG_LEVEL ? s->level_pot : s->mem[a];
-    if (a == REG_CUTOFF) base += s->cutoff_add;
+    double base = a == REG_LEVEL ? s->master_level : s->mem[a];
     double sum = 0;
     for (int r = 0; r < s->nroutes; r++)
       if (s->routes[r].dst == a) sum += ((double)s->routes[r].w * sv[s->routes[r].src]) / 32768.0;

@@ -27,8 +27,7 @@ typedef struct {
   int nsetup;    int setup[8];   /* blocks to run once at load */
   CaDef ca;
   LzDef lz;
-  int level;     /* master level pot */
-  int cutoff;    /* cutoff offset pot */
+  int level;     /* master volume, 0..32767 */
 } PatchDef;
 
 extern const ParamDef PARAM_TABLE[];  extern const int PARAM_COUNT;

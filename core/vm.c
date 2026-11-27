@@ -1,5 +1,4 @@
-/* The FEZ token VM: compiler and interpreter. See vm.h for the big picture.
-   It began as a line-by-line port of a JavaScript prototype (retired), so some comments mention "the JS". */
+/* The FEZ token VM: compiler and interpreter. See vm.h for the big picture. */
 #include "vm.h"
 #include "tables.h"
 #include "fez.h"
@@ -99,7 +98,7 @@ int vm_parse_note(const char *t, int default_octave, int *pitch) {
 }
 
 /* Turn one token into one slot. Returns 1, or -1 with a message in err.
-   The checks run in this order, as in the JS: operations, a minus sign (an error), decimal, hex, fraction, note name,
+   The checks run in this order: operations, a minus sign (an error), decimal, hex, fraction, note name,
    register name. Each token gives exactly one slot. */
 static int parse_token(const char *t, Slot *out, char *err, size_t errsz) {
   char u[64];                                         /* upper-case copy for case-insensitive matching */
@@ -138,7 +137,7 @@ static int parse_token(const char *t, Slot *out, char *err, size_t errsz) {
   }
   /* 5) fraction of full scale: .5 is 16384 (value * 32768, clamped to 0..32767) */
   if (t[0] == '.' && digits(t + 1, 10) >= 0) {
-    double r = floor(strtod(t, NULL) * 32768.0 + 0.5);          /* round half up, as JS Math.round does */
+    double r = floor(strtod(t, NULL) * 32768.0 + 0.5);          /* round half up, like fez_round */
     put_lit(&out[0], r < 0 ? 0 : r > 32767 ? 32767 : (int)r);
     return 1;
   }
@@ -157,8 +156,7 @@ static int parse_token(const char *t, Slot *out, char *err, size_t errsz) {
 }
 
 /* Compile source text. Everything from a backslash to the end of the line is a comment. On error, c->ok is 0
-   and c->err says why. A program longer than BLOCK_SLOTS is always an error (the JS only checks `max_slots`,
-   which is never above BLOCK_SLOTS for a block). */
+   and c->err says why. A program longer than max_slots (BLOCK_SLOTS for a block) is an error. */
 void vm_compile(Compiled *c, const char *src, int max_slots) {
   memset(c, 0, sizeof *c);
   c->err_pos = -1;

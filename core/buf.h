@@ -1,6 +1,6 @@
 /* The buffer device: one circular buffer of audio, one write head that records into it, and eight read voices.
    A voice is either a continuous tap (a delay line or a free-running loop) or a windowed "grain" (a short snippet
-   played once or looped). It began as a port of a JavaScript prototype. */
+   played once or looped). */
 #ifndef FEZ_BUF_H
 #define FEZ_BUF_H
 

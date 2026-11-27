@@ -1,6 +1,5 @@
 /* The data tables: parameters (name, address, default, smoothing), register names, help lines, matrix sources, example patches.
-   Plain source you edit by hand. These began as output of a JavaScript prototype that no longer lives here, so some
-   comments elsewhere still say "JS" for "the reference this was ported from". To add a register: give it the next free
+   Plain source you edit by hand. To add a register: give it the next free
    address in its group in reg_names.h, then add its name to NAME_TABLE (and PARAM_TABLE, HELP_TABLE if it needs them). */
 #include "tables.h"
 #include "reg_names.h"
@@ -183,6 +182,11 @@ const NameDef NAME_TABLE[] = {
   { "TMSTEP", REG_TMSTEP },
   { "TMBITS", REG_TMBITS },
   { "TMOUT", REG_TMOUT },
+  { "KBMODE", REG_KBMODE },
+  { "KBSWELL", REG_KBSWELL },
+  { "KBTYPE", REG_KBTYPE },
+  { "KBCOL", REG_KBCOL },
+  { "KBROOT", REG_KBROOT },
   { "KBNOTE", REG_KBNOTE },
   { "KBGATE", REG_KBGATE },
   { "KBOCT", REG_KBOCT },
@@ -283,7 +287,7 @@ const HelpDef HELP_TABLE[] = {
   { "REL", "Envelope release, 10 ms to 4 s" },
   { "LFORATE", "Slow modulator (LFO) rate" },
   { "FMAMT", "FM depth: mod oscillator into the voice" },
-  { "LEVEL", "Master level, set by the level knob" },
+  { "LEVEL", "Master volume: set on CTRL, not by blocks" },
   { "GATE", "Write nonzero to fire the envelope" },
   { "GATELEVEL", "How far the gate stays open, plus the envelope" },
   { "CV#", "Signed value for blocks to write, matrix source" },
@@ -365,6 +369,11 @@ const HelpDef HELP_TABLE[] = {
   { "TMSTEP", "Write nonzero to step the Turing machine" },
   { "TMBITS", "Turing: the 16 bits; writing sets them" },
   { "TMOUT", "Turing output, 0 to 32767, matrix source" },
+  { "KBMODE", "Keys: 0 play notes, 1 swell GATELEVEL" },
+  { "KBSWELL", "Keys swell: ms to open fully, and to close" },
+  { "KBTYPE", "Keys: 0 chromatic, 1 white keys play KBCOL" },
+  { "KBCOL", "Keys: colour 0 to 15, for KBTYPE 1" },
+  { "KBROOT", "Keys colour mode: the root note (C3 = 12288)" },
   { "KBNOTE", "Keyboard: the last note played (read only)" },
   { "KBGATE", "Keyboard: 1 while a key is held (read only)" },
   { "KBOCT", "Keyboard octave, 0 to 8 (the bottom key is C)" },
@@ -450,7 +459,7 @@ const PatchDef PATCH_TABLE[] = {
     3, { {"ENV", REG_FOLD, 12000}, {"ENV", REG_FMAMT, 14000}, {"LFO0", REG_CUTOFF, 3000} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Acid Line",
@@ -478,7 +487,7 @@ const PatchDef PATCH_TABLE[] = {
     2, { {"ENV", REG_CUTOFF, 20000}, {"ENV", REG_FOLD, 12000} },
     1, { 9 },
     {30,10836,0,4}, {8000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Rule 30 Rain",
@@ -506,7 +515,7 @@ const PatchDef PATCH_TABLE[] = {
     4, { {"ENV", REG_CUTOFF, 8000}, {"CADENS", REG_CUTOFF, 12000}, {"CADENS", REG_FOLD, 6000}, {"ENV", REG_MIXNZ, 9000} },
     1, { 9 },
     {30,256,3,1}, {8000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Dub Stab",
@@ -534,7 +543,7 @@ const PatchDef PATCH_TABLE[] = {
     2, { {"ENV", REG_CUTOFF, 18000}, {"LFO0", REG_DLYTIME, 52} },
     1, { 9 },
     {30,10836,0,4}, {8000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Lorenz Walk",
@@ -562,7 +571,7 @@ const PatchDef PATCH_TABLE[] = {
     4, { {"LZX", REG_CUTOFF, 9000}, {"LZY", REG_FOLD, 6000}, {"ENV", REG_CUTOFF, 8000}, {"ENV", REG_MIXNZ, 5000} },
     0, { 0 },
     {30,10836,0,4}, {11500,15300,0},
-    16384, 0
+    16384
   },
   {
     "Four Pulsers",
@@ -590,7 +599,7 @@ const PatchDef PATCH_TABLE[] = {
     3, { {"SLO0", REG_FOLD, 14000}, {"SLO0", REG_CUTOFF, 8000}, {"ENV", REG_CUTOFF, 12000} },
     1, { 9 },
     {30,10836,0,4}, {8000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Mod Drone",
@@ -618,7 +627,7 @@ const PatchDef PATCH_TABLE[] = {
     3, { {"LFO0", REG_MDCUT, 7000}, {"LZX", REG_MDCUT, 9000}, {"CADENS", REG_MDLVL, 5000} },
     0, { 0 },
     {30,10836,0,4}, {9000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Step Melody",
@@ -646,7 +655,7 @@ const PatchDef PATCH_TABLE[] = {
     2, { {"ENV", REG_CUTOFF, 12000}, {"SQ", REG_CUTOFF, 4000} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Tape Echo",
@@ -674,7 +683,7 @@ const PatchDef PATCH_TABLE[] = {
     2, { {"ENV", REG_FOLD, 8000}, {"LFO0", REG_GPOS0, 200} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Grain Cloud",
@@ -702,7 +711,7 @@ const PatchDef PATCH_TABLE[] = {
     1, { {"ENV", REG_FOLD, 6000} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Noise Sweeps",
@@ -730,7 +739,7 @@ const PatchDef PATCH_TABLE[] = {
     3, { {"LFO0", REG_MDCUT, 12000}, {"LZX", REG_MDCUT, 6000}, {"LZZ", REG_MDLVL, 4000} },
     0, { 0 },
     {30,10836,0,4}, {7000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Ambient Loops",
@@ -758,7 +767,7 @@ const PatchDef PATCH_TABLE[] = {
     2, { {"ENV", REG_CUTOFF, 7000}, {"LFO0", REG_MDCUT, 8000} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
-    16384, 0
+    16384
   },
   {
     "Deep Loop",
@@ -786,7 +795,7 @@ const PatchDef PATCH_TABLE[] = {
     1, { {"ENV", REG_CUTOFF, 6000} },
     0, { 0 },
     {30,10836,0,4}, {8000,15300,4},
-    24000, 0
+    24000
   },
 };
 const int PATCH_COUNT = 13;

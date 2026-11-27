@@ -72,7 +72,7 @@ static double poly_blep(double t, double dt) {
   return 0.0;
 }
 
-/* shape 0 sine, 1 triangle, 2 square, 3 saw. All start at zero phase like Web Audio's, except saw/square. */
+/* shape 0 sine, 1 triangle, 2 square, 3 saw. At phase 0, sine and triangle are at 0, square is at +1 and saw at -1. */
 static double wave(int shape, double ph, double dt) {
   switch (shape) {
     case 0: return sin(TWO_PI * ph);

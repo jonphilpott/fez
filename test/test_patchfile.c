@@ -18,7 +18,7 @@ static int same_setup(const FezSynth *a, const FezSynth *b) {
   for (int i = 0; i < NUM_PULSERS; i++)
     if (a->pulsers[i].on != b->pulsers[i].on || a->mem[REG_PRATE0 + i] != b->mem[REG_PRATE0 + i]) return 0;
   if (a->tm.bits != b->tm.bits) return 0;
-  if (a->level_pot != b->level_pot || a->cutoff_add != b->cutoff_add) return 0;
+  if (a->master_level != b->master_level) return 0;
   if (a->ca.rule != b->ca.rule || a->ca.row != b->ca.row || a->ca.tap != b->ca.tap || a->ca.trig != b->ca.trig) return 0;
   if (a->lz.rate != b->lz.rate || a->lz.rho != b->lz.rho || a->lz.trig != b->lz.trig) return 0;
   for (int i = 0; i < NUM_BLOCKS; i++)
@@ -75,6 +75,8 @@ void test_patchfile(void) {
 
   /* damaged and foreign files */
   CHECK(patchfile_read(&copy, "hello", &back, err, sizeof err) == -1, "not a patch file");
+  CHECK(patchfile_read(&copy, "FEZ PATCH 3\nlevel 20000\ncutoff 0\n", &back, err, sizeof err) == 0 && copy.master_level == 20000,
+        "an old file's unused cutoff line is accepted quietly");
   CHECK(patchfile_read(&copy, "FEZ PATCH 99\n", &back, err, sizeof err) == -1, "a newer version is refused");
   /* FMRATE (gone in version 3): older files keep the mod oscillator's frequency, as MDPITCH */
   int bad0 = patchfile_read(&copy, "FEZ PATCH 1\nreg FMRATE 21300\n", &back, err, sizeof err);

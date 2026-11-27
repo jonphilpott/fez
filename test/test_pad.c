@@ -54,7 +54,7 @@ void test_pad(void) {
   tap(BTN_SELECT); CHECK(d.muted, "Select mutes"); tap(BTN_SELECT); CHECK(!d.muted, "Select unmutes");
 
   /* the volume buttons move the master level */
-  int v0 = s.level_pot; tap(BTN_VOLD); CHECK(s.level_pot < v0, "Vol- lowers the level"); tap(BTN_VOLU); CHECK(s.level_pot == v0, "Vol+ raises it again");
+  int v0 = s.master_level; tap(BTN_VOLD); CHECK(s.master_level < v0, "Vol- lowers the level"); tap(BTN_VOLU); CHECK(s.master_level == v0, "Vol+ raises it again");
 
   /* STICKS: A B X Y fire the four pulsers */
   d.layouts[3].tab[0] = TAB_STICKS;

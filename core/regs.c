@@ -8,7 +8,8 @@
 
 int fez_clamp(int x, int lo, int hi) { return x < lo ? lo : x > hi ? hi : x; }
 
-/* JS Math.round: halves round up (-0.5 gives 0). C's round() rounds halves away from zero, so it differs. */
+/* Halves round up (-0.5 gives 0, 2.5 gives 3). C's round() rounds halves away from zero (-0.5 gives -1), which would
+   make a negative half land one step lower than a positive one. */
 int fez_round(double x) { return (int)floor(x + 0.5); }
 
 /* Division that rounds toward minus infinity. C's / truncates toward zero, which differs for negatives: -7 / 2 is -3 in C,
@@ -59,7 +60,7 @@ int fez_read(FezSynth *s, int a, int b, unsigned *fault) {
   if (a == REG_GWIN) return s->mem[a];
   if (in(a, REG_PRATE0, REG_PRATE3)) return s->mem[a];                               /* pulser rates */
   if (in(a, REG_BP0, REG_BP15) || a == REG_SQPUL || a == REG_GRPUL || a == REG_TMPUL || a == REG_KBPUL) return s->mem[a];   /* pulser masks */
-  if (in(a, REG_KBNOTE, REG_KBOCT) || in(a, REG_STKTYPE, REG_STKSWELL)) return s->mem[a];   /* keyboard (note, gate, octave) and stick */
+  if (in(a, REG_KBMODE, REG_KBOCT) || a == REG_KBROOT || in(a, REG_STKTYPE, REG_STKSWELL)) return s->mem[a];   /* keyboard (mode, swell, type, colour, note, gate, octave) and stick */
   if (in(a, REG_QON, REG_QROOT) || a == REG_TMCHANCE || a == REG_TMLEN) return s->mem[a];                  /* quantiser, and the Turing machine's settings */
   if (a == REG_TMBITS) return (int16_t)(s->tm.bits & 0xffff);                        /* TMBITS reads signed, like CAROW */
   if (a == REG_TMOUT) return fez_tm_out(s);
@@ -106,6 +107,11 @@ void fez_write(FezSynth *s, int a, int v, int b, unsigned *fault) {
   if (in(a, REG_BP0, REG_BP15) || a == REG_SQPUL || a == REG_GRPUL || a == REG_TMPUL || a == REG_KBPUL) { s->mem[a] = (int16_t)fez_clamp(v, 0, 15); return; }   /* pulser masks: 4 bits, one per pulser */
   if (a == REG_KBNOTE || a == REG_KBGATE) { *fault |= FAULT_ADDR; return; }                         /* keyboard state: read only */
   if (a == REG_KBOCT) { s->mem[a] = (int16_t)fez_clamp(v, 0, 8); return; }                        /* KBOCT */
+  if (a == REG_KBMODE) { s->mem[a] = (int16_t)fez_clamp(v, 0, 1); return; }                      /* play or swell */
+  if (a == REG_KBSWELL) { s->mem[a] = (int16_t)fez_clamp(v, 50, 4000); return; }                 /* milliseconds */
+  if (a == REG_KBTYPE) { s->mem[a] = (int16_t)fez_clamp(v, 0, 1); return; }                      /* chromatic or colour */
+  if (a == REG_KBCOL) { s->mem[a] = (int16_t)fez_clamp(v, 0, 15); return; }                      /* 16 colours */
+  if (a == REG_KBROOT) { s->mem[a] = (int16_t)fez_clamp(v, 0, 32767); return; }                  /* a pitch, 8.8 */
   if (a == REG_STKTYPE || a == REG_STKMODE) { s->mem[a] = (int16_t)fez_clamp(v, 0, 1); return; }  /* the stick: scales or colours; play or swell */
   if (a == REG_STKSCALE) { s->mem[a] = (int16_t)fez_clamp(v, 0, 15); return; }                    /* 16 colours; a scale number above 7 counts as 7 */
   if (a == REG_STKSWELL) { s->mem[a] = (int16_t)fez_clamp(v, 50, 4000); return; }                 /* milliseconds */
@@ -124,7 +130,7 @@ void fez_write(FezSynth *s, int a, int v, int b, unsigned *fault) {
   if (a == REG_SQDRV) { s->mem[a] = (int16_t)fez_clamp(v, 0, 3); return; }
   if (in(a, REG_SQ0, REG_SQ7)) { s->mem[a] = (int16_t)fez_clamp(v, 0, 32767); return; }
   if (s->param_index[a] >= 0) {
-    if (a == REG_LEVEL) return;                                         /* LEVEL is owned by the knob */
+    if (a == REG_LEVEL) return;                                         /* LEVEL is the master volume (master_level): CTRL and Vol +/- set it, never code */
     if (a == REG_GATE) { if (v != 0) fez_fire_gate(s); return; }       /* GATE */
     s->mem[a] = (int16_t)fez_clamp(v, 0, 32767);
     return;

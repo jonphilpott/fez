@@ -57,7 +57,10 @@ static const Setting DLY_SETTINGS[] = {
 static const char *const DEVICE_NAMES[DEV_COUNT] = { [DEV_DELAY] = "DELAY", [DEV_CELLULAR] = "CELLULAR", [DEV_LORENZ] = "LORENZ", [DEV_QUANTISER] = "QUANTISER", [DEV_TURING] = "TURING", [DEV_KEYS] = "KEYS", [DEV_STICK] = "LEFT STICK" };
 
 static const Setting KB_SETTINGS[] = {
-  { "OCTAVE", REG_KBOCT, 0, 8, 1, 1 }, { "PULSERS", REG_KBPUL, 0, 15, 1, 1 } };
+  { "OCTAVE", REG_KBOCT, 0, 8, 1, 1 }, { "PULSERS", REG_KBPUL, 0, 15, 1, 1 },
+  { "TYPE", REG_KBTYPE, 0, 1, 1, 1 }, { "COLOUR", REG_KBCOL, 0, 15, 1, 4 },            /* chromatic, or the white keys play a colour */
+  { "ROOT", REG_KBROOT, 0, 32767, 256, 1792 },                                         /* the colour's first step: a semitone, or a fifth with Shift */
+  { "MODE", REG_KBMODE, 0, 1, 1, 1 }, { "SWELL", REG_KBSWELL, 50, 4000, 50, 500 } };   /* play notes, or swell GATELEVEL by time held */
 static const Setting STK_SETTINGS[] = {
   { "TYPE", REG_STKTYPE, 0, 1, 1, 1 }, { "SCALE", REG_STKSCALE, 0, 15, 1, 4 },      /* SCALE: 0..7 for scales, 0..15 for colours (see setting_hi) */
   { "ROOT", REG_STKROOT, 0, 32767, 256, 1792 }, { "MODE", REG_STKMODE, 0, 1, 1, 1 },     /* ROOT: a semitone, or a fifth with Shift */
@@ -94,7 +97,8 @@ void devices_watch(Desk *d) {
   if (d->dev.lz_n < LZ_HIST) d->dev.lz_n++;
   /* the keyboard's trace: the note held this frame, or -1. Shifting 480 bytes a frame is nothing. */
   if (d->dev.kb_n == KB_HIST) { memmove(d->dev.kb_hist, d->dev.kb_hist + 1, KB_HIST - 1); d->dev.kb_n--; }
-  d->dev.kb_hist[d->dev.kb_n++] = (int8_t)(s->mem[REG_KBGATE] ? s->mem[REG_KBNOTE] / 256 : -1);
+  int swelling = d->kb_swell > 0;                                  /* swell mode plays no notes (KBGATE stays 0): trace PITCH while it sounds */
+  d->dev.kb_hist[d->dev.kb_n++] = (int8_t)(s->mem[REG_KBGATE] ? s->mem[REG_KBNOTE] / 256 : swelling ? (s->mem[REG_PITCH] + 128) / 256 : -1);
 }
 
 /* ---------------------------------------------------------------- drawing */
@@ -120,7 +124,12 @@ static void draw_settings(Desk *d, View *v, int sub, int col, int row, int width
     else if (st[i].addr == REG_QROOT) regview_fmt_note(extra, sizeof extra, val);
     else if (st[i].addr == REG_TMCHANCE) snprintf(extra, sizeof extra, "flip %d%%", (int)(val * 100.0 / 32768 + 0.5));
     else if (st[i].addr >= REG_DLYTIME && st[i].addr <= REG_DLYIN) regview_fmt_param(extra, sizeof extra, st[i].addr, val);      /* the tape delay's registers */
-    else if (st[i].addr == REG_KBOCT) snprintf(extra, sizeof extra, "C%d to B%d", val, val + 1);     /* the two rows of keys */
+    else if (st[i].addr == REG_KBOCT) snprintf(extra, sizeof extra, fez_reg_read(d->synth, REG_KBTYPE) ? "C%d to B%d (unused: ROOT)" : "C%d to B%d", val, val + 1);     /* the two rows of keys */
+    else if (st[i].addr == REG_KBTYPE) snprintf(extra, sizeof extra, "%s", val ? "colour (white keys)" : "chromatic");
+    else if (st[i].addr == REG_KBMODE) snprintf(extra, sizeof extra, "%s", val ? "swell (GATELEVEL)" : "play notes");
+    else if (st[i].addr == REG_KBSWELL) snprintf(extra, sizeof extra, "%d ms", val);
+    else if (st[i].addr == REG_KBCOL) snprintf(extra, sizeof extra, "%s", fez_reg_read(d->synth, REG_KBTYPE) ? "just intoned" : "(TYPE 0: unused)");
+    else if (st[i].addr == REG_KBROOT) { regview_fmt_note(extra, sizeof extra, val); if (!fez_reg_read(d->synth, REG_KBTYPE)) strcat(extra, " (TYPE 0: unused)"); }
     else if (st[i].addr == REG_STKTYPE) snprintf(extra, sizeof extra, "%s", val ? "colours (just)" : "scales");
     else if (st[i].addr == REG_STKSCALE) snprintf(extra, sizeof extra, "%s", fez_reg_read(d->synth, REG_STKTYPE) ? "colour" : fez_scale_name(val));
     else if (st[i].addr == REG_STKROOT) regview_fmt_note(extra, sizeof extra, val);
@@ -293,7 +302,8 @@ static void draw_keys(Desk *d, View *v, int pane_w, int prows, int sx, int sy, i
      The white keys are semitones 0 2 4 5 7 9 11 of an octave and the black ones 1 3 6 8 10 (the gaps are E-F and B-C). */
   static const int WHITE[7] = { 0, 2, 4, 5, 7, 9, 11 };
   static const int BLACK[5] = { 1, 3, 6, 8, 10 }, BLACK_COL[5] = { 1, 3, 7, 9, 11 };
-  int ly = sy + 3, lx = 2;                                                     /* under the settings, one line of space */
+  int nset; settings_of(DEV_KEYS, &nset);
+  int ly = sy + nset + 1, lx = 2;                                              /* under the settings, one line of space */
   for (int row = 1; row >= 0; row--) {                                         /* the upper octave first, as it sits above on the keyboard */
     const char *keys = row ? KB_KEYS_HIGH : KB_KEYS_LOW;
     int top = ly + (1 - row) * 2;                                              /* each octave is two lines: black keys, then white */
@@ -303,10 +313,12 @@ static void draw_keys(Desk *d, View *v, int pane_w, int prows, int sx, int sy, i
     }
     for (int i = 0; i < 5; i++) {
       char ch = keys[BLACK[i]], t[2] = { (char)(ch >= 'a' && ch <= 'z' ? ch - 32 : ch), 0 };
+      if (fez_reg_read(s, REG_KBTYPE)) t[0] = '.';                           /* colour mode: the black keys are silent */
       view_text(v, lx + BLACK_COL[i], top, t, d->kb_key_note[(int)ch] ? COL_MAG : COL_DIM);
     }
     char name[24]; int oct = fez_reg_read(s, REG_KBOCT) + row;
-    snprintf(name, sizeof name, "C%d to B%d", oct, oct);
+    if (fez_reg_read(s, REG_KBTYPE)) snprintf(name, sizeof name, "degrees %d to %d", 7 * row, 7 * row + 6);   /* colour mode: steps, not octaves */
+    else snprintf(name, sizeof name, "C%d to B%d", oct, oct);
     view_text(v, lx + 16, top + 1, name, COL_DIM);
   }
 }
