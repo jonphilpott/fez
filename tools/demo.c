@@ -18,6 +18,9 @@
 #define FPS 30
 #define SECONDS 30
 #define FRAMES (FPS * SECONDS)
+#define SIDE_X 60                                    /* the tiles stop this far from each side (56 per mille of 1080 below) */
+#define TOP_Y 170                                    /* the tiles start here: Instagram puts its own controls over the top 10 percent or so */
+#define BAND_Y 1560                                  /* the caption band starts here: Instagram covers roughly the bottom 20 percent (y > 1536) with the profile name */
 #define SCOPE_GAIN 5.0f                              /* display gain for the scope tile (the sound is untouched) */
 #define SPF (FEZ_SAMPLE_RATE / FPS)                 /* audio samples per video frame: 1600 at 48 kHz */
 
@@ -114,23 +117,24 @@ static void centre(int y, const char *s, int scale, uint32_t rgb) {
   gfx_text(&desk.cv, (W - w) / 2, y, s, scale, rgb);
 }
 static void draw_caption(double t) {
-  gfx_fill(&desk.cv, 0, 1770, W, H - 1770, 0x000000);
-  gfx_fill(&desk.cv, 0, 1770, W, 2, 0x303030);
+  gfx_fill(&desk.cv, 0, BAND_Y, W, H - BAND_Y, 0x000000);
+  gfx_fill(&desk.cv, 0, BAND_Y, W, 2, 0x303030);
   if (t < 3.0) {                                     /* the title */
-    centre(1790, "FEZ", 10, AMBER);
-    centre(1880, "Personal Sound Computer", 4, DIM);
+    centre(BAND_Y + 22, "FEZ", 10, AMBER);
+    centre(BAND_Y + 112, "Personal Sound Computer", 4, DIM);
   } else if (t >= 27.0) {                            /* the end: name and tag line */
-    centre(1782, "FEZ", 7, AMBER);
-    centre(1850, "a forth programmable", 4, DIM);
-    centre(1884, "virtual analog synth engine", 4, DIM);
+    centre(BAND_Y + 14, "FEZ", 7, AMBER);
+    centre(BAND_Y + 82, "a forth programmable", 4, DIM);
+    centre(BAND_Y + 116, "virtual analog synth engine", 4, DIM);
   } else if (caption1) {
-    centre(1820, caption1, 5, AMBER);
+    centre(BAND_Y + 60, caption1, 5, AMBER);
   }
 }
 
 int main(int argc, char **argv) {
   if (argc < 2) { fprintf(stderr, "usage: demo OUT_DIR [audio]\n"); return 1; }
-  const char *dir = argv[1]; int audio_only = argc > 2 && !strcmp(argv[2], "audio");
+  const char *dir = argv[1]; int audio_only = 0, grain = 0;
+  for (int i = 2; i < argc; i++) { if (!strcmp(argv[i], "audio")) audio_only = 1; if (!strcmp(argv[i], "grainkrell")) grain = 1; }
   char path[600];
 
   /* ---- the timeline ---- */
@@ -138,6 +142,18 @@ int main(int argc, char **argv) {
   const char *LOOP  = "\\ let the loop remember\n25000 DLYFB !\n20000 DLYMIX !";
   const char *CHAOS = "\\ a dark bed, moved by chaos\n13000 MDLVL !\nLZX MDCUT 9000 ROUTE\nLZZ CUTOFF 5000 ROUTE";
   const char *PAST  = "\\ the past comes back\n20000 MIXBF !";
+  if (grain) {
+    /* Grainkrell: the patch is loaded as it ships; the performance is only what the viewer should notice, in this order */
+    add(0.0, S_TAB, TAB_BUFFER, 0, NULL, 0); add(0.0, S_REG, REG_LZRATE, 10000, NULL, 0);
+    add(3.0, S_CAPTION, 0, 0, "a drone, written onto tape", 0);
+    add(9.0, S_CAPTION, 0, 0, "chaos decides when a note comes", 0);
+    add(9.0, S_TAB, TAB_DEVICES, 0, NULL, 0); add(9.0, S_DEVPAGE, DEV_LORENZ, 0, NULL, 0);
+    add(15.0, S_CAPTION, 0, 0, "and the grains jump", 0);
+    add(15.0, S_TAB, TAB_BUFFER, 0, NULL, 0);
+    add(21.0, S_CAPTION, 0, 0, "ten seconds of echo smear it", 0);
+    add(21.0, S_TAB, TAB_DEVICES, 0, NULL, 0); add(21.0, S_DEVPAGE, DEV_DELAY, 0, NULL, 0);
+    add(25.0, S_TAB, TAB_MATRIX, 0, NULL, 0);
+  } else {
   add(0.0, S_TAB, TAB_CTRL, 0, NULL, 0);
   add(3.0, S_CAPTION, 0, 0, "slow notes, written as code", 0);
   double t = add_typed(0.3, 0, BELLS, 34);                      /* bells */
@@ -158,12 +174,14 @@ int main(int argc, char **argv) {
   t = add_typed(21.3, 3, PAST, 30);
   add(t + 0.05, S_RUN, 0, 0, NULL, 0);
   add(25.0, S_TAB, TAB_MATRIX, 0, NULL, 0);
+  }
 
   /* ---- set up the synth and the screen ---- */
   fez_init(&synth, 7);
   desk_init(&desk, &synth);                    /* desk_init starts from a blank patch, so the piece is loaded after it */
   char err[200]; PatchInfo info;
-  if (patchfile_read(&synth, PIECE, &info, err, sizeof err) != 0) { fprintf(stderr, "piece: %s\n", err); return 1; }
+  if (grain) fez_load_patch(&synth, 13);       /* 13 = Grainkrell, the last example */
+  else if (patchfile_read(&synth, PIECE, &info, err, sizeof err) != 0) { fprintf(stderr, "piece: %s\n", err); return 1; }
   desk.scope = ring; desk.scope_head = &head;
   desk_reload_editor(&desk);
   desk_set_canvas(&desk, px, W, H);
@@ -171,12 +189,12 @@ int main(int argc, char **argv) {
   /* one portrait layout: the editor on top, a changing tile in the middle, the scope underneath */
   Layout *L = &desk.layouts[0];
   L->ntiles = 3;
-  L->rect[0] = (Frac){ 0, 0, 1000, 300 };   L->tab[0] = TAB_EDITOR;
-  L->rect[1] = (Frac){ 0, 300, 1000, 740 }; L->tab[1] = TAB_CTRL;
-  L->rect[2] = (Frac){ 0, 740, 1000, 920 }; L->tab[2] = TAB_SCOPE;
+  L->rect[0] = (Frac){ 56, 89, 944, 325 };   L->tab[0] = TAB_EDITOR;
+  L->rect[1] = (Frac){ 56, 325, 944, 655 }; L->tab[1] = TAB_CTRL;
+  L->rect[2] = (Frac){ 56, 655, 944, 807 }; L->tab[2] = TAB_SCOPE;
   desk.layout = 0; desk.focus = 0;
   desk_set_canvas(&desk, px, W, H);          /* again: lays the tiles out */
-  for (int i = 0; i < NUM_PULSERS; i++) synth.pulsers[i].on = 0;
+  if (!grain) for (int i = 0; i < NUM_PULSERS; i++) synth.pulsers[i].on = 0;
   desk.now_ms = 1000;
 
   FILE *vid = NULL;
@@ -207,6 +225,7 @@ int main(int argc, char **argv) {
     }
     head += SPF;
     desk.peak = pk;
+    if (audio_only && grain) { static int sg; int g = synth.lz.x > 0; if (f && g != sg) printf("  lz x crosses zero at %.2f s\n", T); sg = g; }
     desk.now_ms += 1000.0 / FPS;
     desk.ed.last_key_ms = desk.now_ms;                  /* keep the editor's cursor solid while typing */
     desk_tick(&desk, 1000.0 / FPS);
@@ -216,6 +235,9 @@ int main(int argc, char **argv) {
       continue;
     }
     desk_draw(&desk);
+    gfx_fill(&desk.cv, 0, 0, W, TOP_Y, 0x000000);       /* keep the margins black */
+    gfx_fill(&desk.cv, 0, 0, SIDE_X, H, 0x000000);
+    gfx_fill(&desk.cv, W - SIDE_X, 0, SIDE_X, H, 0x000000);
     draw_caption(T);
     fwrite(px, sizeof px[0], (size_t)W * H, vid);
   }
@@ -228,7 +250,7 @@ int main(int argc, char **argv) {
      (tanh) round off the bell transients that would otherwise stick out. */
   double sum = 0; int cnt = 0;
   for (int i = FEZ_SAMPLE_RATE * 2 * 3; i < total * 2; i++) { sum += (double)audio[i] * audio[i]; cnt++; }
-  float gain = (float)(0.14 / sqrt(sum / cnt));
+  float gain = (float)((grain ? 0.084 : 0.14) / sqrt(sum / cnt));   /* the Grainkrell reel is 40 percent quieter (Jon, 27 Nov 2026) */
   for (int i = 0; i < total * 2; i++) audio[i] = tanhf(audio[i] * gain);
   printf("rms gain %.2f\n", gain);
   snprintf(path, sizeof path, "%s/audio.wav", dir);
