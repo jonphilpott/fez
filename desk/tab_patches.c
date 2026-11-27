@@ -150,7 +150,7 @@ void tab_patches_draw(Desk *d, View *v) {
   view_text(v, 0, 0, hdr, sub == SUB_MINE ? COL_AMB : COL_DIM);
   view_text(v, 15, 0, "EXAMPLES", sub == SUB_EXAMPLES ? COL_AMB : COL_DIM);
   if (d->pat.flen) { snprintf(hdr, sizeof hdr, "filter: %s_", d->pat.filter); view_text(v, 0, 1, hdr, COL_CYN); }
-  else if (!d->handheld) view_text(v, 0, 1, "type to filter", COL_DIM);          /* (no keyboard on the handheld) */
+  else if (!d->handheld) view_text(v, 0, 1, "filter: _", COL_DIM);   /* an empty filter field, dim: plain words here read as a patch name. (no keyboard on the handheld) */
 
   for (int r = 0; r < vis; r++) {
     int i = rows[top + r], is_sel = top + r == *sel;

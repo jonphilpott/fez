@@ -25,15 +25,20 @@ def draw(margin=100, radius=185):
         for y, row in enumerate(LETTERS[ch]):
             for x, c in enumerate(row):
                 if c == "#": grid[y][n * 6 + x] = True
-    # 2) one block is 46 pixels, so the text is 782 wide and sits in the middle of the 1024 square
-    block = 46
+    # 2) one block is 34 pixels, so the text is 578 wide: about 120 pixels of black either side inside the rounded
+    #    square (at 46 the letters nearly touched its edges)
+    block = 34
     left = (SIZE - cols * block) // 2
-    top = 215                                     # a little above the middle: the wave goes underneath
     # a sine wave in small blocks under the letters (a "sound computer"): one block per column, joined so the line has no gaps
-    cell = 23
+    cell = block // 2
+    amp = 3                                       # how many rows high each half of the wave is
+    gap = 2 * block                               # space between the letters and the top of the wave
+    # the letters and the wave together, centred top to bottom
+    height = rows * block + gap + (2 * amp + 1) * cell
+    top = (SIZE - height) // 2
     wave_left = left
     wave_cols = (cols * block) // cell
-    mid, amp = 745 // cell, 3                     # centre row, and how many rows high each half of the wave is
+    mid = (top + rows * block + gap) // cell + amp   # the wave's centre row
     wave = set()
     prev = None
     for i in range(wave_cols):
