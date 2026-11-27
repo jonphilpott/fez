@@ -26,6 +26,7 @@ const char *regview_param_name(const FezSynth *s, int addr);
 void regview_fmt_param(char *out, size_t n, int addr, int value);
 void regview_fmt_pct(char *out, size_t n, int value);
 void regview_fmt_note(char *out, size_t n, int pitch);
+int  regview_fmt_grain(char *out, size_t n, const FezSynth *s, int addr, int value);   /* a buffer voice register in friendly units: 1, or 0 if not one */
 void regview_fmt_interval(char *out, size_t n, int pitch);   /* MDPITCH with MDTRACK on: semitones from C4 (+7st) */
 
 /* One line of help (49 characters at most) for a register name; handles families such as CV# for CV0..CV3. */

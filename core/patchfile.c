@@ -69,6 +69,12 @@ int patchfile_write(const FezSynth *s, const PatchInfo *info, char *out, size_t 
   put(&o, "level %d\n", s->master_level);
   for (int i = 0; i < NUM_PULSERS; i++)
     put(&o, "pulser %d on %d rate %d\n", i, s->pulsers[i].on ? 1 : 0, s->mem[REG_PRATE0 + i]);
+  /* Looping grains that are playing (a grain voice runs only once started by GTRIG, so a load could not know): one mask,
+     bit n for voice n. Continuous voices need nothing, they play whenever their level is up. */
+  int looping = 0;
+  for (int i = 0; i < BUF_VOICES; i++)
+    if (s->audio.buf.vo[i].on && s->mem[REG_GLEN0 + i] > 0 && (s->mem[REG_GFLG0 + i] & 8)) looping |= 1 << i;
+  if (looping) put(&o, "grains %d\n", looping);
 
   /* registers: only the named, writable ones, and only those that differ from the defaults */
   RegEntry list[NUM_REGS];
@@ -120,6 +126,7 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
 
   /* 2) one line at a time */
   int bad = 0, lineno = 0;
+  int grains = 0;                                              /* looping grains to start again (the "grains" line) */
   int fmrate = 8000;                                           /* FMRATE, which files before version 3 may hold (8000 was its default) */
   int kind = 0, index = 0;                                     /* source being collected: 1 block, 2 word */
   char src[BLOCK_SRC_MAX];
@@ -166,6 +173,7 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
     else if (!strcmp(word, "pulser") && sscanf(rest, "%d on %d rate %d", &a, &b, &c) == 3 && a >= 0 && a < NUM_PULSERS) {
       s->pulsers[a].on = b != 0; s->mem[REG_PRATE0 + a] = (int16_t)fez_clamp(c, 10, 600);
     }
+    else if (!strcmp(word, "grains") && sscanf(rest, "%d", &a) == 1) grains = a & 255;
     else if (!strcmp(word, "reg") && sscanf(rest, "%31s %d", nm, &a) == 2 && !strcmp(nm, "FMRATE")) fmrate = a;   /* gone: see step 3 */
     else if (!strcmp(word, "reg") && sscanf(rest, "%31s %d", nm, &a) == 2) {
       int addr = addr_of(nm);
@@ -214,6 +222,7 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
   /* 4) state that follows from the registers */
   s->bw.state = s->mem[REG_BWMODE] == 1 ? 1 : 0;
   fez_compute_eff(s);
+  if (grains) fez_push_buf_event(s, EV_TRIG, grains);         /* after the load's own "empty the tape", so they restart on the new tape */
   return bad;
 }
 

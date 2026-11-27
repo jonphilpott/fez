@@ -74,6 +74,20 @@ void test_patchfile(void) {
   CHECK(copy.nroutes == 0 && !copy.pulsers[0].on, "blank patch has no routes and no running pulsers");
 
   /* damaged and foreign files */
+  /* looping grains that are playing come back playing; continuous voices and stopped grains are not in the mask */
+  { static FezSynth a, b2; static char text[65536]; static float out[2 * 480]; PatchInfo pi = { 0 };
+    fez_init(&a, 1); fez_load_blank(&a);
+    for (int i = 0; i < 8; i++) { fez_reg_write(&a, REG_GLEN0 + i, i < 3 ? 0 : 300); fez_reg_write(&a, REG_GFLG0 + i, 8); fez_reg_write(&a, REG_GLVL0 + i, 10000); }
+    fez_reg_write(&a, REG_GTRIG, 255 & ~(1 << 7));            /* every voice but 7 */
+    fez_render_stereo(&a, out, 480);
+    int n = patchfile_write(&a, &pi, text, sizeof text);
+    CHECK(n > 0 && strstr(text, "grains 120\n"), "the playing looping grains (3 to 6) are saved as a mask");
+    fez_init(&b2, 1);
+    CHECK(patchfile_read(&b2, text, &back, err, sizeof err) == 0, "and the file reads back cleanly");
+    fez_render_stereo(&b2, out, 480);
+    int on = 0; for (int i = 0; i < 8; i++) on |= b2.audio.buf.vo[i].on << i;
+    CHECK(on == 120, "after a load, voices 3 to 6 are playing again, and 7 is not"); }
+
   CHECK(patchfile_read(&copy, "hello", &back, err, sizeof err) == -1, "not a patch file");
   CHECK(patchfile_read(&copy, "FEZ PATCH 3\nlevel 20000\ncutoff 0\n", &back, err, sizeof err) == 0 && copy.master_level == 20000,
         "an old file's unused cutoff line is accepted quietly");

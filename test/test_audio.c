@@ -61,6 +61,24 @@ static double gate_peak_from(int level, int fire, int blocks, int from) {
 void test_audio(void) {
   double diff, peak; int bad;
 
+  /* A one-shot writes over BWLEN of the tape from where the head is, and keeps the rest (it used to empty the whole tape
+     and start from the top) */
+  { static float buf[2 * 4800];
+    fez_init(&s, 1); fez_load_blank(&s);
+    fez_reg_write(&s, REG_BUFMS, 100); fez_reg_write(&s, REG_BWSRC, 0); fez_reg_write(&s, REG_MIXCX, 32767);   /* the raw drone */
+    for (int i = 0; i < 4; i++) fez_render_stereo(&s, buf, 4800);                          /* 0.4 s: the 0.1 s tape (4800 samples) is full of it */
+    fez_render_stereo(&s, buf, 1200);                                                      /* then a quarter more, so the head is not near the start */
+    const BufEngine *b = &s.audio.buf;
+    int start = b->wp, full = 1;
+    for (int i = 0; i < b->len; i++) full &= b->buf[i] != 0;
+    fez_reg_write(&s, REG_BIN, 0); fez_reg_write(&s, REG_BWLEN, 16384);                    /* record silence over half the tape */
+    fez_reg_write(&s, REG_BWTRIG, 1);
+    for (int i = 0; i < 4; i++) fez_render_stereo(&s, buf, 4800);
+    int silent = 1, kept = 1, margin = 40;                                                 /* the event lands at the next chunk: allow a few samples */
+    for (int k = margin; k < b->len / 2 - margin; k++) silent &= b->buf[(start + k) % b->len] == 0;
+    for (int k = b->len / 2 + margin; k < b->len - margin; k++) kept &= b->buf[(start + k) % b->len] != 0;
+    CHECK(start != 0 && full && silent && kept, "a one-shot overwrites the stretch after the head and leaves the rest"); }
+
   /* MDTRACK: off, MDPITCH is the mod oscillator's own pitch; on, an interval above PITCH (C4 none, G4 a fifth) */
   { static float buf[2 * 4800];
     fez_init(&s, 1); fez_load_blank(&s);

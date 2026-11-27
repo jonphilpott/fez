@@ -51,7 +51,7 @@
   <li><code>BWSRC</code>: what the head hears. 0 is the mixer (the voice, the mod oscillator and noise, before the gate), 1 is the voice after the gate, 2 is the mod voice, and 3 is both of those together.</li>
   <li><code>BIN</code>: the record level.</li>
   <li><code>BWFB</code>: feedback from the read voices back into the head, so that sounds keep going round. It is soft clipped, so 100 percent is safe.</li>
-  <li>A <b>one-shot</b> clears the buffer and records once, for the length <code>BWLEN</code> (a proportion of the buffer, full by default). Write any non-zero number to <code>BWTRIG</code> to start one.</li>
+  <li>A <b>one-shot</b> records once from wherever the head is, for the length <code>BWLEN</code> (a proportion of the buffer, full by default), writing over what was there; anything past that length is kept, so takes can be layered. Write any non-zero number to <code>BWTRIG</code> to start one.</li>
 </ul>
 
 <p>On the BUFFER tab, <b>R</b> records a one-shot, <b>F</b> freezes the head, <b>S</b> stops the voices, <b>C</b> clears the buffer and <b>Space</b> triggers the voices. The buffer audio is not saved with a patch, and loading a patch empties it.</p>

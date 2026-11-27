@@ -48,9 +48,11 @@ void buf_set_cfg(BufEngine *e, const BufCfg *c) {
   }
 }
 
+/* A one-shot recording: from wherever the head is now, write over the next BWLEN of the tape, then freeze (the head
+   goes on moving, as it always does, but stops writing). The tape is not emptied first: the rest of it stays, so takes
+   can be layered over old ones (C on the BUFFER page, or a patch load, still empties it). */
 void buf_record(BufEngine *e) {
-  memset(e->buf, 0, sizeof(float) * (size_t)e->len);
-  e->wp = 0; e->state = 2;
+  e->state = 2;
   double n = floor(e->c.bwlen / 32767.0 * e->len + 0.5);
   e->rec_left = n < 1 ? 1 : (int)n;
 }

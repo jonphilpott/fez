@@ -22,6 +22,7 @@ static int list_rows(const View *v) { return v->rows - 1 - HELP_ROWS; }
 /* A parameter's value in its units. MDPITCH reads as an interval while MDTRACK is on, which only the synth knows. */
 static void fmt_value(Desk *d, char *buf, size_t n, int a, int v) {
   if (a == REG_MDPITCH && d->synth->mem[REG_MDTRACK] >= 16384) regview_fmt_interval(buf, n, v);
+  else if (regview_fmt_grain(buf, n, d->synth, a, v)) { }      /* buffer voices: as the BUFFER page shows them, all eight alike */
   else regview_fmt_param(buf, n, a, v);
 }
 
@@ -133,7 +134,9 @@ void tab_ctrl_draw(Desk *d, View *v) {
     if (e->wo) view_text_right(v, val_col, valw, row, "-", COL_FG);
     else if (sel && l->in.editing) { entry_text(l, buf, sizeof buf); view_text_right(v, val_col, valw, row, buf, COL_AMB); }
     else {
-      if (par && !d->ctl_raw) fmt_value(d, buf, sizeof buf, a, base); else snprintf(buf, sizeof buf, "%d", base);
+      char tmp[16];
+      int units = (par || regview_fmt_grain(tmp, sizeof tmp, s, a, base)) && !d->ctl_raw;   /* voices 1..7 are not parameters, but have units too */
+      if (units) fmt_value(d, buf, sizeof buf, a, base); else snprintf(buf, sizeof buf, "%d", base);
       view_text_right(v, val_col, valw, row, buf, sel ? COL_AMB : COL_FG);
     }
     if (show_now && par && eff != base) {

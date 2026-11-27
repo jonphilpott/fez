@@ -16,6 +16,7 @@
      listen What to listen for
      level 20000                  <- the master volume (LEVEL)
      pulser 0 on 1 rate 120       <- pulser number, on (0 or 1), rate in pulses per minute
+     grains 248                   <- looping grain voices that were playing, as a mask (bit n = voice n); started on load
      reg CUTOFF 12000             <- a register by name (or by address); only those that differ from the default
      route ENV CUTOFF 4000        <- matrix: source name, destination register, weight
      ca 30 5 3 4                  <- rule, row, tap, trig (4 = none)

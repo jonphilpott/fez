@@ -81,7 +81,7 @@ static int buf_write(FezSynth *s, int a, int v, unsigned *fault) {
   if (a == REG_BWSRC) { s->mem[a] = (int16_t)fez_clamp(v, 0, 3); return 1; }                  /* BWSRC */
   if (a == REG_BWLEN) { s->mem[a] = (int16_t)fez_clamp(v, 1, 32767); return 1; }              /* BWLEN */
   if (a == REG_BWTRIG) {                                                                       /* BWTRIG: start a one-shot recording */
-    if (v != 0) { s->bw.pos = 0; s->bw.rec = 0; s->bw.state = 2; fez_push_buf_event(s, EV_REC, 0); }
+    if (v != 0) { s->bw.rec = 0; s->bw.state = 2; fez_push_buf_event(s, EV_REC, 0); }   /* from where the head is: bw.pos goes on */
     return 1;
   }
   if (a == REG_BUFMS) { s->mem[a] = (int16_t)fez_clamp(v, 50, 30000); return 1; }              /* BUFMS */

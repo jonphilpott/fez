@@ -71,13 +71,7 @@ static void fmt_tape(char *out, size_t n, const FezSynth *s, int addr, int v) {
 
 /* A voice cell as text, in the unit a person thinks in. Position is milliseconds on the tape. */
 static void fmt_cell(char *out, size_t n, const FezSynth *s, int c, int voice) {
-  int v = voice_value(s, c, voice);
-  switch (c) {
-    case 0: snprintf(out, n, "%dms", (int)(v / 32767.0 * s->mem[REG_BUFMS] + 0.5)); break;
-    case 1: regview_fmt_note(out, n, v); break;
-    case 2: if (v == 0) snprintf(out, n, "cont"); else snprintf(out, n, "%dms", v); break;
-    default: fmt_pct(out, n, v); break;
-  }
+  regview_fmt_grain(out, n, s, voice_addr(COLS[c].base, voice), voice_value(s, c, voice));   /* the same text as CTRL */
 }
 
 /* ---------------------------------------------------------------- the waveform */
@@ -172,9 +166,12 @@ static void draw_voices_page(Desk *d, View *v) {
   view_text(v, 1, 1, "#", COL_DIM);
   for (int c = 0; c < 4; c++) view_text_right(v, COLS[c].col, COLS[c].width, 1, COLS[c].name, COL_DIM);
   view_text(v, FLAG_COL, 1, "R V T L", COL_DIM);
+  /* The bottom lines take 2 rows when "NAME = value" and its help fit side by side (16 + 49 columns), else 3: a
+     narrow tile stacks them, so neither is cut off. The handheld shows the help alone. */
+  int wide = v->cols >= 16 + 49, bottom = wide || d->handheld ? 2 : 3;
   for (int i = 0; i < BUF_VOICES; i++) {
     int row = 2 + i, sel = i == d->bf.voice;
-    if (row >= v->rows - 2) break;
+    if (row >= v->rows - bottom) break;
     if (sel) view_fill(v, 0, row, v->cols - 1, 1, COL_PNL);
     snprintf(buf, sizeof buf, "%d", i);
     view_text(v, 1, row, buf, voice_active(s, i) ? COL_MAG : sel ? COL_AMB : COL_FG);
@@ -195,8 +192,13 @@ static void draw_voices_page(Desk *d, View *v) {
   const char *name = NULL;
   for (int i = 0; i < NAME_COUNT; i++) if (NAME_TABLE[i].addr == a) { name = NAME_TABLE[i].name; break; }
   if (name && d->handheld) view_text(v, 0, v->rows - 2, regview_help(name), COL_DIM);          /* no room for "NAME = value" beside the help on 49 columns */
-  else if (name) { snprintf(buf, sizeof buf, "%s = %d", name, fez_reg_read(s, a)); view_text(v, 0, v->rows - 2, buf, COL_FG); view_text(v, 16, v->rows - 2, regview_help(name), COL_DIM); }
-  view_text(v, 0, v->rows - 1, d->handheld ? "R relative  V reverse  T track pitch  L loop" : "R relative to head   V reverse   T follows PITCH   L loops", COL_DIM);
+  else if (name) {
+    snprintf(buf, sizeof buf, "%s = %d", name, fez_reg_read(s, a));
+    view_text(v, 0, v->rows - (wide ? 2 : 3), buf, COL_FG);
+    view_text(v, wide ? 16 : 0, v->rows - 2, regview_help(name), COL_DIM);
+  }
+  static const char LEGEND[] = "R relative to head   V reverse   T follows PITCH   L loops", SHORT[] = "R relative  V reverse  T track pitch  L loop";
+  view_text(v, 0, v->rows - 1, v->cols >= (int)sizeof LEGEND - 1 ? LEGEND : SHORT, COL_DIM);   /* the long one only where it fits */
 }
 
 void tab_buffer_draw(Desk *d, View *v) {

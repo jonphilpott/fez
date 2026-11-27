@@ -88,6 +88,18 @@ void regview_fmt_param(char *o, size_t n, int a, int v) {
   }
 }
 
+/* A buffer voice's position, rate, length or level (GPOS#, GRATE#, GLEN#, GLVL#) in the units the BUFFER page uses: ms of
+   the tape, a note (C4 is normal speed), ms or "cont", a percentage. Shared by that page and CTRL, so voice 3 reads the
+   same as voice 0 everywhere. Returns 1 if it formatted, 0 if a is not one of them. */
+int regview_fmt_grain(char *o, size_t n, const FezSynth *s, int a, int v) {
+  if (a >= REG_GPOS0 && a <= REG_GPOS7)        snprintf(o, n, "%dms", (int)(v / 32767.0 * s->mem[REG_BUFMS] + 0.5));
+  else if (a >= REG_GRATE0 && a <= REG_GRATE7) regview_fmt_note(o, n, v);
+  else if (a >= REG_GLEN0 && a <= REG_GLEN7)   { if (v == 0) snprintf(o, n, "cont"); else snprintf(o, n, "%dms", v); }
+  else if (a >= REG_GLVL0 && a <= REG_GLVL7)   regview_fmt_pct(o, n, v);
+  else return 0;
+  return 1;
+}
+
 /* The one-line help for a register: an exact match, or a numbered family ("CV#" covers CV0..CV3). */
 const char *regview_help(const char *name) {
   for (int i = 0; i < HELP_COUNT; i++) if (strcmp(HELP_TABLE[i].name, name) == 0) return HELP_TABLE[i].text;
