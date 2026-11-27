@@ -68,7 +68,7 @@ int patchfile_write(const FezSynth *s, const PatchInfo *info, char *out, size_t 
   put(&o, "name %s\ndesc %s\nlisten %s\n", info->name, info->desc, info->listen);
   put(&o, "level %d\ncutoff %d\n", s->level_pot, s->cutoff_add);
   for (int i = 0; i < NUM_PULSERS; i++)
-    put(&o, "pulser %d on %d rate %d\n", i, s->pulsers[i].on ? 1 : 0, (int)(s->pulsers[i].rate + 0.5));
+    put(&o, "pulser %d on %d rate %d\n", i, s->pulsers[i].on ? 1 : 0, s->mem[REG_PRATE0 + i]);
 
   /* registers: only the named, writable ones, and only those that differ from the defaults */
   RegEntry list[NUM_REGS];
@@ -78,6 +78,7 @@ int patchfile_write(const FezSynth *s, const PatchInfo *info, char *out, size_t 
     /* TMBITS is the one register whose value lives outside the register file (in s->tm), with its own default */
     int value = a == REG_TMBITS ? (int16_t)s->tm.bits : s->mem[a], dflt = a == REG_TMBITS ? 0x5ac3 : def[a];
     if (list[i].ro || list[i].wo || value == dflt) continue;
+    if (a >= REG_PRATE0 && a <= REG_PRATE3) continue;           /* the pulser lines above already hold the rates */
     put(&o, "reg %s %d\n", list[i].name, value);
   }
   for (int i = 0; i < s->nroutes; i++) {
@@ -163,7 +164,7 @@ int patchfile_read(FezSynth *s, const char *text, PatchInfo *info, char *err, si
     else if (!strcmp(word, "level") && sscanf(rest, "%d", &a) == 1) s->level_pot = fez_clamp(a, 0, 32767);
     else if (!strcmp(word, "cutoff") && sscanf(rest, "%d", &a) == 1) s->cutoff_add = fez_clamp(a, -32768, 32767);
     else if (!strcmp(word, "pulser") && sscanf(rest, "%d on %d rate %d", &a, &b, &c) == 3 && a >= 0 && a < NUM_PULSERS) {
-      s->pulsers[a].on = b != 0; s->pulsers[a].rate = fez_clamp(c, 10, 600);
+      s->pulsers[a].on = b != 0; s->mem[REG_PRATE0 + a] = (int16_t)fez_clamp(c, 10, 600);
     }
     else if (!strcmp(word, "reg") && sscanf(rest, "%31s %d", nm, &a) == 2 && !strcmp(nm, "FMRATE")) fmrate = a;   /* gone: see step 3 */
     else if (!strcmp(word, "reg") && sscanf(rest, "%31s %d", nm, &a) == 2) {

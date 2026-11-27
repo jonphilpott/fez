@@ -100,7 +100,7 @@ static void do_step(const Step *s, double t) {
     case S_RUN:    desk_key(&desk, 'r', MOD_CTRL); break;                 /* Ctrl+R: run it once */
     case S_TAB:    desk.layouts[0].tab[1] = s->a; break;
     case S_DEVPAGE: desk.dev.sub = s->a; break;
-    case S_PULSER: synth.pulsers[s->a].on = 1; synth.pulsers[s->a].rate = s->b; break;
+    case S_PULSER: synth.pulsers[s->a].on = 1; fez_reg_write(&synth, REG_PRATE0 + s->a, s->b); break;
     case S_REG:    fez_reg_write(&synth, s->a, s->b); break;
     case S_CAPTION: caption1 = s->s; break;
   }

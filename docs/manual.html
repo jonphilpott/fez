@@ -552,7 +552,7 @@ table.regs tr.grp th { color: var(--mag); padding-top: 1.5rem; border-top: 1px s
 
 <h3 id="pulsers">Pulsers</h3>
 
-<p>A <b>pulser</b> is a clock that ticks at a steady rate. There are four, numbered 0 to 3. Each has an on/off switch and a rate in <b>pulses per minute</b>, and both are set on the PULSERS tab. At 60 a pulser fires once a second; at 120, twice. <b>Ctrl+P</b> switches all four off and on again without losing their settings.</p>
+<p>A <b>pulser</b> is a clock that ticks at a steady rate. There are four, numbered 0 to 3. Each has an on/off switch and a rate in <b>pulses per minute</b>, and both are set on the PULSERS tab. At 60 a pulser fires once a second; at 120, twice. The rate is also a register, <code>PRATE0</code> to <code>PRATE3</code> (10 to 600), so a block can change it as it plays: <code>90 180 50 P ? PRATE1 !</code> sets pulser 1 to 90 or 180, at random, each time the block runs. <b>Ctrl+P</b> switches all four off and on again without losing their settings.</p>
 
 <p>A pulser does nothing by itself. It <em>fires</em>, and whatever is wired to it responds. Three kinds of thing can be wired:</p>
 
@@ -1456,6 +1456,10 @@ word 2                      the same for a word</pre>
 <tr class="ref-row"><td class="name" id="r-GWIN">GWIN</td><td class="addr">502</td><td class="def"></td><td class="def"></td><td>Grain window: rectangular to Hann</td></tr>
 <tr class="ref-row"><td class="name" id="r-GRPUL">GRPUL</td><td class="addr">503</td><td class="def"></td><td class="def"></td><td>Pulsers that start the next grain (mask)</td></tr>
 <tr class="grp"><th colspan="5">PULSERS</th></tr>
+<tr class="ref-row"><td class="name" id="r-PRATE0">PRATE0</td><td class="addr">506</td><td class="def"></td><td class="def"></td><td>Pulser 0 rate, pulses per minute (10 to 600)</td></tr>
+<tr class="ref-row"><td class="name" id="r-PRATE1">PRATE1</td><td class="addr">507</td><td class="def"></td><td class="def"></td><td>Pulser 1 rate, pulses per minute (10 to 600)</td></tr>
+<tr class="ref-row"><td class="name" id="r-PRATE2">PRATE2</td><td class="addr">508</td><td class="def"></td><td class="def"></td><td>Pulser 2 rate, pulses per minute (10 to 600)</td></tr>
+<tr class="ref-row"><td class="name" id="r-PRATE3">PRATE3</td><td class="addr">509</td><td class="def"></td><td class="def"></td><td>Pulser 3 rate, pulses per minute (10 to 600)</td></tr>
 <tr class="ref-row"><td class="name" id="r-BP0">BP0</td><td class="addr">510</td><td class="def"></td><td class="def"></td><td>Block 0 runs on these pulsers (mask)</td></tr>
 <tr class="ref-row"><td class="name" id="r-BP1">BP1</td><td class="addr">511</td><td class="def"></td><td class="def"></td><td>Block 1 runs on these pulsers (mask)</td></tr>
 <tr class="ref-row"><td class="name" id="r-BP2">BP2</td><td class="addr">512</td><td class="def"></td><td class="def"></td><td>Block 2 runs on these pulsers (mask)</td></tr>

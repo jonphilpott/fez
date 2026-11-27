@@ -25,7 +25,7 @@ enum { F_ON, F_RATE, F_SEQ, F_GRN, F_BLOCK0, FIELD_COUNT = F_BLOCK0 + NUM_BLOCKS
 #define FIRE_LIGHT_TICKS 40          /* the firing light stays lit for 40 ticks of 5 ms: 200 ms */
 
 
-static void set_rate(Desk *d, int row, int rate) { d->synth->pulsers[row].rate = fez_clamp(rate, RATE_MIN, RATE_MAX); }
+static void set_rate(Desk *d, int row, int rate) { fez_reg_write(d->synth, REG_PRATE0 + row, rate); }   /* the register clamps to RATE_MIN..RATE_MAX */
 
 /* ---------------------------------------------------------------- drawing */
 
@@ -42,7 +42,7 @@ void tab_pulsers_draw(Desk *d, View *v) {
   for (int k = 0; k < visible; k++) {
     int p = first + k, r0 = 1 + k * 3, sel = p == d->pul.row;
     char buf[48];
-    int on = s->pulsers[p].on, rate = (int)(s->pulsers[p].rate + 0.5);
+    int on = s->pulsers[p].on, rate = s->mem[REG_PRATE0 + p];
     int cur_field = sel ? d->pul.field : -1;
     int sc = d->scale;
 
@@ -84,7 +84,7 @@ void tab_pulsers_draw(Desk *d, View *v) {
     }
 
     /* summary row */
-    size_t l = (size_t)snprintf(buf, sizeof buf, "%s  every %.2f s  runs", on ? "running" : "stopped", 60.0 / s->pulsers[p].rate);
+    size_t l = (size_t)snprintf(buf, sizeof buf, "%s  every %.2f s  runs", on ? "running" : "stopped", 60.0 / s->mem[REG_PRATE0 + p]);
     int any = 0;
     for (int b = 0; b < NUM_BLOCKS && l < sizeof buf - 6; b++) if ((s->mem[REG_BP0 + b] >> p) & 1) { l += (size_t)snprintf(buf + l, sizeof buf - l, " B%X", b); any = 1; }
     if (sq && l < sizeof buf - 6) { l += (size_t)snprintf(buf + l, sizeof buf - l, " SEQ"); any = 1; }
@@ -108,7 +108,7 @@ static void toggle_field(Desk *d) {
 
 static void step_rate(Desk *d, int dir, int coarse) {
   int p = d->pul.row;
-  set_rate(d, p, (int)(d->synth->pulsers[p].rate + 0.5) + dir * (coarse ? 40 : 5));
+  set_rate(d, p, d->synth->mem[REG_PRATE0 + p] + dir * (coarse ? 40 : 5));
 }
 
 static void stop_entry(Desk *d) { entry_clear(&d->pul.in); d->pul.adjusting = 0; }

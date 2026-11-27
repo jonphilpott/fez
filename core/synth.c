@@ -39,6 +39,7 @@ void fez_init(FezSynth *s, uint32_t seed) {
 void fez_default_registers(int16_t mem[NUM_REGS]) {
   static const int seq_default[8] = { 15360, 15872, 16384, 17152, 17664, 17152, 16384, 15872 };   /* C4 D4 E4 G4 A4 G4 E4 D4 */
   for (int i = 0; i < PARAM_COUNT; i++) mem[PARAM_TABLE[i].addr] = (int16_t)PARAM_TABLE[i].def;
+  for (int i = 0; i < NUM_PULSERS; i++) mem[REG_PRATE0 + i] = 120;                   /* pulsers: two a second */
   mem[REG_QSCALE] = 1; mem[REG_QROOT] = 15360;                             /* QSCALE major, QROOT C4 */
   mem[REG_TMCHANCE] = 4096; mem[REG_TMLEN] = 16;                             /* TMCHANCE about 12 percent, TMLEN 16 */
   mem[REG_KBOCT] = 3;                                                        /* the keyboard's bottom key is C3 */
@@ -69,7 +70,7 @@ static void reset_machine(FezSynth *s) {
   s->sw_run = 0;
 
   /* 3) pulsers off, at a usual rate; the matrix empty */
-  for (int i = 0; i < NUM_PULSERS; i++) { s->pulsers[i].on = 0; s->pulsers[i].rate = 120; s->pulsers[i].acc = 0; s->pulsers[i].last_fire = 0; }
+  for (int i = 0; i < NUM_PULSERS; i++) { s->pulsers[i].on = 0; s->pulsers[i].acc = 0; s->pulsers[i].last_fire = 0; }
   s->nroutes = 0;
 
   /* 4) everything that moves, at rest */
@@ -104,7 +105,7 @@ void fez_load_patch(FezSynth *s, int index) {
   /* 3) pulsers. The patch says which block each pulser runs; the registers store it the other way round,
      as a 4-bit mask of pulsers per block (BP0..BP15), plus one mask each for the sequencer (SQPUL) and the grains (GRPUL). */
   for (int i = 0; i < NUM_PULSERS; i++) {
-    s->pulsers[i].on = p->pulsers[i].on; s->pulsers[i].rate = p->pulsers[i].rate;
+    s->pulsers[i].on = p->pulsers[i].on; s->mem[REG_PRATE0 + i] = (int16_t)p->pulsers[i].rate;
     int blk = p->pulsers[i].block;
     if (blk < 16) s->mem[REG_BP0 + blk] |= (int16_t)(1 << i);
     else if (blk == 16) s->mem[REG_SQPUL] |= (int16_t)(1 << i);
@@ -302,7 +303,7 @@ void fez_tick(FezSynth *s, double dt_ms) {
   for (int i = 0; i < NUM_PULSERS; i++) {
     if (!s->pulsers[i].on) continue;
     s->pulsers[i].acc += dt_ms;
-    double period = 60000.0 / s->pulsers[i].rate;
+    double period = 60000.0 / s->mem[REG_PRATE0 + i];             /* read every tick, so a block writing PRATE changes the rhythm at once */
     if (s->pulsers[i].acc >= period) {
       s->pulsers[i].acc -= period;
       if (s->pulsers[i].acc > period) s->pulsers[i].acc = 0;    /* we fell far behind: do not fire a burst */

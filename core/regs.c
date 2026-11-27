@@ -57,6 +57,7 @@ int fez_read(FezSynth *s, int a, int b, unsigned *fault) {
   if (in(a, REG_BWMODE, REG_BIN) && a != REG_BWTRIG) return s->mem[a];
   if (in(a, REG_GPOS0, REG_GFLG7)) return s->mem[a];
   if (a == REG_GWIN) return s->mem[a];
+  if (in(a, REG_PRATE0, REG_PRATE3)) return s->mem[a];                               /* pulser rates */
   if (in(a, REG_BP0, REG_BP15) || a == REG_SQPUL || a == REG_GRPUL || a == REG_TMPUL || a == REG_KBPUL) return s->mem[a];   /* pulser masks */
   if (in(a, REG_KBNOTE, REG_KBOCT) || in(a, REG_STKTYPE, REG_STKSWELL)) return s->mem[a];   /* keyboard (note, gate, octave) and stick */
   if (in(a, REG_QON, REG_QROOT) || a == REG_TMCHANCE || a == REG_TMLEN) return s->mem[a];                  /* quantiser, and the Turing machine's settings */
@@ -101,6 +102,7 @@ void fez_write(FezSynth *s, int a, int v, int b, unsigned *fault) {
   if (in(a, REG_CARULE, REG_CATRIG)) { fez_ca_write(s, a, v, fault); return; }
   if (in(a, REG_LZRATE, REG_LZSEED)) { fez_lz_write(s, a, v, fault); return; }
   if (buf_write(s, a, v, fault)) return;
+  if (in(a, REG_PRATE0, REG_PRATE3)) { s->mem[a] = (int16_t)fez_clamp(v, 10, 600); return; }   /* pulses per minute: 10 is the slowest (use probability for rarer events) */
   if (in(a, REG_BP0, REG_BP15) || a == REG_SQPUL || a == REG_GRPUL || a == REG_TMPUL || a == REG_KBPUL) { s->mem[a] = (int16_t)fez_clamp(v, 0, 15); return; }   /* pulser masks: 4 bits, one per pulser */
   if (a == REG_KBNOTE || a == REG_KBGATE) { *fault |= FAULT_ADDR; return; }                         /* keyboard state: read only */
   if (a == REG_KBOCT) { s->mem[a] = (int16_t)fez_clamp(v, 0, 8); return; }                        /* KBOCT */

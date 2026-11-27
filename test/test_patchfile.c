@@ -16,7 +16,7 @@ static int same_setup(const FezSynth *a, const FezSynth *b) {
   if (memcmp(a->mem + REG_PITCH, b->mem + REG_PITCH, (NUM_REGS - REG_PITCH) * sizeof a->mem[0])) return 0;
   if (a->nroutes != b->nroutes || memcmp(a->routes, b->routes, a->nroutes * sizeof a->routes[0])) return 0;
   for (int i = 0; i < NUM_PULSERS; i++)
-    if (a->pulsers[i].on != b->pulsers[i].on || (int)(a->pulsers[i].rate + 0.5) != (int)(b->pulsers[i].rate + 0.5)) return 0;
+    if (a->pulsers[i].on != b->pulsers[i].on || a->mem[REG_PRATE0 + i] != b->mem[REG_PRATE0 + i]) return 0;
   if (a->tm.bits != b->tm.bits) return 0;
   if (a->level_pot != b->level_pot || a->cutoff_add != b->cutoff_add) return 0;
   if (a->ca.rule != b->ca.rule || a->ca.row != b->ca.row || a->ca.tap != b->ca.tap || a->ca.trig != b->ca.trig) return 0;

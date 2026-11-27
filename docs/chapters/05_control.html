@@ -2,7 +2,7 @@
 
 <h3 id="pulsers">Pulsers</h3>
 
-<p>A <b>pulser</b> is a clock that ticks at a steady rate. There are four, numbered 0 to 3. Each has an on/off switch and a rate in <b>pulses per minute</b>, and both are set on the PULSERS tab. At 60 a pulser fires once a second; at 120, twice. <b>Ctrl+P</b> switches all four off and on again without losing their settings.</p>
+<p>A <b>pulser</b> is a clock that ticks at a steady rate. There are four, numbered 0 to 3. Each has an on/off switch and a rate in <b>pulses per minute</b>, and both are set on the PULSERS tab. At 60 a pulser fires once a second; at 120, twice. The rate is also a register, <code>PRATE0</code> to <code>PRATE3</code> (10 to 600), so a block can change it as it plays: <code>90 180 50 P ? PRATE1 !</code> sets pulser 1 to 90 or 180, at random, each time the block runs. <b>Ctrl+P</b> switches all four off and on again without losing their settings.</p>
 
 <p>A pulser does nothing by itself. It <em>fires</em>, and whatever is wired to it responds. Three kinds of thing can be wired:</p>
 

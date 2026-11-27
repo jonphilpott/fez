@@ -46,7 +46,7 @@ typedef struct FezSynth {
   uint32_t rng;                   /* xorshift32 state, never 0 */
 
   /* ---- clock ---- */
-  struct { int on; double rate; double acc; unsigned long last_fire; } pulsers[NUM_PULSERS];   /* rate: pulses per minute; acc: ms since last pulse; last_fire: tick_count when it last fired, 0 if never */
+  struct { int on; double acc; unsigned long last_fire; } pulsers[NUM_PULSERS];   /* (the rate is the register PRATE0+i) acc: ms since last pulse; last_fire: tick_count when it last fired, 0 if never */
   unsigned sw_run;                /* blocks asked to run on the next tick by writing RUN */
   unsigned long tick_count;
 

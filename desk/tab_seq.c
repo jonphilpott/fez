@@ -41,7 +41,7 @@ void tab_seq_draw(Desk *d, View *v) {
   view_text(v, 0, 0, "STEP SEQUENCER", COL_AMB);
   char who[64] = ""; size_t wl = 0;
   for (int p = 0; p < NUM_PULSERS; p++)
-    if (((s->mem[REG_SQPUL] >> p) & 1) && s->pulsers[p].on) wl += (size_t)snprintf(who + wl, sizeof who - wl, "%sP%d %d BPM", wl ? ", " : "", p, (int)(s->pulsers[p].rate + 0.5));
+    if (((s->mem[REG_SQPUL] >> p) & 1) && s->pulsers[p].on) wl += (size_t)snprintf(who + wl, sizeof who - wl, "%sP%d %d BPM", wl ? ", " : "", p, s->mem[REG_PRATE0 + p]);
   if (wl) { snprintf(buf, sizeof buf, "clocked by %s", who); view_text_right(v, 15, v->cols - 15, 0, buf, COL_GRN); }
   else view_text_right(v, 15, v->cols - 15, 0, "no clock: set SEQ on a pulser", COL_RED);
 

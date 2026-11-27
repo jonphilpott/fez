@@ -172,6 +172,10 @@ enum {
   REG_GSTOP = 501,
   REG_GWIN = 502,
   REG_GRPUL = 503,
+  REG_PRATE0 = 506,          /* pulser rates, pulses per minute (10 to 600): the first of the PULSERS group */
+  REG_PRATE1 = 507,
+  REG_PRATE2 = 508,
+  REG_PRATE3 = 509,
   REG_BP0 = 510,
   REG_BP1 = 511,
   REG_BP2 = 512,

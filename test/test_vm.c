@@ -42,6 +42,16 @@ void test_vm(void) {
   CHECK(!strcmp(why_of("0 W", "+"), "in a word: + needs 2, stack had 0"), "a fault inside a word names the word's own operation");
   CHECK(!strcmp(why_of("1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17", ""), "a number: stack full (16 deep)"), "overflow says the stack is full");
   CHECK(!strcmp(why_of("1 2 +", ""), ""), "no fault, no message");
+
+  /* a block sets a pulser's rate: 600 per minute is every 100 ms, so in one second of 5 ms ticks pulser 0 fires 10 times */
+  CHECK(run_and_read("600 PRATE0 !", REG_PRATE0) == 600 && run_and_read("5 PRATE0 !", REG_PRATE0) == 10, "PRATE is written by a block, clamped to 10..600");
+  { static FezSynth s; fez_init(&s, 1);
+    vm_set_block(&s.vm, 0, "600 PRATE0 !");
+    fez_reg_write(&s, REG_RUN, 0); fez_tick(&s, 5);                 /* sets the rate (block 0 is on no pulser, so it runs once) */
+    vm_set_block(&s.vm, 1, "S1 @ 1 + S1 !"); s.mem[REG_BP1] = 1;     /* block 1 counts pulser 0's pulses */
+    s.pulsers[0].on = 1; s.pulsers[0].acc = 0;
+    for (int i = 0; i < 200; i++) fez_tick(&s, 5);
+    CHECK(fez_reg_read(&s, REG_S1) == 10, "a pulser follows the rate a block wrote"); }
   CHECK(!strcmp(why_of("5 0 / DROP 1 !", ""), "! needs 2, stack had 1"), "a halt replaces an earlier fault that did not stop the block");
 
   /* note names: one reader for the compiler, the editor's colours and the sequencer */
