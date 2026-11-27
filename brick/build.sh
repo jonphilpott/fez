@@ -4,7 +4,8 @@
 # NextUI / MinUI: copy a pak folder to the card as Tools/tg5040/<name>.pak (they list it under Tools).
 # KNULLI: copy what is inside dist/knulli/ports/ (FEZ.sh, FEZ Probe.sh and the hidden .data folder) into roms/ports on
 # the SHARE partition (/userdata/roms/ports), then Start > Game settings > Update gamelists. Both appear under Ports.
-# The same binary serves both: it needs only libSDL2, libm and libc, and KNULLI has its own SDL2, so none is bundled.
+# TrimUI's own (stock) firmware: copy dist/trimui/Apps/FEZ and FEZProbe into Apps/ on the card; they appear under Apps.
+# The same binary serves them all: it needs only libSDL2, libm and libc, and KNULLI has its own SDL2, so none is bundled.
 set -eu
 cd "$(dirname "$0")/.."
 
@@ -34,8 +35,23 @@ cp dist/fez dist/probe dist/knulli/ports/.data/FEZ/
 cp brick/knulli-fez.sh "dist/knulli/ports/FEZ.sh"
 cp brick/knulli-probe.sh "dist/knulli/ports/FEZ Probe.sh"
 chmod +x dist/knulli/ports/*.sh dist/knulli/ports/.data/FEZ/fez dist/knulli/ports/.data/FEZ/probe
+# 5) the TrimUI stock firmware layout: Apps/FEZ and Apps/FEZProbe, each a folder with config.json, launch.sh and the icon
+#    ("icontop" is the icon centred in its tile, firmware 1.0.5 and later; "icon" stays empty or it would be stretched)
+rm -rf dist/trimui
+for app in FEZ FEZProbe; do
+  mkdir -p dist/trimui/Apps/$app
+  cp brick/icon.png dist/trimui/Apps/$app/icon.png
+done
+cp dist/fez dist/trimui/Apps/FEZ/fez
+cp brick/trimui-fez.sh dist/trimui/Apps/FEZ/launch.sh
+printf '{\n  "label": "FEZ",\n  "icon": "",\n  "icontop": "icon.png",\n  "launch": "launch.sh",\n  "description": "Personal Sound Computer"\n}\n' > dist/trimui/Apps/FEZ/config.json
+cp dist/probe dist/trimui/Apps/FEZProbe/probe
+cp brick/trimui-probe.sh dist/trimui/Apps/FEZProbe/launch.sh
+printf '{\n  "label": "FEZ Probe",\n  "icon": "",\n  "icontop": "icon.png",\n  "launch": "launch.sh",\n  "description": "Reports the screen, sound and buttons to probe.log"\n}\n' > dist/trimui/Apps/FEZProbe/config.json
+chmod +x dist/trimui/Apps/*/launch.sh dist/trimui/Apps/FEZ/fez dist/trimui/Apps/FEZProbe/probe
 
 file dist/probe dist/fez || true
 echo "done:"
 echo "  NextUI / MinUI: copy dist/FEZ-probe.pak (first) and dist/FEZ.pak to the card under Tools/tg5040/"
 echo "  KNULLI: copy the contents of dist/knulli/ports/ (including .data) into roms/ports, then update gamelists"
+echo "  TrimUI stock firmware: copy dist/trimui/Apps/FEZ (and FEZProbe) into Apps/ on the card"

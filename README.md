@@ -47,7 +47,7 @@ Patches and recordings live in `~/FEZ/` (`patches/` and `recordings/`).
 
     brick/build.sh      # needs Docker (Colima is fine); leaves dist/FEZ.pak
 
-Copy the `FEZ.pak` folder to the card as `Tools/tg5040/FEZ.pak`, put the card in the Brick, and start FEZ from the Tools menu. It works with NextUI and MinUI. The handheld chapter of the manual has the button layout.
+Copy the `FEZ.pak` folder to the card as `Tools/tg5040/FEZ.pak`, put the card in the Brick, and start FEZ from the Tools menu. It works with NextUI and MinUI. On the Brick's own (stock) firmware, copy `dist/trimui/Apps/FEZ` into `Apps/` on the card instead; FEZ then appears under Apps. The handheld chapter of the manual has the button layout.
 
 ## The Mac app
 

@@ -83,6 +83,27 @@ def png(path, raw):
         f.write(chunk(b"IEND", b""))
 
 import sys
+if len(sys.argv) == 3 and sys.argv[1] == "--trimui":     # python3 mac/make_icon.py --trimui brick/icon.png: the TrimUI stock firmware's app icon
+    # The launcher wants 200x200 artwork centred on a 300x300 canvas (its "icontop" field). The rounded square of the
+    # normal icon (1024 with a 100 margin, so 824 across) is scaled to 200 by picking the nearest source pixel; the
+    # 50 pixel border stays transparent.
+    big, out, side, art, pad, lo = draw(), 300, 1024, 200, 50, 100
+    stride = 1 + side * 4                                   # each source row: a filter byte, then RGBA pixels
+    rows = []
+    for y in range(out):
+        line = bytearray([0])
+        for x in range(out):
+            if pad <= x < pad + art and pad <= y < pad + art:
+                sx = lo + (x - pad) * (side - 2 * lo) // art
+                sy = lo + (y - pad) * (side - 2 * lo) // art
+                i = sy * stride + 1 + sx * 4
+                line += big[i:i + 4]
+            else: line += bytes((0, 0, 0, 0))
+        rows.append(bytes(line))
+    SIZE = out                                              # png() writes SIZE into the header
+    png(sys.argv[2], b"".join(rows))
+    print("wrote", sys.argv[2])
+    sys.exit(0)
 if len(sys.argv) == 3 and sys.argv[1] == "--ios":        # python3 mac/make_icon.py --ios <out.png>: the 1024 square for an iPad app's asset catalogue
     png(sys.argv[2], draw(0, 0))
     print("wrote", sys.argv[2])
