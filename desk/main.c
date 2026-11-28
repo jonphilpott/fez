@@ -254,7 +254,7 @@ static int translate_mods(Uint16 m) {
 }
 
 /* The Brick's buttons on a computer keyboard, for working on the handheld UI at a desk. BTN_COUNT means "not a button".
-   Layout: arrows = D-pad; X Z = A B (X is the right-hand one, as on the device); S A = X Y; Q W = L1 R1; E R = L2 R2;
+   Layout: arrows = D-pad; X Z = A B (X is the right-hand one, as on the device); S A = X Y; Q W E R = L1 L2 R2 R1 (the order of a controller's shoulders);
    Return = Start; Shift = Select; Esc = Menu; - and = volume. */
 static Button key_to_button(SDL_Keycode k) {
   switch (k) {
@@ -262,8 +262,8 @@ static Button key_to_button(SDL_Keycode k) {
     case SDLK_LEFT: return BTN_LEFT;   case SDLK_RIGHT: return BTN_RIGHT;
     case SDLK_x: return BTN_A;         case SDLK_z: return BTN_B;
     case SDLK_s: return BTN_X;         case SDLK_a: return BTN_Y;
-    case SDLK_q: return BTN_L1;        case SDLK_w: return BTN_R1;
-    case SDLK_e: return BTN_L2;        case SDLK_r: return BTN_R2;
+    case SDLK_q: return BTN_L1;        case SDLK_w: return BTN_L2;     /* Q W E R lie in the order of a controller's shoulders: L1 L2 | R2 R1 */
+    case SDLK_e: return BTN_R2;        case SDLK_r: return BTN_R1;
     case SDLK_RETURN: return BTN_START;
     case SDLK_LSHIFT: case SDLK_RSHIFT: return BTN_SELECT;
     case SDLK_ESCAPE: return BTN_MENU;
