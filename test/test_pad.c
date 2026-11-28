@@ -248,6 +248,17 @@ void test_pad(void) {
     snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha");
     d.ed.cursor = 5; d.ed.anchor = -1; editor_action(6);
     CHECK(strcmp(d.ed.text[0], "alpha\n") == 0, "New line at the end starts a fresh line");
+    /* Down off the end of the code opens an empty line below, once */
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta\ngamma");
+    d.ed.cursor = 0; d.ed.anchor = -1;
+    tap(BTN_DOWN); CHECK(strcmp(d.ed.text[0], "alpha beta\ngamma") == 0 && d.ed.cursor == 11, "Down moves to the next line as before");
+    tap(BTN_DOWN); CHECK(strcmp(d.ed.text[0], "alpha beta\ngamma\n") == 0 && d.ed.cursor == 17, "Down on the last line opens an empty line below and goes to it");
+    tap(BTN_DOWN); CHECK(strcmp(d.ed.text[0], "alpha beta\ngamma\n") == 0 && d.ed.cursor == 17, "Down on that empty line adds no more");
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha");
+    d.ed.cursor = 2; d.ed.anchor = -1;
+    pad_button(&pad, BTN_Y, 1); pad_button(&pad, BTN_DOWN, 1); pad_button(&pad, BTN_DOWN, 0); pad_button(&pad, BTN_Y, 0);
+    CHECK(strcmp(d.ed.text[0], "alpha") == 0 && d.ed.anchor == 2, "selecting down (Y held) goes to the end and does not add a line");
+    d.ed.anchor = -1;
     snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta"); snprintf(test_clip, sizeof test_clip, "beta");
     snprintf(d.ed.text[0], sizeof d.ed.text[0], "one two");
     d.ed.cursor = 7; d.ed.anchor = 4;

@@ -288,7 +288,16 @@ static void move_vertical(Desk *d, int dir, int mods) {
     }
   } else {
     if (cs + width <= le) target = cs + width + imin(want, le - (cs + width));   /* the chunk below, in the same line */
-    else if (!t[le]) target = le;                                       /* already on the last row */
+    else if (!t[le]) {                                                  /* already on the last row */
+      if (d->handheld && !(mods & MOD_SHIFT) && le > ls) {              /* handheld: Down off the end of the code opens an empty line below, to go on writing there */
+        begin_edit(d, 0);
+        e->cursor = le; e->anchor = -1;
+        insert_raw(d, "\n", 1);                                         /* (a second Down on that empty line adds nothing: le == ls) */
+        e->want_col = 0; e->typing = 0;
+        return;
+      }
+      target = le;
+    }
     else { int nls = le + 1, nle = line_end(t, nls); target = nls + imin(want, nle - nls); }
   }
   move_to(d, target, mods, 1);
