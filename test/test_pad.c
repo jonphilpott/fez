@@ -248,6 +248,14 @@ void test_pad(void) {
     snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha");
     d.ed.cursor = 5; d.ed.anchor = -1; editor_action(6);
     CHECK(strcmp(d.ed.text[0], "alpha\n") == 0, "New line at the end starts a fresh line");
+    /* the cellular picture scrolls on every step, even one that gives the same row (a dead row, a fixed point), and only then */
+    fez_reg_write(&s, REG_CARULE, 30); fez_reg_write(&s, REG_CAROW, 0); d.dev.ca_n = 0; devices_watch(&d);
+    int n0 = d.dev.ca_n;
+    devices_watch(&d); CHECK(d.dev.ca_n == n0, "frames with no step add no row");
+    fez_reg_write(&s, REG_CASTEP, 1); devices_watch(&d);
+    CHECK(d.dev.ca_n == n0 + 1 && d.dev.ca_hist[d.dev.ca_n - 1] == 0, "a step of a dead row still scrolls the picture");
+    fez_reg_write(&s, REG_CASTEP, 1); devices_watch(&d);
+    CHECK(d.dev.ca_n == n0 + 2, "and so does the next");
     /* Down off the end of the code opens an empty line below, once */
     snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta\ngamma");
     d.ed.cursor = 0; d.ed.anchor = -1;

@@ -63,10 +63,10 @@ typedef struct FezSynth {
   struct { double v; int phase; double atk, rel; } env;   /* control-rate envelope: a modulation source only */
 
   /* ---- devices ---- */
-  struct { int rule, row, tap, trig; } ca;                /* cellular automaton: 16 cells in a ring */
+  struct { int rule, row, tap, trig; unsigned gen; } ca;   /* cellular automaton: 16 cells in a ring. gen counts generations run (so a screen can tell a step that changed nothing from no step) */
   struct { double x, y, z; int rho, trig; } lz;    /* (its speed is the register LZRATE, a matrix destination) */     /* Lorenz attractor */
   int sq_cur, sq_count;           /* step sequencer position, number of clocks so far */
-  struct { int bits; } tm;        /* Turing machine: the 16-bit ring (only the low TMLEN bits are used) */
+  struct { int bits; unsigned steps; } tm;   /* steps counts steps run, as ca.gen does */        /* Turing machine: the 16-bit ring (only the low TMLEN bits are used) */
   int kb_held[KB_MAX_HELD], kb_n; /* keyboard device: MIDI notes held, oldest first; the newest one sounds */
   int gate_hold;                  /* 1 while a keyboard key is down: the envelope (control and audio) stays open */
   int fx_clear;                   /* set by a patch load: the audio side empties the delay, spring and compressor at its next tick */

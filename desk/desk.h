@@ -181,6 +181,7 @@ typedef struct Desk {
     Entry in;                                /* a value being typed */
     uint16_t ca_hist[CA_HIST]; int ca_n;     /* the automaton's rows as they were seen, oldest first */
     uint16_t tm_hist[CA_HIST]; int tm_n;     /* the same for the Turing machine's bits */
+    unsigned ca_gen, tm_gen;                 /* the core's step counts at the last look: a change means a step ran, even one that gave the same row */
     int lz_x[LZ_HIST], lz_z[LZ_HIST]; int lz_n, lz_head;   /* the Lorenz trace: a ring of (X, Z) register values */
     int8_t kb_hist[KB_HIST]; int kb_n;       /* the keyboard's note trace, oldest first: the note held that frame, or -1 */
     int stk_x, stk_y;                        /* STICK: the right stick, -32767..32767 each, up and right positive */
