@@ -11,6 +11,7 @@
 #   --yes          do not ask before publishing (for a script; nothing else is skipped)
 #   --dry-run      check everything and say what would happen, build and publish nothing
 #
+# The USB download comes with a second file, the source code of everything in it (os/legal.sh), as the GPL asks.
 # What each download needs on this machine:  mac: macOS (hdiutil, codesign)   win: MinGW (make win-sdl fetches SDL)
 #   brick: Docker (brick/build.sh)   usb: Docker with 8 GB (os/build.sh: an hour the first time, minutes after)
 # The order is: checks, version bump, tests, manual, every build, then ONE question, then commit/tag/push/publish. If a build
@@ -59,10 +60,6 @@ else
     echo; echo "The Mac app and Windows exe are unsigned: see the README for the first-launch steps."; } > "$NOTES_OUT"
   [ -n "$DRY" ] || ${EDITOR:-vi} "$NOTES_OUT"
 fi
-if want usb; then
-  # the USB image carries Linux and other free software: say where its source is (Buildroot's legal-info is still to be done)
-  grep -q "USB" "$NOTES_OUT" || echo "note: the notes do not mention the USB image (FEZ-usb-$TAG.zip)"
-fi
 [ -z "$DRY" ] || { say "Dry run: checks passed. Would build $(for w in mac win brick usb; do want $w && printf '%s ' $w; done), then publish $TAG. Notes draft: $NOTES_OUT"; exit 0; }
 
 # ---- 3. bump, test, build. Any failure puts the edited files back.
@@ -83,6 +80,10 @@ if want usb; then
   cp os/out/fez.img dist/FEZ-usb-v$VERSION.img
   (cd dist && rm -f FEZ-usb-v$VERSION.zip && zip -q FEZ-usb-v$VERSION.zip FEZ-usb-v$VERSION.img) && rm dist/FEZ-usb-v$VERSION.img
   echo "made dist/FEZ-usb-v$VERSION.zip"
+  # the source behind the image (Linux, glibc, BusyBox, ...): the GPL asks us to offer it with the binary, so it goes on the release
+  os/legal.sh > /dev/null
+  cp os/out/FEZ-usb-source.tar.gz dist/FEZ-usb-source-v$VERSION.tar.gz
+  echo "made dist/FEZ-usb-source-v$VERSION.tar.gz"
 fi
 trap - ERR
 FILES=$(ls dist/FEZ-*-v$VERSION.* 2>/dev/null)

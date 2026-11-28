@@ -22,7 +22,7 @@ Needs Docker (Colima works; give it 8 CPUs and 8 GB, or expect a long wait). Not
                                 # leaves os/out/qemu/shot.png (screen), serial.log, audio.wav
     KEEP=1 os/run-qemu.sh bios  # boot the same pretend stick again (a second start)
 
-A release image is made by `tools/release.sh` (it runs the two build steps above and zips the result).
+A release is made by `tools/release.sh` (it runs the two build steps above, zips the image, and attaches the source code too). **The source offer:** the image holds Linux, glibc, BusyBox, X.Org and other free software, whose licences ask us to provide the source. `os/legal.sh` makes `os/out/FEZ-usb-source.tar.gz` (about 350 MB: Buildroot's `legal-info` sources and licence texts, the Buildroot scripts, this `os/` folder); every release carries it as `FEZ-usb-source-vX.Y.Z.tar.gz`, and `os/SOURCE.txt` on the image's boot partition says so. If you change what goes into the image, nothing else is needed: it collects what the build used.
 
 Buildroot does not notice a changed option on a package it has already built: after editing a package's options in the defconfig, run `os/build.sh <package>-dirclean all` once.
 

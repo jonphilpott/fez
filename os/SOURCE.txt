@@ -1,0 +1,26 @@
+FEZ live USB image: where the source code is
+============================================
+
+This image holds FEZ, which is under the MIT licence (see LICENSE in the FEZ
+repository, https://github.com/jonphilpott/fez), and free software from other
+people: the Linux kernel, the GNU C library, BusyBox, X.Org, SDL2, ALSA,
+udev and others, under the GPL, LGPL and similar licences. Each package's
+licence text is in the source archive below.
+
+The complete source code for all of it, with the files that control how the
+image is built (the Buildroot build system at the version used, and this
+repository's os/ folder), is in the file
+
+    FEZ-usb-source-vX.Y.Z.tar.gz
+
+on the same GitHub release page as the image you downloaded:
+
+    https://github.com/jonphilpott/fez/releases
+
+X.Y.Z is the version in the image's file name. The archive holds manifest.csv
+(every package, its version and licence), a folder of licence texts, and
+README-SOURCE.txt, which says how to rebuild the image.
+
+If a release is ever missing that file, open an issue at
+https://github.com/jonphilpott/fez/issues and it will be put there. This offer
+holds for at least three years after the release.
