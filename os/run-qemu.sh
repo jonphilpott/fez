@@ -5,18 +5,18 @@
 #     MODE kernel (default)  start os/out/bzImage directly
 #     MODE bios              start os/out/fez.img as an old BIOS machine would (a USB stick)
 #     MODE uefi              start os/out/fez.img as a UEFI machine would
-#   IMG=fez-small.img GROW=1024 os/run-qemu.sh bios   boot a copy of that image on a pretend 1024 MB stick (os/out/disk-test.img), to test the
-#                                                      first-start partition step; run again (without NEWDISK=1) to boot the same disk a second time
+#   In bios and uefi modes the image is copied onto a pretend stick of GROW megabytes (default 1024, os/out/disk-test.img), as a real
+#   stick is bigger than the image, so the first start makes the FEZ data partition. KEEP=1 boots the last pretend stick again
+#   instead (a second start: the partition must be reused, and the files from the first run are still there).
 #   then wait SECONDS (default 60), press Ctrl+Q and then Enter (FEZ quits and the machine powers off) and look.
 # Results in os/out/qemu/: serial.log, shot.png, audio.wav. (The pretend CPU is emulated, so it is slow: allow a minute.)
 set -e
 cd "$(dirname "$0")/.."
 MODE=${1:-kernel}; WAIT=${2:-60}
 mkdir -p os/out/qemu && rm -f os/out/qemu/*
-IMG=${IMG:-fez.img}
-if [ -n "$GROW" ]; then       # a bigger pretend stick than the image, as a real one would be
-  if [ -n "$NEWDISK" ] || [ ! -f os/out/disk-test.img ]; then cp "os/out/$IMG" os/out/disk-test.img && truncate -s "${GROW}M" os/out/disk-test.img; fi
-  IMG=disk-test.img
+IMG=disk-test.img
+if [ "$MODE" != kernel ] && [ -z "$KEEP" ]; then
+  cp os/out/fez.img os/out/$IMG && truncate -s "${GROW:-1024}M" os/out/$IMG
 fi
 docker build -q -t fez-os-qemu -f os/Dockerfile.qemu os > /dev/null
 case $MODE in

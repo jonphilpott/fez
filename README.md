@@ -65,7 +65,7 @@ Cross-built on the Mac as one `FEZ.exe` with SDL2 inside. Patches and recordings
 
 ## Releases
 
-Build the Brick pak (`brick/build.sh`), then `make brick-zip`, `make mac-dmg` and `make win-zip` with the same `VERSION=`, and attach the files in `dist/` to a GitHub release (`gh release create v0.1.0 dist/FEZ-*-v0.1.0.*`).
+`tools/release.sh X.Y.Z` makes a release: it bumps `VERSION`, runs the tests, builds the Mac, Windows, Brick (with Knulli and TrimUI) and USB downloads, asks once, then commits, tags, pushes and publishes the GitHub release with the files attached. `--dry-run` only checks; `--skip usb` (and mac, win, brick) leaves a download out; the header of the script lists the rest.
 
 ## Documentation
 
