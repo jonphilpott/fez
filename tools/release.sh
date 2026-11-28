@@ -52,7 +52,7 @@ for w in mac win brick usb; do want $w || echo "skipping: $w"; done
 
 # ---- 2. the notes (asked for first so a long build does not end with a question)
 NOTES_OUT=dist/notes-$TAG.md; mkdir -p dist
-if [ -n "$NOTES" ]; then cp "$NOTES" "$NOTES_OUT"
+if [ -n "$NOTES" ]; then [ "$NOTES" -ef "$NOTES_OUT" ] || cp "$NOTES" "$NOTES_OUT"
 else
   { echo "<!-- Rewrite this: what is new for someone using FEZ, not a list of commits. Delete this line. -->"
     echo; git log --format='- %s' ${PREV:+$PREV..}HEAD
