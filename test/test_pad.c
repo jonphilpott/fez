@@ -256,6 +256,12 @@ void test_pad(void) {
     CHECK(d.dev.ca_n == n0 + 1 && d.dev.ca_hist[d.dev.ca_n - 1] == 0, "a step of a dead row still scrolls the picture");
     fez_reg_write(&s, REG_CASTEP, 1); devices_watch(&d);
     CHECK(d.dev.ca_n == n0 + 2, "and so does the next");
+    /* two steps within one frame draw both rows (rule 5 from bits 4 and 11 goes to EBD7 and back, as the patch blank9 does each pulse) */
+    fez_reg_write(&s, REG_CARULE, 5); fez_reg_write(&s, REG_CAROW, 0x0810); devices_watch(&d); n0 = d.dev.ca_n;
+    fez_reg_write(&s, REG_CASTEP, 2); devices_watch(&d);
+    CHECK(d.dev.ca_n == n0 + 2 && d.dev.ca_hist[d.dev.ca_n - 2] == 0xEBD7 && d.dev.ca_hist[d.dev.ca_n - 1] == 0x0810, "two steps in one frame draw both rows");
+    fez_reg_write(&s, REG_CASTEP, 16); fez_reg_write(&s, REG_CASTEP, 16); devices_watch(&d);
+    CHECK(d.dev.ca_n >= n0 + 2 + FEZ_RING, "more steps than the ring holds in one frame draw the ones it kept");
     /* Down off the end of the code opens an empty line below, once */
     snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta\ngamma");
     d.ed.cursor = 0; d.ed.anchor = -1;

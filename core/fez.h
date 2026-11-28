@@ -19,6 +19,7 @@
 #define FEZ_PI       3.14159265358979323846   /* M_PI is not in strict C99 */
 #define NUM_REGS     640       /* the register file: addresses 0..639 */
 #define NUM_PULSERS  4
+#define FEZ_RING 16                  /* recent rows each device keeps for its picture (see ca.hist, tm.hist) */
 #define NUM_SLEW     4          /* slew generators: CV0..CV3 smoothed into SLO0..SLO3 */
 #define PRATE_MIN    10         /* pulser rates, pulses per minute: the slowest (slower events: a block that acts by chance) */
 #define PRATE_MAX    600        /* ... and the fastest, ten a second */
@@ -63,10 +64,10 @@ typedef struct FezSynth {
   struct { double v; int phase; double atk, rel; } env;   /* control-rate envelope: a modulation source only */
 
   /* ---- devices ---- */
-  struct { int rule, row, tap, trig; unsigned gen; } ca;   /* cellular automaton: 16 cells in a ring. gen counts generations run (so a screen can tell a step that changed nothing from no step) */
+  struct { int rule, row, tap, trig; unsigned gen; int hist[FEZ_RING]; } ca;   /* cellular automaton: 16 cells in a ring. gen counts generations run; hist keeps the last FEZ_RING rows (generation g is hist[g % FEZ_RING]), so a screen can draw every step, even several within one frame, or a step that changed nothing */
   struct { double x, y, z; int rho, trig; } lz;    /* (its speed is the register LZRATE, a matrix destination) */     /* Lorenz attractor */
   int sq_cur, sq_count;           /* step sequencer position, number of clocks so far */
-  struct { int bits; unsigned steps; } tm;   /* steps counts steps run, as ca.gen does */        /* Turing machine: the 16-bit ring (only the low TMLEN bits are used) */
+  struct { int bits; unsigned steps; int hist[FEZ_RING]; } tm;   /* Turing machine: the 16-bit ring (only the low TMLEN bits are used). steps and hist: the same record as ca.gen and ca.hist */
   int kb_held[KB_MAX_HELD], kb_n; /* keyboard device: MIDI notes held, oldest first; the newest one sounds */
   int gate_hold;                  /* 1 while a keyboard key is down: the envelope (control and audio) stays open */
   int fx_clear;                   /* set by a patch load: the audio side empties the delay, spring and compressor at its next tick */

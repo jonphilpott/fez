@@ -32,8 +32,8 @@
           KEYS: Space or Enter lets go of every key
 
    The pictures are recorded here, not in the core: once a frame we note what the devices look like now. If the
-   automaton takes several steps within one frame, only the last row is drawn (ponytail: fine at pulser speeds, which
-   top out at 10 a second). */
+   automaton takes several steps within one frame, each is drawn (the core keeps the last FEZ_RING = 16 rows; if more run
+   in one frame the oldest are lost). */
 #include "desk.h"
 #include "scales.h"
 #include <math.h>
@@ -80,19 +80,27 @@ static const Setting *settings_of(int sub, int *n) {
 
 /* ---------------------------------------------------------------- recording (once a frame) */
 
-/* Add a row to a history; the oldest falls off when full. A row the same as the last is added only if a step ran (`stepped`): a dead
-   row, or one the rule leaves alone, still scrolls the picture when stepped, but the frames in between add nothing. */
-static void push_history(uint16_t *hist, int *n, uint16_t row, int stepped) {
-  if (!stepped && *n > 0 && hist[*n - 1] == row) return;
+/* Add a row to a history; the oldest falls off when full. A row the same as the last is added only if `always` (it came from a
+   step): a dead row, or one the rule leaves alone, still scrolls the picture when stepped. */
+static void push_history(uint16_t *hist, int *n, uint16_t row, int always) {
+  if (!always && *n > 0 && hist[*n - 1] == row) return;
   if (*n == CA_HIST) { memmove(hist, hist + 1, (CA_HIST - 1) * sizeof row); (*n)--; }
   hist[(*n)++] = row;
 }
 
+/* Draw every generation the core ran since the last look (it keeps the last FEZ_RING of them: more than that in one frame and the
+   oldest are lost), then the row as it is now, in case something else changed it (a block writing CAROW, a random row, a load). */
+static void record(uint16_t *hist, int *n, const int *ring, unsigned gen, unsigned *seen, int now) {
+  unsigned from = gen - *seen > FEZ_RING ? gen - FEZ_RING : *seen;
+  for (unsigned g = from; g != gen; g++) push_history(hist, n, (uint16_t)ring[g % FEZ_RING], 1);
+  *seen = gen;
+  push_history(hist, n, (uint16_t)now, 0);
+}
+
 void devices_watch(Desk *d) {
   FezSynth *s = d->synth;
-  push_history(d->dev.ca_hist, &d->dev.ca_n, (uint16_t)s->ca.row, s->ca.gen != d->dev.ca_gen);
-  push_history(d->dev.tm_hist, &d->dev.tm_n, (uint16_t)s->tm.bits, s->tm.steps != d->dev.tm_gen);
-  d->dev.ca_gen = s->ca.gen; d->dev.tm_gen = s->tm.steps;
+  record(d->dev.ca_hist, &d->dev.ca_n, s->ca.hist, s->ca.gen, &d->dev.ca_gen, s->ca.row);
+  record(d->dev.tm_hist, &d->dev.tm_n, s->tm.hist, s->tm.steps, &d->dev.tm_gen, s->tm.bits);
   d->dev.lz_x[d->dev.lz_head] = fez_reg_read(s, REG_LZX);
   d->dev.lz_z[d->dev.lz_head] = fez_reg_read(s, REG_LZZ);
   d->dev.lz_head = (d->dev.lz_head + 1) % LZ_HIST;

@@ -38,7 +38,7 @@ static void ca_step(FezSynth *s, int generations) {
     int before = (r >> s->ca.tap) & 1, after = (next >> s->ca.tap) & 1;
     if (before == 0 && after == 1 && s->ca.trig < 4)                          /* a "birth" at the watched cell */
       s->vm.pending |= 1u << s->ca.trig;
-    s->ca.row = next; s->ca.gen++;
+    s->ca.row = next; s->ca.hist[s->ca.gen % FEZ_RING] = next; s->ca.gen++;
   }
 }
 
@@ -169,7 +169,7 @@ void fez_tm_step(FezSynth *s) {
   int nb = (bits >> (len - 1)) & 1;
   double r = s->vm.host.rnd(s->vm.host.ctx);
   if (r * 32768 < s->mem[REG_TMCHANCE]) nb ^= 1;
-  s->tm.bits = ((bits << 1) | nb) & mask; s->tm.steps++;
+  s->tm.bits = ((bits << 1) | nb) & mask; s->tm.hist[s->tm.steps % FEZ_RING] = s->tm.bits; s->tm.steps++;
 }
 
 /* The output: the newest 8 bits (all of them if the loop is shorter), scaled to 0..32767. */
