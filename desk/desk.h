@@ -141,6 +141,7 @@ typedef struct Desk {
   int kb_key_note[128];           /* the keyboard device: the note each computer key started, plus one (0: the key is up; negative: held in swell mode) */
   double kb_swell;                /* KEYS swell mode: how far GATELEVEL is open, 0..1 */
   int quit;                      /* set when the user asks to quit */
+  int quit_ask;                  /* 1 while the "quit?" dialog is open (Ctrl+Q asks first); Enter or Ctrl+Q again quits, anything else cancels */
   int handheld;                  /* 1 on the small screen (256x192): one tile, a shorter status bar, hints supplied by pad.c */
   const char *hint_override;     /* if set, the status bar shows this instead of the tab's own key hint (the handheld's button hints) */
 

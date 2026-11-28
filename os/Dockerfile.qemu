@@ -1,0 +1,6 @@
+# A pretend PC for testing the image without hardware: QEMU, with the firmware for both kinds of boot (BIOS: SeaBIOS, UEFI: OVMF).
+# It runs without a window; run-qemu.sh takes screenshots and records the sound through QEMU's control socket.
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends qemu-system-x86 seabios ovmf python3 netcat-openbsd \
+ && rm -rf /var/lib/apt/lists/*

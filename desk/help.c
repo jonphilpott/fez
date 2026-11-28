@@ -23,7 +23,7 @@ static const HelpLine LEFT[] = {
   { "Esc",           "cancel what you are typing" },
   { "Ctrl+=  Ctrl+-", "text bigger / smaller" },
   { "Ctrl+F",        "full screen on / off" },
-  { "Ctrl+Q",        "quit" },
+  { "Ctrl+Q",        "quit (asks first)" },
   { "F2",            "setup: audio output, MIDI, pots" },
   { "Alt",           "works like Ctrl, everywhere" },
   { "", "" },

@@ -1,0 +1,1 @@
+source "$BR2_EXTERNAL_FEZ_PATH/package/fez/Config.in"

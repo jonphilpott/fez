@@ -293,18 +293,29 @@ static Button controller_to_button(Uint8 b) {
 }
 
 int main(int argc, char **argv) {
-  /* Arguments, in any order: --brick for the handheld UI, and a patch file to load at start (fez my.fez). */
+  /* Arguments, in any order: --brick for the handheld UI, --fullscreen to start full screen (the live USB image does), and a
+     patch file to load at start (fez my.fez). */
   const char *patch_arg = NULL;
+  int start_fullscreen = 0;
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "--brick")) brick_mode = 1;
+    else if (!strcmp(argv[i], "--fullscreen")) start_fullscreen = 1;
     else if (argv[i][0] != '-') patch_arg = argv[i];
     /* other "-" options (macOS adds -psn_... when launched from Finder) are ignored */
   }
   if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) { fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
   SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
   /* 1024x600 is the Raspberry Pi LCD; the window can be resized, or taken full screen with Ctrl+F */
-  SDL_Window *win = brick_mode ? SDL_CreateWindow("FEZ", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 768, SDL_WINDOW_RESIZABLE)    /* 4 x 256x192 */
-                               : SDL_CreateWindow("FEZ", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 600, SDL_WINDOW_RESIZABLE);
+  SDL_Window *win;
+  SDL_Rect screen;
+  if (start_fullscreen && !brick_mode && SDL_GetDisplayBounds(0, &screen) == 0) {
+    /* --fullscreen: a borderless window exactly the size of the screen. (Asking SDL for fullscreen does nothing under X with no
+       window manager, which is how the live USB image runs; a window placed by hand needs no manager to honour it.) */
+    win = SDL_CreateWindow("FEZ", screen.x, screen.y, screen.w, screen.h, SDL_WINDOW_BORDERLESS);
+  } else {
+    win = brick_mode ? SDL_CreateWindow("FEZ", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 768, SDL_WINDOW_RESIZABLE)    /* 4 x 256x192 */
+                     : SDL_CreateWindow("FEZ", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 600, SDL_WINDOW_RESIZABLE);
+  }
   SDL_Renderer *ren = win ? SDL_CreateRenderer(win, -1, 0) : NULL;
   if (!win || !ren) { fprintf(stderr, "window: %s\n", SDL_GetError()); SDL_Quit(); return 1; }
   if (brick_mode) SDL_RenderSetIntegerScale(ren, SDL_TRUE);  /* the handheld's picture is scaled by whole numbers only (desk_hand_size) */

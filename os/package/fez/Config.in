@@ -1,0 +1,7 @@
+config BR2_PACKAGE_FEZ
+	bool "fez"
+	depends on BR2_PACKAGE_SDL2
+	depends on BR2_PACKAGE_XORG7
+	help
+	  FEZ, the forth programmable virtual analog synth engine,
+	  built from this repository's own Makefile.

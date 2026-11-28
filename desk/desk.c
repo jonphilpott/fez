@@ -346,6 +346,21 @@ static void draw_status(Desk *d) {
   }
 }
 
+/* The "quit?" dialog: a centred box over whatever is showing, at the text size of the rest of the screen. */
+static void draw_quit_dialog(Desk *d) {
+  Canvas *cv = &d->cv;
+  int s = d->scale, cw = GFX_CELL_W * s, ch = GFX_CELL_H * s;
+  const char *title = "QUIT FEZ?";
+  const char *hint = "Enter or Ctrl+Q  quit        Esc  stay";
+  int w = ((int)strlen(hint) + 4) * cw, h = ch * 4;
+  if (w > cv->w) w = cv->w;                                   /* a very small window: the text is cut, not the box */
+  int x = (cv->w - w) / 2, y = (cv->h - h) / 2;
+  gfx_fill(cv, x, y, w, h, gfx_colour(COL_BG));
+  gfx_frame(cv, x, y, w, h, gfx_colour(COL_AMB));
+  gfx_text(cv, x + 2 * cw, y + ch, title, s, gfx_colour(COL_RED));
+  gfx_text(cv, x + 2 * cw, y + ch * 5 / 2, hint, s, gfx_colour(COL_AMB));
+}
+
 void desk_draw(Desk *d) {
   gfx_unclip(&d->cv);
   gfx_fill(&d->cv, 0, 0, d->cv.w, d->cv.h, gfx_colour(COL_BG));
@@ -355,6 +370,7 @@ void desk_draw(Desk *d) {
   if (d->help) desk_help_draw(d);                         /* F1: the help page covers the tiles */
   else if (d->setup_open) desk_setup_draw(d);             /* F2: so does the setup page */
   draw_status(d);
+  if (d->quit_ask) draw_quit_dialog(d);                   /* Ctrl+Q: on top of everything */
 }
 
 /* ---------------------------------------------------------------- keys */
@@ -399,7 +415,7 @@ int desk_note_key(Desk *d, int ch, int down) {
     d->kb_key_note[ch] = 0;
     return 1;
   }
-  if (d->help || d->setup_open) return 0;                       /* a page is open: no notes */
+  if (d->help || d->setup_open || d->quit_ask) return 0;        /* a page or the quit dialog is open: no notes */
   int semi = kb_semitones(ch);
   const Layout *l = &d->layouts[d->layout];
   if (semi < 0 || l->tab[d->focus] != TAB_KEYS) return 0;   /* only the KEYS tab plays */
@@ -459,6 +475,11 @@ void desk_key(Desk *d, int key, int mods) {
   /* PANIC: Shift+Esc toggles the global mute from any tab, even in the middle of typing a number. Plain Esc is left alone,
      because most tabs use it to cancel an entry. */
   if (key == KEY_ESC && (mods & MOD_SHIFT)) { d->muted = !d->muted; return; }
+  if (d->quit_ask) {                                                            /* the quit dialog takes every key: Enter or Ctrl+Q again says yes, the rest say no */
+    if (key == KEY_ENTER || (key == 'q' && (mods & (MOD_CTRL | MOD_ALT)))) d->quit = 1;
+    d->quit_ask = 0;
+    return;
+  }
   if (key == KEY_F2 && !d->help && !d->handheld && !d->setup_open) { desk_setup_open(d); return; }   /* F2 opens the setup page ... */
   if (d->setup_open) { desk_setup_key(d, key, mods); return; }                  /* ... which takes every key until F2 or Esc closes it */
   if (key == KEY_F1 && !d->help) { d->help = 1; d->help_top = 0; return; }       /* F1 opens the help page ... */
@@ -484,7 +505,7 @@ void desk_key(Desk *d, int key, int mods) {
       case 'p': desk_toggle_pulsers(d); return;
       case 'n': *tab = TAB_PATCHES; desk_patches_begin_new(d); return;       /* new blank patch: asks first, in the Patches tab */
       case 's': *tab = TAB_PATCHES; desk_patches_begin_save(d); return;     /* save: shows the name prompt in the Patches tab */
-      case 'q': d->quit = 1; return;
+      case 'q': d->quit_ask = 1; return;                         /* ask first: a stray Ctrl+Q must not end a performance (on the USB image it powers off) */
       default: break;                                            /* other chords go to the tab (the editor has several) */
     }
   }
@@ -492,7 +513,7 @@ void desk_key(Desk *d, int key, int mods) {
 }
 
 void desk_text(Desk *d, int ch) {
-  if (d->help) return;                                          /* the help page is open: typing does nothing */
+  if (d->help || d->quit_ask) return;                           /* a page or the quit dialog is open: typing does nothing */
   if (d->setup_open) { desk_setup_text(d, ch); return; }
   TABS[d->layouts[d->layout].tab[d->focus]].text(d, ch);
 }

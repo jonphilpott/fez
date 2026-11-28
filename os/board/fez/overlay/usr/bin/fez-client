@@ -1,0 +1,3 @@
+#!/bin/sh
+# What X runs. Its messages go to FEZ/fez.log on the stick, for finding out why a machine would not play.
+exec /usr/bin/fez --fullscreen 2>> "$HOME/FEZ/fez.log"

@@ -1,0 +1,83 @@
+#!/bin/sh
+# Starts FEZ on a live USB stick. Three jobs: find the stick's data partition, turn the sound up, run X with FEZ in it.
+
+# 1. Patches, recordings and setup.txt live in FEZ/ on the FAT32 partition labelled FEZ (on the stick itself), so they can be
+#    copied on and off from any computer. FEZ finds its folder through $HOME, as it does on the handheld.
+#    The small image ships with only a boot partition, labelled FEZBOOT. The first time it starts, this script adds the FEZ
+#    partition in all the free space after it, so the stick's whole size is room for recordings. (A partition that is new and empty
+#    holds nothing to lose; resizing a filled FAT32 one would.) With neither partition (booted some other way, or the step fails)
+#    everything goes to RAM and is lost at power off.
+find_label() { blkid | grep "LABEL=\"$1\"" | head -1 | cut -d: -f1; }     # prints e.g. /dev/sda1
+
+make_data_partition() {                            # $1 = the boot partition, e.g. /dev/sdb1; prints the new partition
+  part=$(basename "$1")
+  disk=$(basename "$(readlink -f /sys/class/block/$part/..)")             # sdb
+  # only a stick whose one and only partition is the boot partition: whatever else is there is not ours to touch
+  [ "$(ls -d /sys/block/$disk/${disk}* | wc -l)" -eq 1 ] || return 1
+  echo "FEZ: first start, making the data partition on /dev/$disk" >&2
+  echo ',,c' | sfdisk -q --append "/dev/$disk" >&2 || return 1             # all the free space, type FAT32; the boot code is left alone
+  new=$(basename "$(ls -d /sys/block/$disk/${disk}* | tail -1)")
+  for i in 1 2 3 4 5 6 7 8 9 10; do [ -b "/dev/$new" ] && break; sleep 1; done
+  [ -b "/dev/$new" ] || return 1
+  mkfs.fat -F 32 -n FEZ "/dev/$new" >&2 || return 1
+  echo "/dev/$new"
+}
+
+mkdir -p /mnt/fez
+DEV=; BOOT=
+for i in 1 2 3 4 5 6 7 8; do                      # a USB stick can take a few seconds to show up
+  DEV=$(find_label FEZ)
+  [ -n "$DEV" ] && break
+  BOOT=$(find_label FEZBOOT)
+  [ -n "$BOOT" ] && break
+  sleep 1
+done
+[ -z "$DEV" ] && [ -n "$BOOT" ] && DEV=$(make_data_partition "$BOOT")
+if [ -n "$DEV" ]; then
+  fsck.fat -a "$DEV" > /dev/null 2>&1             # mend what an unplug without a power off left behind
+  # flush: write to the stick soon after each change, so a patch survives a pulled plug
+  mount -t vfat -o flush,noatime "$DEV" /mnt/fez || DEV=
+fi
+[ -n "$DEV" ] || mount -t tmpfs tmpfs /mnt/fez
+export HOME=/mnt/fez
+mkdir -p "$HOME/FEZ/patches" "$HOME/FEZ/recordings"
+
+# 2. Sound. ALSA's default is card 0, device 0. On many machines card 0 is the HDMI output, which has no device 0 (only 3, 7, 8), so
+#    FEZ finds no audio device and quits (a 2014 MacBook Air, a Ryzen ThinkPad; on the ThinkPad both cards are even named
+#    "Generic", so names cannot tell them apart). So make the first card that has a playback device 0 the default; the F2 setup page can
+#    still pick another device by name.
+CARD=
+for f in /dev/snd/pcmC*D0p; do
+  [ -e "$f" ] || continue
+  CARD=${f#/dev/snd/pcmC}; CARD=${CARD%%D*}; break
+done
+[ -n "$CARD" ] && printf 'defaults.pcm.card %s\ndefaults.ctl.card %s\n' "$CARD" "$CARD" > /etc/asound.conf
+#    ALSA starts every control muted. Open the usual ones, on that card.
+for c in Master Speaker Headphone PCM; do amixer -q ${CARD:+-c $CARD} sset "$c" unmute 90% 2>/dev/null; done
+
+# 3. X with no window manager and no cursor, and FEZ as its only program. When FEZ quits (Ctrl+Q) X ends, and so does the machine.
+export XDG_RUNTIME_DIR=/tmp
+cd "$HOME"
+started=$(date +%s)
+xinit /usr/bin/fez-client -- /usr/bin/Xorg :0 vt1 -nolisten tcp -quiet -nocursor -s 0 -dpms
+status=$?
+ran=$(( $(date +%s) - started ))
+cp /var/log/Xorg.0.log "$HOME/FEZ/xorg.log" 2>/dev/null
+# what the kernel found (graphics, sound, USB), for working out why a machine misbehaves
+{ dmesg; echo; echo "--- /proc/asound/cards"; cat /proc/asound/cards; echo "--- /dev/snd"; ls /dev/snd; } > "$HOME/FEZ/dmesg.log" 2>&1
+sync
+if [ $status -eq 0 ] && [ $ran -ge 10 ]; then
+  cd /                                            # (the stick cannot be unmounted while this script stands on it)
+  umount /mnt/fez
+  poweroff
+else
+  # FEZ (or X) ended almost at once, so something is wrong. Say what, and stay on, rather than power off and hide it.
+  echo
+  echo "FEZ stopped after $ran s (status $status). Why, from the X server's log:"
+  grep -a "(EE)" /var/log/Xorg.0.log 2>/dev/null | tail -8
+  echo "and from FEZ:"
+  tail -6 "$HOME/FEZ/fez.log" 2>/dev/null
+  echo "sound cards: $(cat /proc/asound/cards 2>&1 | head -4)"
+  dmesg | grep -i -E "snd|hda|audio|codec" | tail -6
+  echo "Logs (xorg.log, fez.log, dmesg.log) are on the stick, in FEZ/. Alt+F2 gives a shell; Ctrl+Alt+Del restarts."
+fi
