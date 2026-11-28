@@ -75,12 +75,12 @@ int main(int argc, char **argv) {
   for (int i = 0; i < 6; i++) tap(BTN_DOWN);
   dump(prefix, "11c_palette_regs_down");
   tap(BTN_B);
-  tap(BTN_MENU); for (int i = 0; i < 7; i++) tap(BTN_DOWN); tap(BTN_A);   /* the editor menu's Reference: the palette with help */
+  tap(BTN_MENU); for (int i = 0; i < 8; i++) tap(BTN_DOWN); tap(BTN_A);   /* the editor menu's Reference: the palette with help */
   tap(BTN_R2); tap(BTN_R2); for (int i = 0; i < 13; i++) tap(BTN_RIGHT); dump(prefix, "11d_palette_reference");   /* the picture in the manual (it lands on STACK, DROP) */
   tap(BTN_B);
   tap(BTN_MENU); dump(prefix, "12_menu");                 /* opens on the editor's actions */
   synth.mem[REG_BP0] = 0;                                  /* so the two ticks below are the only ones */
-  for (int i = 0; i < 8; i++) tap(BTN_DOWN); tap(BTN_A); tap(BTN_DOWN); tap(BTN_DOWN); tap(BTN_A); dump(prefix, "12b_actions");   /* P0 and P2 ticked */
+  for (int i = 0; i < 9; i++) tap(BTN_DOWN); tap(BTN_A); tap(BTN_DOWN); tap(BTN_DOWN); tap(BTN_A); dump(prefix, "12b_actions");   /* P0 and P2 ticked */
   tap(BTN_RIGHT); dump(prefix, "12c_menu_main");           /* the MENU tab */
   tap(BTN_A); dump(prefix, "13_goto");
   tap(BTN_B); tap(BTN_B);

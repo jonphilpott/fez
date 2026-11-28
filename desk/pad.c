@@ -107,7 +107,7 @@ enum { MENU_CLOSED = -1, MENU_MAIN = 0, MENU_GOTO = 1, MENU_ACTIONS = 2 };
 /* What a tab can do that a plain button does not reach: each is a key the desktop tab already understands. */
 typedef struct { const char *label; int key, mods, text, check; } Action;   /* text: send the key as typed text, not a key press. check: a checkbox for "this block runs on pulser (key - '1')": it shows its state, and the menu stays open after A */
 static const Action A_EDITOR[]  = { { "Apply and run", 'r', MOD_CTRL, 0, 0 }, { "Undo", 'z', MOD_CTRL, 0, 0 }, { "Redo", 'y', MOD_CTRL, 0, 0 },
-  { "Copy", 'c', MOD_CTRL, 0, 0 }, { "Cut", 'x', MOD_CTRL, 0, 0 }, { "Paste", 'v', MOD_CTRL, 0, 0 }, { "Clear block", 0, 0, 0, 0 }, { "Reference", KEY_F3, 0, 0, 0 },
+  { "Copy", 'c', MOD_CTRL, 0, 0 }, { "Cut", 'x', MOD_CTRL, 0, 0 }, { "Paste", 'v', MOD_CTRL, 0, 0 }, { "New line", KEY_ENTER, 0, 0, 0 }, { "Clear block", 0, 0, 0, 0 }, { "Reference", KEY_F3, 0, 0, 0 },
   { "Runs on P0", '1', MOD_CTRL, 0, 1 }, { "Runs on P1", '2', MOD_CTRL, 0, 1 }, { "Runs on P2", '3', MOD_CTRL, 0, 1 }, { "Runs on P3", '4', MOD_CTRL, 0, 1 } };
 static const Action A_PATCHES[] = { { "Save patch", 's', MOD_CTRL, 0, 0 }, { "Delete patch", 'd', MOD_CTRL, 0, 0 }, { "New blank patch", 'n', MOD_CTRL, 0, 0 }, { "Other list", '[', 0, 1, 0 } };
 static const Action A_CTRL[]    = { { "Units / raw", KEY_TAB, 0, 0, 0 } };

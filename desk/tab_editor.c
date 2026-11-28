@@ -228,7 +228,19 @@ static void paste(Desk *d) {
   }
   if (!n) return;
   begin_edit(d, 0);
-  insert_raw(d, clean, n);
+  if (!d->handheld) { insert_raw(d, clean, n); return; }                 /* the desktop pastes exactly what is on the clipboard */
+  /* The handheld edits a list of words, so keep the pasted text apart from its neighbours (as inserting a word from the palette
+     does), and leave the cursor after a separator, ready for the next word: no need to find ENT afterwards. */
+  Editor *e = ed(d);
+  delete_selection(d);
+  const char *t = txt(d);
+  int c = e->cursor;
+  if (c > 0 && t[c - 1] != ' ' && t[c - 1] != '\n' && clean[0] != ' ' && clean[0] != '\n') insert_raw(d, " ", 1);   /* 1) not glued to the word before */
+  insert_raw(d, clean, n);                                                                                         /* 2) the text itself */
+  t = txt(d); c = e->cursor;
+  if (t[c] == ' ' || t[c] == '\n') e->cursor = c + 1;                                                              /* 3) a separator follows already: step over it */
+  else if (clean[n - 1] != ' ' && clean[n - 1] != '\n') insert_raw(d, " ", 1);                                      /*    or make one (also at the end of the text) */
+  e->want_col = e->cursor - chunk_start(txt(d), e->cursor, imax(e->width, 8));
 }
 
 /* Ctrl+/: put "\ " at the start of the line's text, or take it off if it is there. */
@@ -284,6 +296,18 @@ static void move_vertical(Desk *d, int dir, int mods) {
 
 static void newline(Desk *d) {
   const char *t = txt(d);
+  if (d->handheld) {
+    /* The handheld has no typing, so a line break is made by standing on the gap between two words (D-pad) and choosing New line.
+       The gap IS the break: the spaces around the cursor go, so the next line does not start with a stray space. */
+    begin_edit(d, 0);
+    delete_selection(d);
+    int c = ed(d)->cursor;
+    while (c > 0 && txt(d)[c - 1] == ' ') { delete_range(d, c - 1, c); c--; }
+    while (txt(d)[c] == ' ') delete_range(d, c, c + 1);
+    insert_raw(d, "\n", 1);
+    ed(d)->want_col = 0;
+    return;
+  }
   int ls = line_start(t, ed(d)->cursor), ind = 0;
   while (t[ls + ind] == ' ' && ls + ind < ed(d)->cursor) ind++;        /* keep the previous line's indentation */
   char buf[64] = "\n";

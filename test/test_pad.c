@@ -110,7 +110,7 @@ void test_pad(void) {
   tap(BTN_RIGHT); tap(BTN_A); CHECK(pad.menu == 1, "Go to screen opens its list");
   tap(BTN_B); CHECK(pad.menu == 0, "B in the list goes back to the MENU tab");
   tap(BTN_LEFT);
-  for (int i = 0; i < 8; i++) tap(BTN_DOWN);                                    /* past Run, Undo, Redo, Copy, Cut, Paste, Clear, Reference: now on "Runs on P0" */
+  for (int i = 0; i < 9; i++) tap(BTN_DOWN);                                    /* past Run, Undo, Redo, Copy, Cut, Paste, New line, Clear, Reference: now on "Runs on P0" */
   tap(BTN_A); CHECK(pad.menu == 2 && (s.mem[REG_BP0 + d.ed.blk] & 1), "A on Runs on P0 sets the bit and keeps the menu open");
   tap(BTN_DOWN); tap(BTN_DOWN); tap(BTN_A); CHECK(pad.menu == 2 && s.mem[REG_BP0 + d.ed.blk] == 5, "P2 can be added without closing the menu");
   tap(BTN_UP); tap(BTN_UP); tap(BTN_A); CHECK(s.mem[REG_BP0 + d.ed.blk] == 4, "A again clears the bit");
@@ -229,7 +229,26 @@ void test_pad(void) {
     CHECK(strcmp(test_clip, "beta") == 0 && strcmp(d.ed.text[0], "alpha beta") == 0, "Copy puts the selection on the clipboard and leaves the text");
     d.ed.cursor = 0; d.ed.anchor = -1;
     editor_action(5);                                                           /* Paste */
-    CHECK(strcmp(d.ed.text[0], "betaalpha beta") == 0, "Paste inserts the clipboard at the cursor");
+    CHECK(strcmp(d.ed.text[0], "beta alpha beta") == 0, "Paste inserts the clipboard at the cursor, apart from the word after it");
+    CHECK(d.ed.cursor == 5, "Paste leaves the cursor after the separator, ready for the next word");
+    /* pasted text never joins a neighbour, in the middle of a line, after a word, or at the end */
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "A B"); snprintf(test_clip, sizeof test_clip, "100");
+    d.ed.cursor = 1; d.ed.anchor = -1; editor_action(5);                           /* on the gap between A and B */
+    CHECK(strcmp(d.ed.text[0], "A 100 B") == 0 && d.ed.cursor == 6, "Paste on the gap between two words gives one space each side");
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "DUP");
+    d.ed.cursor = 3; d.ed.anchor = -1; editor_action(5);
+    CHECK(strcmp(d.ed.text[0], "DUP 100 ") == 0 && d.ed.cursor == 8, "Paste at the end of a word is spaced from it and leaves a separator, so no ENT is needed");
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta");
+    /* New line: stand on the gap between words with the D-pad, choose it, and the gap becomes the break */
+    d.ed.cursor = 5; d.ed.anchor = -1; editor_action(6);                           /* New line, on the space */
+    CHECK(strcmp(d.ed.text[0], "alpha\nbeta") == 0 && d.ed.cursor == 6, "New line on a gap turns the space into a line break");
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta");
+    d.ed.cursor = 6; d.ed.anchor = -1; editor_action(6);                           /* just after the space */
+    CHECK(strcmp(d.ed.text[0], "alpha\nbeta") == 0, "New line just after a space gives the same result");
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha");
+    d.ed.cursor = 5; d.ed.anchor = -1; editor_action(6);
+    CHECK(strcmp(d.ed.text[0], "alpha\n") == 0, "New line at the end starts a fresh line");
+    snprintf(d.ed.text[0], sizeof d.ed.text[0], "alpha beta"); snprintf(test_clip, sizeof test_clip, "beta");
     snprintf(d.ed.text[0], sizeof d.ed.text[0], "one two");
     d.ed.cursor = 7; d.ed.anchor = 4;
     editor_action(4);                                                           /* Cut */
@@ -286,7 +305,7 @@ void test_pad(void) {
 
   /* the editor menu's Reference opens the palette taller, with each word's help */
   { d.layouts[d.layout].tab[d.focus] = TAB_EDITOR; pad.menu = -1; pad.pal = 0;
-    editor_action(7);
+    editor_action(8);
     CHECK(pad.pal && pad.ref && pad.menu == -1, "Reference opens the palette with help and closes the menu");
     pad_draw(&pad);
     tap(BTN_B); CHECK(!pad.pal, "B closes it");
