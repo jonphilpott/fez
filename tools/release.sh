@@ -66,8 +66,8 @@ fi
 [ -z "$DRY" ] || { say "Dry run: checks passed. Would build $(for w in mac win brick usb; do want $w && printf '%s ' $w; done), then publish $TAG. Notes draft: $NOTES_OUT"; exit 0; }
 
 # ---- 3. bump, test, build. Any failure puts the edited files back.
-restore() { git checkout -q -- VERSION docs/manual.html 2>/dev/null || true; echo "failed: VERSION and the manual were put back"; }
-trap restore ERR
+restore() { git checkout -q -- VERSION docs/manual.html 2>/dev/null || true; echo "VERSION and the manual were put back"; }
+trap 'echo "a step failed."; restore' ERR
 say "Version $VERSION"
 echo "$VERSION" > VERSION
 say "Tests";  make test 2>&1 | tail -1
